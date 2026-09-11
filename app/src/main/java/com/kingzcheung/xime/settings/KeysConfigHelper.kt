@@ -1374,7 +1374,9 @@ object KeysConfigHelper {
         "a" to "!", "s" to "@", "d" to "#", "f" to "$", "g" to "%",
         "h" to "^", "j" to "&", "k" to "(", "l" to ")",
         "z" to "|", "x" to "*", "c" to "\\", "v" to "?", "b" to "_",
-        "n" to "-", "m" to "+"
+        "n" to "-", "m" to "+",
+        "1" to "!", "2" to "@", "3" to "#", "4" to "$", "5" to "%",
+        "6" to "^", "7" to "&", "8" to "*", "9" to "(", "0" to ")",
     )
     
     private fun getDefaultSwipeDownEnglish(): Map<String, String> = mapOf(

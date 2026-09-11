@@ -13,6 +13,7 @@ import com.kingzcheung.xime.settings.SchemaConfigHelper
 import com.kingzcheung.xime.settings.SchemaManager
 import com.kingzcheung.xime.rime.RimeConfigHelper
 import com.kingzcheung.xime.settings.SettingsPreferences
+import com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState
 import com.kingzcheung.xime.ui.theme.KeyboardThemes
 import com.kingzcheung.xime.util.FileLogger
 import java.io.File
@@ -400,7 +401,12 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
         val portraitWidth = minOf(screenW, screenH)
         val cardWidth = (portraitWidth * 0.85f).roundToInt()
         val halfMargin = maxOf(0, (screenW - cardWidth) / 2)
-        val cappedKbH = SettingsPreferences.getKeyboardHeightDp(service, isLandscape).coerceAtMost((screenH * 8) / 10)
+        val numberRowExtra = if (SettingsPreferences.isNumberRowEnabled(service) &&
+            (service.keyboardViewModel.keyboardState.value is KeyboardLayoutState.Chinese ||
+                service.keyboardViewModel.keyboardState.value is KeyboardLayoutState.English)
+        ) SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP else 0
+        val cappedKbH = (SettingsPreferences.getKeyboardHeightDp(service, isLandscape) + numberRowExtra)
+            .coerceAtMost((screenH * 8) / 10)
         val clampedX = loadedX.coerceIn(-halfMargin, halfMargin)
         service.uiState.value = service.uiState.value.copy(
             isFloatingMode = enabled,

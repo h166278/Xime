@@ -316,6 +316,40 @@ fun LayoutDisplaySettingsContent(
             }
 
             item {
+                SettingsSection(title = "键盘", content = {
+                    var numberRowEnabled by remember {
+                        mutableStateOf(SettingsPreferences.isNumberRowEnabled(context))
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "数字行",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "在 QWERTY 上方显示 1234567890",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = numberRowEnabled,
+                            onCheckedChange = { newValue ->
+                                numberRowEnabled = newValue
+                                SettingsPreferences.setNumberRowEnabled(context, newValue)
+                            }
+                        )
+                    }
+                })
+            }
+
+            item {
                 SettingsSection(title = "按键手势", content = {
                     var swipeUpEnabled by remember {
                         mutableStateOf(SettingsPreferences.isSwipeUpHintsEnabled(context))

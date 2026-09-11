@@ -52,6 +52,7 @@ data class KeyboardUiState(
     val themeId: String = "ocean_blue",
     val keyboardHeightDp: Int = 0,
     val keyboardBottomPaddingDp: Int = 0,
+    val numberRowEnabled: Boolean = false,
     val isDeploying: Boolean = false,
     val deploymentMessage: String = "",
     val clipboardItems: List<ClipboardItem> = emptyList(),

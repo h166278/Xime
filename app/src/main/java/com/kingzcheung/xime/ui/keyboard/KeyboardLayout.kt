@@ -97,7 +97,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.TextUnit
 
-
+private val NUMBER_ROW_KEYS = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
+private val NUMBER_ROW_KEYS_LEFT = listOf("1", "2", "3", "4", "5")
+private val NUMBER_ROW_KEYS_RIGHT = listOf("6", "7", "8", "9", "0")
 
 @Composable
 fun KeyboardLayout(
@@ -192,6 +194,7 @@ fun KeyboardLayout(
         )
     }
     val effectiveSwipeDownHintsEnabled = swipeDownHintsEnabled
+    val showNumberRow = uiState.numberRowEnabled
 
     // 监听设置变化
     DisposableEffect(context) {
@@ -276,6 +279,7 @@ fun KeyboardLayout(
                 swipeUpHintsEnabled = swipeUpHintsEnabled,
                 swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
                 isAsciiMode = isAsciiMode,
+                showNumberRow = showNumberRow,
                 onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
             )
         } else {
@@ -292,6 +296,46 @@ fun KeyboardLayout(
                         .weight(1f),
                     verticalArrangement = Arrangement.Top,
                 ) {
+                    if (showNumberRow) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (isVoiceMode && !isVoiceSticky) {
+                                DummyKeyboardRow(
+                                    keysCount = 10,
+                                    keyBackgroundColor = keyBackgroundColor.copy(alpha = 0.5f),
+                                    keyboardBackgroundColor = keyboardBackgroundColor
+                                )
+                            } else {
+                                KeyboardRowWithConfig(
+                                    keys = NUMBER_ROW_KEYS,
+                                    onKeyPress = onKeyPress,
+                                    config = KeyboardRowConfig(
+                                        keyBackgroundColor = keyBackgroundColor,
+                                        keyTextColor = keyTextColor,
+                                        keyboardBackgroundColor = keyboardBackgroundColor,
+                                        shadowEnabled = shadowEnabled,
+                                        shadowElevation = shadowElevation,
+                                        shadowShapeRadius = shadowShapeRadius,
+                                    ),
+                                    isShifted = false,
+                                    isAsciiMode = isAsciiMode,
+                                    onSwipeStateChange = { state, bounds ->
+                                        processSwipeState(
+                                            state,
+                                            bounds
+                                        )
+                                    },
+                                    onKeyPressDown = onKeyPressDown,
+                                    onKeyRelease = onKeyRelease,
+                                    swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
+                                    swipeUpHintsEnabled = swipeUpHintsEnabled,
+                                    onCommitText = onCommitText,
+                                    onGestureAction = onGestureAction,
+                                    configVersion = cfgVer,
+                                )
+                            }
+                        }
+                    }
+
                     // 第一行
                     if (isVoiceMode && !isVoiceSticky) {
                         Box(modifier = Modifier.weight(1f)) {
@@ -1162,6 +1206,7 @@ private fun LandscapeKeyboardContent(
     swipeUpHintsEnabled: Boolean,
     swipeDownHintsEnabled: Boolean,
     isAsciiMode: Boolean,
+    showNumberRow: Boolean = false,
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
 ) {
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
@@ -1259,6 +1304,33 @@ private fun LandscapeKeyboardContent(
                 .weight(0.42f)
                 .padding(start = 4.dp),
         ) {
+            if (showNumberRow) {
+                Box(modifier = Modifier.weight(1f)) {
+                    CompactKeyboardRowWithConfig(
+                        keys = NUMBER_ROW_KEYS_LEFT,
+                        onKeyPress = onKeyPress,
+                        config = KeyboardRowConfig(
+                            keyBackgroundColor = keyBackgroundColor,
+                            keyTextColor = keyTextColor,
+                            keyboardBackgroundColor = keyboardBackgroundColor,
+                            fontSize = landscapeFontSize,
+                            swipeFontSize = landscapeSwipeFontSize,
+                            shadowEnabled = shadowEnabled,
+                            shadowElevation = shadowElevation,
+                            shadowShapeRadius = shadowShapeRadius,
+                        ),
+                        isShifted = false,
+                        isAsciiMode = isAsciiMode,
+                        onKeyPressDown = onKeyPressDown,
+                        onKeyRelease = onKeyRelease,
+                        swipeDownHintsEnabled = swipeDownHintsEnabled,
+                        swipeUpHintsEnabled = swipeUpHintsEnabled,
+                        onCommitText = onCommitText,
+                        onGestureAction = onGestureAction,
+                        onSwipeStateChange = onSwipeStateChange,
+                    )
+                }
+            }
             Box(modifier = Modifier.weight(1f)) {
                 CompactKeyboardRowWithConfig(
                     keys = listOf("q", "w", "e", "r", "t"),
@@ -1425,6 +1497,33 @@ private fun LandscapeKeyboardContent(
                 .weight(0.42f)
                 .padding(end = 4.dp),
         ) {
+            if (showNumberRow) {
+                Box(modifier = Modifier.weight(1f)) {
+                    CompactKeyboardRowWithConfig(
+                        keys = NUMBER_ROW_KEYS_RIGHT,
+                        onKeyPress = onKeyPress,
+                        config = KeyboardRowConfig(
+                            keyBackgroundColor = keyBackgroundColor,
+                            keyTextColor = keyTextColor,
+                            keyboardBackgroundColor = keyboardBackgroundColor,
+                            fontSize = landscapeFontSize,
+                            swipeFontSize = landscapeSwipeFontSize,
+                            shadowEnabled = shadowEnabled,
+                            shadowElevation = shadowElevation,
+                            shadowShapeRadius = shadowShapeRadius,
+                        ),
+                        isShifted = false,
+                        isAsciiMode = isAsciiMode,
+                        onKeyPressDown = onKeyPressDown,
+                        onKeyRelease = onKeyRelease,
+                        swipeDownHintsEnabled = swipeDownHintsEnabled,
+                        swipeUpHintsEnabled = swipeUpHintsEnabled,
+                        onCommitText = onCommitText,
+                        onGestureAction = onGestureAction,
+                        onSwipeStateChange = onSwipeStateChange,
+                    )
+                }
+            }
             Box(modifier = Modifier.weight(1f)) {
                 CompactKeyboardRowWithConfig(
                     keys = listOf("y", "u", "i", "o", "p"),

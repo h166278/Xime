@@ -365,6 +365,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             isSttEnabled = SettingsPreferences.isSttEnabled(this@XimeInputMethodService),
             keyboardHeightDp = SettingsPreferences.getKeyboardHeightDp(this, isLandscape),
             keyboardBottomPaddingDp = SettingsPreferences.getKeyboardBottomPaddingDp(this),
+            numberRowEnabled = SettingsPreferences.isNumberRowEnabled(this),
             toolbarButtons = SettingsPreferences.getToolbarButtons(this),
             isFloatingMode = isFloatingMode,
             floatingOffsetX = clampedX,
@@ -376,7 +377,8 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         val prefs = SettingsPreferences.getPrefsPublic(this)
         sharedPrefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             when (key) {
-                "dark_mode", "keyboard_theme", "show_bottom_buttons", "keyboard_height_dp", "keyboard_bottom_padding_dp" -> {
+                "dark_mode", "keyboard_theme", "show_bottom_buttons", "keyboard_height_dp", "keyboard_bottom_padding_dp",
+                SettingsPreferences.KEY_NUMBER_ROW_ENABLED -> {
                     loadDarkModePreference()
                     applyWindowBackground()
                 }
@@ -1144,7 +1146,13 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                 val cand = candidateState.value
                 val state = uiState.value
                 val page by keyboardViewModel.page.collectAsState(com.kingzcheung.xime.keyboard.KeyboardPage.Main(com.kingzcheung.xime.keyboard.MainType.FULL))
+                val kbLayoutState by keyboardViewModel.keyboardState.collectAsState(com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState.Chinese)
                 val isHandwritingMode = (page as? com.kingzcheung.xime.keyboard.KeyboardPage.Main)?.type == com.kingzcheung.xime.keyboard.MainType.HANDWRITING
+                val numberRowExtra = if (!isHandwritingMode &&
+                    state.numberRowEnabled &&
+                    (kbLayoutState is com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState.Chinese ||
+                        kbLayoutState is com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState.English)
+                ) SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP else 0
                 val isDarkTheme = isDarkTheme()
                 val screenHeightDp = resources.configuration.screenHeightDp
                 val physicalScreenDp = (resources.displayMetrics.heightPixels / resources.displayMetrics.density).roundToInt()
@@ -1179,8 +1187,9 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                 } else {
                     displayHeight
                 }
+                val keyboardHeightWithRow = keyboardHeight + numberRowExtra
                 val floatScale = if (state.isFloatingMode) 0.85f else 1f
-                val effectiveKeyboardHeight = (keyboardHeight * floatScale).toInt()
+                val effectiveKeyboardHeight = (keyboardHeightWithRow * floatScale).toInt()
                 val floatingDragBarHeight = if (state.isFloatingMode) 18 else 0
                 val floatingCardContentHeight = effectiveKeyboardHeight + floatingDragBarHeight
                 
@@ -1234,7 +1243,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                             // OnComputeInternalInsetsListener，值变化即 setInsets），
                             // 无需 +1dp hack 强制造型变化。
                             keyboardContainer.updateHeight(totalDp)
-                            currentEffectiveKeyboardHeight = if (state.isFloatingMode) keyboardHeight + floatingDragBarHeight + 50 + state.keyboardBottomPaddingDp
+                            currentEffectiveKeyboardHeight = if (state.isFloatingMode) keyboardHeightWithRow + floatingDragBarHeight + 50 + state.keyboardBottomPaddingDp
                                 else if (state.isCompact) HARDWARE_CANDIDATE_BAR_HEIGHT
                                 else effectiveKeyboardHeight + overlayPanelExtra
                         }
@@ -1316,6 +1325,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                                     themeId = state.themeId,
                                     keyboardHeightDp = effectiveKeyboardHeight,
                                     keyboardBottomPaddingDp = state.keyboardBottomPaddingDp,
+                                    numberRowEnabled = state.numberRowEnabled,
                                     clipboardItems = clipboardItemsState.value,
                                     quickSendItems = quickSendItemsState.value,
                                     recentClipboardItems = recentClipboardItemsState.value,
@@ -1480,6 +1490,13 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                     resources.configuration.screenWidthDp > resources.configuration.screenHeightDp
                 val displayHeight = SettingsPreferences.getKeyboardHeightDp(this, isLandscape)
                     .coerceAtMost((resources.configuration.screenHeightDp * 8) / 10)
+                val numberRowExtra = if (SettingsPreferences.isNumberRowEnabled(this)) {
+                    when (keyboardViewModel.keyboardState.value) {
+                        is KeyboardLayoutState.Chinese, is KeyboardLayoutState.English ->
+                            SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP
+                        else -> 0
+                    }
+                } else 0
                 val density = resources.displayMetrics.density
                 val rawDp = if (bottomInsetPxState.value > 0)
                     (bottomInsetPxState.value / density).toInt() else 0
@@ -1487,7 +1504,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                 val bottomSpace = if (rawDp > 0) (rawDp - 8 - extraShrink).coerceAtLeast(0) else 0
                 val activeBottomDp = if (bottomSpace == 0) 18 else bottomSpace
                 view.updateLayoutParams<android.widget.FrameLayout.LayoutParams> {
-                    height = ((displayHeight + state.keyboardBottomPaddingDp + activeBottomDp) * density).toInt()
+                    height = ((displayHeight + numberRowExtra + state.keyboardBottomPaddingDp + activeBottomDp) * density).toInt()
                 }
             }
         } catch (_: Exception) {}
@@ -2214,8 +2231,13 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                 if (currentEffectiveKeyboardHeight <= 0) {
                     val isLandscape = resources.configuration.screenWidthDp > resources.configuration.screenHeightDp
                     val kbH = SettingsPreferences.getKeyboardHeightDp(this@XimeInputMethodService, isLandscape)
+                    val numberRowExtra = if (state.numberRowEnabled &&
+                        (keyboardViewModel.keyboardState.value is KeyboardLayoutState.Chinese ||
+                            keyboardViewModel.keyboardState.value is KeyboardLayoutState.English)
+                    ) SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP else 0
+                    val cappedKbH = (kbH + numberRowExtra)
                         .coerceAtMost((resources.configuration.screenHeightDp * 8) / 10)
-                    currentEffectiveKeyboardHeight = kbH + 18 + 50 + state.keyboardBottomPaddingDp
+                    currentEffectiveKeyboardHeight = cappedKbH + 18 + 50 + state.keyboardBottomPaddingDp
                 }
                 val density = resources.displayMetrics.density
                 val inputViewWidthPx = decor.width

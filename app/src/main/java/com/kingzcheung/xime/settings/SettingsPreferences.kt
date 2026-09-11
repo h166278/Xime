@@ -45,6 +45,9 @@ object SettingsPreferences {
     const val KEY_SWIPE_UP_HINTS_ENABLED = "swipe_up_hints_enabled"
     const val KEY_SWIPE_DOWN_HINTS_ENABLED = "swipe_down_hints_enabled"
     const val KEY_SHOW_PRESS_BUBBLE = "show_press_bubble"
+    const val KEY_NUMBER_ROW_ENABLED = "number_row_enabled"
+    /** 全键盘打开数字行时，IME 窗口额外增高，避免原有四行被挤扁 */
+    const val NUMBER_ROW_EXTRA_HEIGHT_DP = 48
 
     private const val KEY_MODE_CHANGE_TARGET = "mode_change_target"
 
@@ -504,6 +507,14 @@ object SettingsPreferences {
 
     fun setShowPressBubble(context: Context, show: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_SHOW_PRESS_BUBBLE, show).apply()
+    }
+
+    fun isNumberRowEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_NUMBER_ROW_ENABLED, false)
+    }
+
+    fun setNumberRowEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_NUMBER_ROW_ENABLED, enabled).apply()
     }
     
     /** 获取方案偏好的键盘布局，默认全键盘 */
