@@ -174,14 +174,14 @@ fun LayoutDisplaySettingsContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(108.dp)
+                                .height(100.dp)
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             CommentLayoutCard(
                                 title = "旁注",
                                 isSelected = commentLayout == SettingsPreferences.COMMENT_LAYOUT_INLINE,
-                                previewRes = com.kingzcheung.xime.R.drawable.comment_layout_inline,
+                                stacked = false,
                                 onClick = {
                                     commentLayout = SettingsPreferences.COMMENT_LAYOUT_INLINE
                                     SettingsPreferences.setCandidateCommentLayout(
@@ -194,7 +194,7 @@ fun LayoutDisplaySettingsContent(
                             CommentLayoutCard(
                                 title = "叠字",
                                 isSelected = commentLayout == SettingsPreferences.COMMENT_LAYOUT_STACKED,
-                                previewRes = com.kingzcheung.xime.R.drawable.comment_layout_stacked,
+                                stacked = true,
                                 onClick = {
                                     commentLayout = SettingsPreferences.COMMENT_LAYOUT_STACKED
                                     SettingsPreferences.setCandidateCommentLayout(

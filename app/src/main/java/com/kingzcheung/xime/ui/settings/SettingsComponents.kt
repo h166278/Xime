@@ -1,6 +1,5 @@
 package com.kingzcheung.xime.ui.settings
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,13 +38,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
-import com.kingzcheung.xime.R
 import com.kingzcheung.xime.settings.SchemaInfo
 import com.kingzcheung.xime.settings.BackgroundConfig
 import com.kingzcheung.xime.ui.theme.XimeTheme
@@ -855,12 +851,13 @@ fun CommentDisplayCard(
 fun CommentLayoutCard(
     title: String,
     isSelected: Boolean,
-    previewRes: Int,
+    stacked: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val primary = MaterialTheme.colorScheme.primary
     val onSurface = MaterialTheme.colorScheme.onSurface
+    val commentColor = onSurface.copy(alpha = 0.5f)
 
     Box(modifier = modifier) {
         Column {
@@ -879,23 +876,80 @@ fun CommentLayoutCard(
                                 shape = RoundedCornerShape(12.dp)
                             )
                         } else {
-                            Modifier.border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                shape = RoundedCornerShape(12.dp)
-                            )
+                            Modifier
                         }
                     )
             ) {
-                Image(
-                    painter = painterResource(id = previewRes),
-                    contentDescription = title,
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentScale = ContentScale.Crop,
-                    alignment = Alignment.CenterStart
-                )
+                        .padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (stacked) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                StackedPreviewCell(
+                                    text = "的",
+                                    comment = "a",
+                                    highlighted = true,
+                                    primary = primary,
+                                    onSurface = onSurface,
+                                    commentColor = commentColor,
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .padding(horizontal = 8.dp)
+                                        .width(1.dp)
+                                        .height(28.dp)
+                                        .background(onSurface.copy(alpha = 0.18f))
+                                )
+                                StackedPreviewCell(
+                                    text = "对",
+                                    comment = "a",
+                                    highlighted = false,
+                                    primary = primary,
+                                    onSurface = onSurface,
+                                    commentColor = commentColor,
+                                )
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                InlinePreviewCell(
+                                    text = "的",
+                                    comment = "a",
+                                    highlighted = true,
+                                    primary = primary,
+                                    onSurface = onSurface,
+                                    commentColor = commentColor,
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                InlinePreviewCell(
+                                    text = "对",
+                                    comment = "a",
+                                    highlighted = false,
+                                    primary = primary,
+                                    onSurface = onSurface,
+                                    commentColor = commentColor,
+                                )
+                            }
+                        }
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(4.dp))
             Row(
@@ -911,6 +965,87 @@ fun CommentLayoutCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun InlinePreviewCell(
+    text: String,
+    comment: String,
+    highlighted: Boolean,
+    primary: Color,
+    onSurface: Color,
+    commentColor: Color,
+) {
+    val content = @Composable {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = text,
+                fontSize = 14.sp,
+                color = if (highlighted) primary else onSurface,
+                fontWeight = if (highlighted) FontWeight.Medium else FontWeight.Normal,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.width(3.dp))
+            Text(
+                text = comment,
+                fontSize = 9.sp,
+                color = commentColor,
+                maxLines = 1
+            )
+        }
+    }
+    if (highlighted) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(primary.copy(alpha = 0.15f))
+                .padding(horizontal = 6.dp, vertical = 3.dp)
+        ) {
+            content()
+        }
+    } else {
+        content()
+    }
+}
+
+@Composable
+private fun StackedPreviewCell(
+    text: String,
+    comment: String,
+    highlighted: Boolean,
+    primary: Color,
+    onSurface: Color,
+    commentColor: Color,
+) {
+    val content = @Composable {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = comment,
+                fontSize = 9.sp,
+                color = commentColor,
+                maxLines = 1
+            )
+            Text(
+                text = text,
+                fontSize = 14.sp,
+                color = if (highlighted) primary else onSurface,
+                fontWeight = if (highlighted) FontWeight.Medium else FontWeight.Normal,
+                maxLines = 1
+            )
+        }
+    }
+    if (highlighted) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(primary.copy(alpha = 0.15f))
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            content()
+        }
+    } else {
+        content()
     }
 }
 
