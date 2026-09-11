@@ -657,6 +657,7 @@ fun KeyboardLayout(
                                     shadowElevation = shadowElevation,
                                     shadowShapeRadius = shadowShapeRadius,
                                     swipeUpHintsEnabled = swipeUpHintsEnabled,
+                                    swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
                                 )
                                 ConfigDrivenSymbolKey(
                                     keyId = ",",
@@ -676,6 +677,7 @@ fun KeyboardLayout(
                                     shadowElevation = shadowElevation,
                                     shadowShapeRadius = shadowShapeRadius,
                                     swipeUpHintsEnabled = swipeUpHintsEnabled,
+                                    swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
                                 )
                             } else {
                             // 逗号 — 从配置读取 "'"
@@ -943,6 +945,7 @@ fun KeyboardLayout(
                                     shadowElevation = shadowElevation,
                                     shadowShapeRadius = shadowShapeRadius,
                                     swipeUpHintsEnabled = swipeUpHintsEnabled,
+                                    swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
                                 )
                                 ConfigDrivenSymbolKey(
                                     keyId = "quote46",
@@ -962,6 +965,7 @@ fun KeyboardLayout(
                                     shadowElevation = shadowElevation,
                                     shadowShapeRadius = shadowShapeRadius,
                                     swipeUpHintsEnabled = swipeUpHintsEnabled,
+                                    swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
                                 )
                             }
 
@@ -1038,6 +1042,7 @@ fun ConfigDrivenSymbolKey(
     shadowElevation: Dp = 1.dp,
     shadowShapeRadius: Dp = 8.dp,
     swipeUpHintsEnabled: Boolean = true,
+    swipeDownHintsEnabled: Boolean = true,
 ) {
     val gesture = KeysConfigHelper.getKeyGesture(keyId, isAsciiMode)
 
@@ -1108,7 +1113,7 @@ fun ConfigDrivenSymbolKey(
         }
     } else null
 
-    val onSwipeDown: ((String) -> Unit)? = if (swipeDownAction != null && swipeDownLabel != null) {
+    val onSwipeDown: ((String) -> Unit)? = if (swipeDownAction != null && swipeDownHintsEnabled && swipeDownLabel != null) {
         remember(swipeDownAction, swipeDownValue, swipeDownLabel, onKeyPress, onGestureAction, onCommitText) {
             val label = swipeDownLabel
             { _: String ->
@@ -1137,7 +1142,7 @@ fun ConfigDrivenSymbolKey(
 
     val upKeyLabel = if (swipeUpHintsEnabled && swipeUpDisplay != DisplayMode.BUBBLE) swipeUpLabel else null
     val downKeyLabel =
-        if (swipeUpHintsEnabled && (swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH)) swipeDownLabel else null
+        if (swipeDownHintsEnabled && (swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH)) swipeDownLabel else null
     // 长按 display=key 时占键帽长按位（若已无上滑标签）
     val finalUpKeyLabel = upKeyLabel ?: if (swipeUpHintsEnabled) longPressKeyLabel else null
 

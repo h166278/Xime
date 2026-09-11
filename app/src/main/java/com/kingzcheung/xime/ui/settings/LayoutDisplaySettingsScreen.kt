@@ -583,7 +583,6 @@ fun LayoutSelectionDialog(
                             colors = RadioButtonDefaults.colors(
                                 selectedColor = accent,
                                 unselectedColor = onSurface.copy(alpha = 0.6f),
-                                selectedIconColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                             ),
                         )
                         Spacer(modifier = Modifier.width(12.dp))
