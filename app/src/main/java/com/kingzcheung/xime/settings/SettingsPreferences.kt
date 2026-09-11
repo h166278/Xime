@@ -81,6 +81,9 @@ object SettingsPreferences {
     private const val KEY_INSTALLED_MARKET_IDS = "installed_market_ids"
     private const val KEY_COMPACT_MODE = "compact_mode"
     private const val KEY_SHOW_CANDIDATE_COMMENTS = "show_candidate_comments"
+    private const val KEY_CANDIDATE_COMMENT_LAYOUT = "candidate_comment_layout"
+    const val COMMENT_LAYOUT_INLINE = "inline"
+    const val COMMENT_LAYOUT_STACKED = "stacked"
     private const val KEY_INPUT_TEXT_LOCATION = "input_text_location"
     private const val KEY_PAGE_SIZE = "page_size"
     private const val KEY_CANDIDATE_TEXT_SIZE = "candidate_text_size"
@@ -102,6 +105,15 @@ object SettingsPreferences {
 
     fun setShowCandidateComments(context: Context, show: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_SHOW_CANDIDATE_COMMENTS, show).apply()
+    }
+
+    fun getCandidateCommentLayout(context: Context): String {
+        return getPrefs(context).getString(KEY_CANDIDATE_COMMENT_LAYOUT, COMMENT_LAYOUT_INLINE)
+            ?: COMMENT_LAYOUT_INLINE
+    }
+
+    fun setCandidateCommentLayout(context: Context, layout: String) {
+        getPrefs(context).edit().putString(KEY_CANDIDATE_COMMENT_LAYOUT, layout).apply()
     }
 
     fun getInputTextLocation(context: Context): String {

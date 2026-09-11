@@ -120,7 +120,7 @@ fun LayoutDisplaySettingsContent(
                         modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
                     )
                     Text(
-                        text = "在候选词旁显示对应的编码（如五笔字根）",
+                        text = "在候选词上显示对应的编码（如五笔字根、声笔提示）",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
@@ -153,6 +153,58 @@ fun LayoutDisplaySettingsContent(
                             },
                             modifier = Modifier.weight(1f)
                         )
+                    }
+
+                    if (showComments) {
+                        var commentLayout by remember {
+                            mutableStateOf(SettingsPreferences.getCandidateCommentLayout(context))
+                        }
+                        Text(
+                            text = "注释样式",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                        )
+                        Text(
+                            text = "旁注贴在字右侧，叠字把编码放在字上方并用竖线分格",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(108.dp)
+                                .padding(horizontal = 16.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CommentLayoutCard(
+                                title = "旁注",
+                                isSelected = commentLayout == SettingsPreferences.COMMENT_LAYOUT_INLINE,
+                                previewRes = com.kingzcheung.xime.R.drawable.comment_layout_inline,
+                                onClick = {
+                                    commentLayout = SettingsPreferences.COMMENT_LAYOUT_INLINE
+                                    SettingsPreferences.setCandidateCommentLayout(
+                                        context,
+                                        SettingsPreferences.COMMENT_LAYOUT_INLINE
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                            CommentLayoutCard(
+                                title = "叠字",
+                                isSelected = commentLayout == SettingsPreferences.COMMENT_LAYOUT_STACKED,
+                                previewRes = com.kingzcheung.xime.R.drawable.comment_layout_stacked,
+                                onClick = {
+                                    commentLayout = SettingsPreferences.COMMENT_LAYOUT_STACKED
+                                    SettingsPreferences.setCandidateCommentLayout(
+                                        context,
+                                        SettingsPreferences.COMMENT_LAYOUT_STACKED
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

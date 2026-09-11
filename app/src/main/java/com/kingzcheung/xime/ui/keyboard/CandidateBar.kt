@@ -60,7 +60,9 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.platform.LocalConfiguration
@@ -132,6 +134,8 @@ fun CandidateBar(
     )
     val iconButtonTint = MaterialTheme.colorScheme.onSurfaceVariant
     val showComments = SettingsPreferences.showCandidateComments(context)
+    val stackedComments = showComments &&
+        SettingsPreferences.getCandidateCommentLayout(context) == SettingsPreferences.COMMENT_LAYOUT_STACKED
     val inputTextLocation = SettingsPreferences.getInputTextLocation(context)
     val showInputBoxStyle = inputTextLocation == SettingsPreferences.INPUT_TEXT_INPUT_BOX
     val candidateTextSize = SettingsPreferences.getCandidateTextSize(context)
@@ -140,8 +144,11 @@ fun CandidateBar(
 
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
-    val itemPaddingPx = with(density) { 8.dp.toPx() }
-    val spacingPx = with(density) { 4.dp.toPx() }
+    // 叠字：格子左右内边距加大，格间用竖线不再靠 spacedBy。旁注保持原横向排法。
+    val itemPaddingPx = with(density) { (if (stackedComments) 16.dp else 8.dp).toPx() }
+    val spacingPx = with(density) { (if (stackedComments) 0.dp else 4.dp).toPx() }
+    val cellDividerPx = with(density) { if (stackedComments) 1.dp.toPx() else 0f }
+    val commentFontSize = (candidateTextSize * 11f / 19f).sp
 
     val screenWidthPx = with(density) { LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val rowPaddingPx = with(density) { 16.dp.toPx() }
@@ -173,29 +180,40 @@ fun CandidateBar(
             displayComments = s.comments
             hasAnyMore = s.hasMore
             showLeftIcon = false
-            displayAssociation = remember(s.associationCandidates, taken, s.inputText, textMeasurer) {
+            displayAssociation = remember(
+                s.associationCandidates, taken, s.comments, s.inputText, textMeasurer, stackedComments
+            ) {
                 if (taken.isEmpty()) {
                     s.associationCandidates.take(PredictionManager.MAX_ASSOCIATION_COUNT)
                 } else {
-                    val measureText = { text: String ->
+                    val measureText = { text: String, size: androidx.compose.ui.unit.TextUnit ->
                         textMeasurer.measure(
                             text = AnnotatedString(text),
-                            style = TextStyle(fontSize = candidateTextSize.sp)
+                            style = TextStyle(fontSize = size)
                         ).size.width.toFloat()
+                    }
+                    val cellWidth = { text: String, comment: String ->
+                        val textW = measureText(text, candidateTextSize.sp)
+                        val commentW = if (comment.isNotEmpty()) measureText(comment, commentFontSize) else 0f
+                        val contentW = if (stackedComments) {
+                            maxOf(textW, commentW)
+                        } else {
+                            textW + if (commentW > 0f) commentW + with(density) { 3.dp.toPx() } else 0f
+                        }
+                        contentW + itemPaddingPx
                     }
                     val leftSidePx = with(density) { rowPaddingPx + 32.dp.toPx() }
                     val lazyRowWidthPx = screenWidthPx - leftSidePx - rightSidePx
-                    val regularWidthPx = taken.sumOf { c ->
-                        measureText(c).toDouble() + itemPaddingPx
-                    }.toFloat()
+                    val regularWidthPx = taken.mapIndexed { i, c ->
+                        cellWidth(c, if (showComments) s.comments.getOrElse(i) { "" } else "").toDouble()
+                    }.sum().toFloat() + cellDividerPx * taken.size.coerceAtLeast(0)
                     val dividerWidthPx = with(density) { 9.dp.toPx() }
                     val availablePx = lazyRowWidthPx - regularWidthPx - dividerWidthPx
 
                     var usedPx = 0f
                     val result = mutableListOf<String>()
                     for (c in s.associationCandidates) {
-                        val w =
-                            measureText(c) + itemPaddingPx + (if (result.isEmpty()) 0f else spacingPx)
+                        val w = cellWidth(c, "") + (if (result.isEmpty()) 0f else spacingPx + cellDividerPx)
                         if (usedPx + w <= availablePx) {
                             usedPx += w
                             result.add(c)
@@ -395,11 +413,15 @@ fun CandidateBar(
             }
 
             LazyRow(
-                modifier = if (state is CandidateBarState.Idle) Modifier else Modifier.weight(1f),
+                modifier = if (state is CandidateBarState.Idle) Modifier else Modifier.weight(1f).fillMaxHeight(),
                 state = candidateListState,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(if (stackedComments) 0.dp else 4.dp)
             ) {
                 itemsIndexed(displayCandidates, key = { index, _ -> index }) { index, candidate ->
+                    if (stackedComments && index > 0) {
+                        CandidateCellDivider(color = visuals.dividerColor)
+                    }
                     CandidateItem(
                         text = candidate,
                         index = index,
@@ -420,7 +442,9 @@ fun CandidateBar(
                         selectedTextColor = visuals.selectedTextColor,
                         fontSize = candidateTextSize.sp,
                         candidateFontFamily = candidateFontFamily,
-                        commentFontFamily = commentFontFamily
+                        commentFontFamily = commentFontFamily,
+                        stacked = stackedComments,
+                        modifier = if (stackedComments) Modifier.fillMaxHeight() else Modifier
                     )
                 }
 
@@ -430,30 +454,39 @@ fun CandidateBar(
                 // displayCandidates 为空，若一并包进条件会导致联想词整个不渲染。
                 if (displayCandidates.isNotEmpty() && displayAssociation.isNotEmpty()) {
                     item(key = "divider") {
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(20.dp)
-                                .background(visuals.dividerColor.copy(alpha = 0.5f))
-                                .padding(horizontal = 4.dp)
-                        )
+                        if (stackedComments) {
+                            CandidateCellDivider(color = visuals.dividerColor)
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .width(1.dp)
+                                    .height(20.dp)
+                                    .background(visuals.dividerColor.copy(alpha = 0.5f))
+                                    .padding(horizontal = 4.dp)
+                            )
+                        }
                     }
                 }
 
                 itemsIndexed(displayAssociation, key = { index, _ -> "assoc-$index" }) { index, candidate ->
                     val assocState = state as? CandidateBarState.AssociationOnly
+                    if (stackedComments && (index > 0 || displayCandidates.isNotEmpty())) {
+                        CandidateCellDivider(color = visuals.dividerColor)
+                    }
                     CandidateItem(
                         text = candidate,
                         index = -1,
                         onClick = { callbacks.onAssociationSelect?.invoke(index) },
                         textColor = visuals.textColor,
-                        comment = displayComments.getOrElse(index) { "" },
+                        comment = if (showComments) displayComments.getOrElse(index) { "" } else "",
                         isSelected = assocState?.highlightIndex == index,
                         accentColor = visuals.accentColor,
                         selectedTextColor = visuals.selectedTextColor,
                         fontSize = candidateTextSize.sp,
                         candidateFontFamily = candidateFontFamily,
-                        commentFontFamily = commentFontFamily
+                        commentFontFamily = commentFontFamily,
+                        stacked = stackedComments,
+                        modifier = if (stackedComments) Modifier.fillMaxHeight() else Modifier
                     )
                 }
             }
@@ -609,6 +642,17 @@ fun CandidateBar(
     }
 }
 
+@Composable
+private fun CandidateCellDivider(color: Color) {
+    Box(
+        modifier = Modifier
+            .fillMaxHeight()
+            .padding(vertical = 8.dp)
+            .width(1.dp)
+            .background(color.copy(alpha = 0.55f))
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CandidateItem(
@@ -625,39 +669,90 @@ fun CandidateItem(
     candidateFontFamily: androidx.compose.ui.text.font.FontFamily = androidx.compose.ui.text.font.FontFamily.Default,
     commentFontFamily: androidx.compose.ui.text.font.FontFamily = androidx.compose.ui.text.font.FontFamily.Default,
     onLongClick: (() -> Unit)? = null,
+    stacked: Boolean = false,
 ) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(5.dp))
-            .background(
-                if (isSelected) accentColor.copy(alpha = 0.2f)
-                else Color.Transparent
-            )
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-            .padding(horizontal = 4.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = text,
-            color = if (isSelected) selectedTextColor else textColor,
-            fontSize = fontSize,
-            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-            maxLines = 1,
-            fontFamily = candidateFontFamily
+    val commentColor = if (isSelected) selectedTextColor.copy(alpha = 0.55f) else textColor.copy(alpha = 0.45f)
+    val commentSize = (fontSize.value * 11f / 19f).sp
+    val tightComment = TextStyle(
+        fontSize = commentSize,
+        fontWeight = FontWeight.Normal,
+        fontFamily = commentFontFamily,
+        color = commentColor,
+        textAlign = TextAlign.Center,
+        lineHeight = commentSize,
+        platformStyle = PlatformTextStyle(includeFontPadding = false),
+        lineHeightStyle = LineHeightStyle(
+            alignment = LineHeightStyle.Alignment.Center,
+            trim = LineHeightStyle.Trim.Both
         )
-        if (comment.isNotEmpty()) {
-            Spacer(modifier = Modifier.width(3.dp))
+    )
+    val tightText = TextStyle(
+        fontSize = fontSize,
+        fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+        fontFamily = candidateFontFamily,
+        color = if (isSelected) selectedTextColor else textColor,
+        textAlign = TextAlign.Center,
+        lineHeight = fontSize,
+        platformStyle = PlatformTextStyle(includeFontPadding = false),
+        lineHeightStyle = LineHeightStyle(
+            alignment = LineHeightStyle.Alignment.Center,
+            trim = LineHeightStyle.Trim.Both
+        )
+    )
+    val clickModifier = modifier
+        .clip(RoundedCornerShape(5.dp))
+        .background(
+            if (isSelected) accentColor.copy(alpha = 0.2f)
+            else Color.Transparent
+        )
+        .combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
+
+    if (stacked) {
+        Column(
+            modifier = clickModifier.padding(horizontal = 10.dp, vertical = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (comment.isNotEmpty()) {
+                Text(
+                    text = comment,
+                    style = tightComment,
+                    maxLines = 1
+                )
+            }
             Text(
-                text = comment,
-                color = if (isSelected) selectedTextColor.copy(alpha = 0.6f) else textColor.copy(alpha = 0.5f),
-                fontSize = (fontSize.value * 11f / 19f).sp,
-                fontWeight = FontWeight.Normal,
-                maxLines = 1,
-                fontFamily = commentFontFamily
+                text = text,
+                style = tightText,
+                maxLines = 1
             )
+        }
+    } else {
+        Row(
+            modifier = clickModifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = text,
+                color = if (isSelected) selectedTextColor else textColor,
+                fontSize = fontSize,
+                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
+                maxLines = 1,
+                fontFamily = candidateFontFamily
+            )
+            if (comment.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(
+                    text = comment,
+                    color = commentColor,
+                    fontSize = commentSize,
+                    fontWeight = FontWeight.Normal,
+                    maxLines = 1,
+                    fontFamily = commentFontFamily
+                )
+            }
         }
     }
 }
