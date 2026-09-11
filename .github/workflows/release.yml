@@ -127,22 +127,6 @@ jobs:
           echo "NAME=${NAME}" >> "$GITHUB_OUTPUT"
           echo "Using tag=$TAG name=$NAME version=$VERSION sha=$SHORT_SHA"
 
-      - name: Find APKs and plugin XIPKs
-        id: find_apks
-        run: |
-          MAIN_APKS=$(find app/build/outputs/apk/release -name "Xime-*.apk" -type f | sort | tr '\n' ',' | sed 's/,$//')
-          PLUGIN_XIPKS=$(find build/plugin-release -name "*.xipk" -type f | sort | tr '\n' ',' | sed 's/,$//')
-
-          echo "main_apks=$MAIN_APKS" >> $GITHUB_OUTPUT
-          echo "plugin_xipks=$PLUGIN_XIPKS" >> $GITHUB_OUTPUT
-
-          if [ -z "$MAIN_APKS" ]; then
-            echo "::warning::No main app APKs found!"
-          fi
-          if [ -z "$PLUGIN_XIPKS" ]; then
-            echo "::warning::No plugin XIPKs found!"
-          fi
-
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
@@ -151,8 +135,8 @@ jobs:
           target_commitish: ${{ steps.src.outputs.sha }}
           generate_release_notes: true
           files: |
-            ${{ steps.find_apks.outputs.main_apks }}
-            ${{ steps.find_apks.outputs.plugin_xipks }}
+            app/build/outputs/apk/release/Xime-*.apk
+            build/plugin-release/*.xipk
           overwrite: true
           make_latest: true
           draft: false
