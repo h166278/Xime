@@ -183,7 +183,7 @@ fun LayoutDisplaySettingsContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(100.dp)
+                                .height(108.dp)
                                 .padding(horizontal = 16.dp, vertical = 4.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
@@ -394,7 +394,7 @@ fun LayoutDisplaySettingsContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(100.dp)
+                            .height(112.dp)
                             .padding(horizontal = 16.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {

@@ -38,7 +38,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
@@ -883,7 +886,7 @@ fun CommentLayoutCard(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(10.dp),
+                        .padding(8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
@@ -891,7 +894,7 @@ fun CommentLayoutCard(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                            .padding(horizontal = 6.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (stacked) {
@@ -901,8 +904,8 @@ fun CommentLayoutCard(
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 StackedPreviewCell(
-                                    text = "的",
-                                    comment = "a",
+                                    text = "输入法",
+                                    comment = "ltif",
                                     highlighted = true,
                                     primary = primary,
                                     onSurface = onSurface,
@@ -912,12 +915,12 @@ fun CommentLayoutCard(
                                     modifier = Modifier
                                         .padding(horizontal = 8.dp)
                                         .width(1.dp)
-                                        .height(28.dp)
+                                        .height(24.dp)
                                         .background(onSurface.copy(alpha = 0.18f))
                                 )
                                 StackedPreviewCell(
-                                    text = "对",
-                                    comment = "a",
+                                    text = "力学",
+                                    comment = "lixue",
                                     highlighted = false,
                                     primary = primary,
                                     onSurface = onSurface,
@@ -930,17 +933,17 @@ fun CommentLayoutCard(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 InlinePreviewCell(
-                                    text = "的",
-                                    comment = "a",
+                                    text = "输入法",
+                                    comment = "ltif",
                                     highlighted = true,
                                     primary = primary,
                                     onSurface = onSurface,
                                     commentColor = commentColor,
                                 )
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 InlinePreviewCell(
-                                    text = "对",
-                                    comment = "a",
+                                    text = "力学",
+                                    comment = "lixue",
                                     highlighted = false,
                                     primary = primary,
                                     onSurface = onSurface,
@@ -968,6 +971,14 @@ fun CommentLayoutCard(
     }
 }
 
+private val previewTightStyle = TextStyle(
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+    lineHeightStyle = LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Center,
+        trim = LineHeightStyle.Trim.Both,
+    ),
+)
+
 @Composable
 private fun InlinePreviewCell(
     text: String,
@@ -981,16 +992,22 @@ private fun InlinePreviewCell(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = text,
-                fontSize = 14.sp,
-                color = if (highlighted) primary else onSurface,
-                fontWeight = if (highlighted) FontWeight.Medium else FontWeight.Normal,
+                style = previewTightStyle.copy(
+                    fontSize = 13.sp,
+                    color = if (highlighted) primary else onSurface,
+                    fontWeight = if (highlighted) FontWeight.Medium else FontWeight.Normal,
+                    lineHeight = 13.sp,
+                ),
                 maxLines = 1
             )
             Spacer(modifier = Modifier.width(3.dp))
             Text(
                 text = comment,
-                fontSize = 9.sp,
-                color = commentColor,
+                style = previewTightStyle.copy(
+                    fontSize = 8.sp,
+                    color = commentColor,
+                    lineHeight = 8.sp,
+                ),
                 maxLines = 1
             )
         }
@@ -1019,18 +1036,27 @@ private fun StackedPreviewCell(
     commentColor: Color,
 ) {
     val content = @Composable {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
             Text(
                 text = comment,
-                fontSize = 9.sp,
-                color = commentColor,
+                style = previewTightStyle.copy(
+                    fontSize = 8.sp,
+                    color = commentColor,
+                    lineHeight = 8.sp,
+                ),
                 maxLines = 1
             )
             Text(
                 text = text,
-                fontSize = 14.sp,
-                color = if (highlighted) primary else onSurface,
-                fontWeight = if (highlighted) FontWeight.Medium else FontWeight.Normal,
+                style = previewTightStyle.copy(
+                    fontSize = 13.sp,
+                    color = if (highlighted) primary else onSurface,
+                    fontWeight = if (highlighted) FontWeight.Medium else FontWeight.Normal,
+                    lineHeight = 13.sp,
+                ),
                 maxLines = 1
             )
         }
@@ -1040,7 +1066,7 @@ private fun StackedPreviewCell(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
                 .background(primary.copy(alpha = 0.15f))
-                .padding(horizontal = 8.dp, vertical = 2.dp)
+                .padding(horizontal = 6.dp, vertical = 2.dp)
         ) {
             content()
         }
@@ -1120,34 +1146,38 @@ fun NumberRowCard(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(10.dp),
+                        .padding(8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .fillMaxHeight()
                             .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(horizontal = 6.dp, vertical = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                            .padding(horizontal = 6.dp, vertical = 5.dp),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
                     ) {
                         if (showNumberRow) {
                             MiniKeyRow(
                                 keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
                                 keyBg = primary.copy(alpha = 0.15f),
                                 keyText = primary,
+                                modifier = Modifier.weight(1f),
                             )
                         }
                         MiniKeyRow(
                             keys = listOf("Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"),
                             keyBg = letterKeyBg,
                             keyText = keyText,
+                            modifier = Modifier.weight(1f),
                         )
                         MiniKeyRow(
                             keys = listOf("A", "S", "D", "F", "G", "H", "J", "K", "L"),
                             keyBg = letterKeyBg,
                             keyText = keyText,
                             sidePad = true,
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
@@ -1175,9 +1205,10 @@ private fun MiniKeyRow(
     keyBg: Color,
     keyText: Color,
     sidePad: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(1.5.dp),
     ) {
         if (sidePad) Spacer(modifier = Modifier.weight(0.5f))
@@ -1185,15 +1216,19 @@ private fun MiniKeyRow(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .height(12.dp)
+                    .fillMaxHeight()
                     .clip(RoundedCornerShape(2.dp))
                     .background(keyBg),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = key,
-                    fontSize = 6.sp,
-                    color = keyText,
+                    style = previewTightStyle.copy(
+                        fontSize = 7.sp,
+                        color = keyText,
+                        lineHeight = 7.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
                     maxLines = 1
                 )
             }
