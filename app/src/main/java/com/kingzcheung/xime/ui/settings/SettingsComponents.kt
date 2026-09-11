@@ -948,6 +948,125 @@ fun CommentDisplayCardPreview_Hide() {
     }
 }
 
+@Composable
+fun NumberRowCard(
+    title: String,
+    isSelected: Boolean,
+    showNumberRow: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val keyText = onSurface.copy(alpha = 0.75f)
+    val letterKeyBg = MaterialTheme.colorScheme.surface
+
+    Box(modifier = modifier) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable { onClick() }
+                    .then(
+                        if (isSelected) {
+                            Modifier.border(
+                                width = 2.dp,
+                                color = primary,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        } else {
+                            Modifier
+                        }
+                    )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 6.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        if (showNumberRow) {
+                            MiniKeyRow(
+                                keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0"),
+                                keyBg = primary.copy(alpha = 0.15f),
+                                keyText = primary,
+                            )
+                        }
+                        MiniKeyRow(
+                            keys = listOf("Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"),
+                            keyBg = letterKeyBg,
+                            keyText = keyText,
+                        )
+                        MiniKeyRow(
+                            keys = listOf("A", "S", "D", "F", "G", "H", "J", "K", "L"),
+                            keyBg = letterKeyBg,
+                            keyText = keyText,
+                            sidePad = true,
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) primary else onSurface,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniKeyRow(
+    keys: List<String>,
+    keyBg: Color,
+    keyText: Color,
+    sidePad: Boolean = false,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(1.5.dp),
+    ) {
+        if (sidePad) Spacer(modifier = Modifier.weight(0.5f))
+        keys.forEach { key ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(keyBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = key,
+                    fontSize = 6.sp,
+                    color = keyText,
+                    maxLines = 1
+                )
+            }
+        }
+        if (sidePad) Spacer(modifier = Modifier.weight(0.5f))
+    }
+}
+
 
 @Composable
 fun KeyboardThemeCard(

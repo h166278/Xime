@@ -320,32 +320,49 @@ fun LayoutDisplaySettingsContent(
                     var numberRowEnabled by remember {
                         mutableStateOf(SettingsPreferences.isNumberRowEnabled(context))
                     }
+
+                    Text(
+                        text = "数字行",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                    )
+                    Text(
+                        text = "在 QWERTY 上方显示 1234567890",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
+                    )
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .height(100.dp)
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "数字行",
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "在 QWERTY 上方显示 1234567890",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = numberRowEnabled,
-                            onCheckedChange = { newValue ->
-                                numberRowEnabled = newValue
-                                SettingsPreferences.setNumberRowEnabled(context, newValue)
-                            }
+                        NumberRowCard(
+                            title = "显示",
+                            isSelected = numberRowEnabled,
+                            showNumberRow = true,
+                            onClick = {
+                                numberRowEnabled = true
+                                SettingsPreferences.setNumberRowEnabled(context, true)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        NumberRowCard(
+                            title = "隐藏",
+                            isSelected = !numberRowEnabled,
+                            showNumberRow = false,
+                            onClick = {
+                                numberRowEnabled = false
+                                SettingsPreferences.setNumberRowEnabled(context, false)
+                            },
+                            modifier = Modifier.weight(1f)
                         )
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
                 })
             }
 
