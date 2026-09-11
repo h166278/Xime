@@ -196,6 +196,9 @@ fun KeyboardLayout(
     val effectiveSwipeDownHintsEnabled = swipeDownHintsEnabled
     val showNumberRow = uiState.numberRowEnabled
 
+    // 46 键布局开关（设置 → 布局与显示 → 布局选择）
+    var is46Layout by remember { mutableStateOf(SettingsPreferences.isLayout46Enabled(context)) }
+
     // 监听设置变化
     DisposableEffect(context) {
         val prefs = SettingsPreferences.getPrefsPublic(context)
@@ -207,6 +210,9 @@ fun KeyboardLayout(
 
                     SettingsPreferences.KEY_SWIPE_DOWN_HINTS_ENABLED ->
                         swipeDownHintsEnabled = SettingsPreferences.isSwipeDownHintsEnabled(context)
+
+                    SettingsPreferences.KEY_KEYBOARD_LAYOUT ->
+                        is46Layout = SettingsPreferences.isLayout46Enabled(context)
                 }
             }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -393,7 +399,12 @@ fun KeyboardLayout(
                         }
                     } else {
                         Box(modifier = Modifier.weight(1f)) {
-                            val row1 = keyRows.getOrElse(1) { listOf("a", "s", "d", "f", "g", "h", "j", "k", "l") }
+                            val baseRow1 = keyRows.getOrElse(1) { listOf("a", "s", "d", "f", "g", "h", "j", "k", "l") }
+                            // 46 键布局：第三行补上分号键（共 10 键，与上排等宽）
+                            val row1 = if (is46Layout) {
+                                if (baseRow1.any { it.equals(";", ignoreCase = true) }) baseRow1
+                                else baseRow1 + ";"
+                            } else baseRow1
                             val row1Padding = if (row1.size > 9) Modifier else Modifier.padding(horizontal = 16.dp)
                             KeyboardRowWithConfig(
                                 keys = row1,
@@ -611,7 +622,7 @@ fun KeyboardLayout(
                                 onClick = { onKeyPress("mode_change") },
                                 backgroundColor = specialKeyBackgroundColor,
                                 textColor = specialKeyTextColor,
-                                modifier = Modifier.weight(1.2f),
+                                modifier = Modifier.weight(if (is46Layout) 0.95f else 1.2f),
                                 onPress = { onKeyPressDown?.invoke("mode_change") },
                                 onRelease = { onKeyRelease?.invoke("mode_change") },
                                 onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
@@ -626,6 +637,47 @@ fun KeyboardLayout(
                                 shadowShapeRadius = shadowShapeRadius,
                             )
 
+                            if (is46Layout) {
+                                // 46 键布局：空格左侧为 / 与 ,（宽度取自 Trime 预设 11 等权）
+                                ConfigDrivenSymbolKey(
+                                    keyId = "/",
+                                    isAsciiMode = isAsciiMode,
+                                    backgroundColor = keyBackgroundColor,
+                                    textColor = keyTextColor,
+                                    modifier = Modifier.weight(0.92f),
+                                    fallbackTap = "/",
+                                    fallbackTapLabel = "/",
+                                    onKeyPress = onKeyPress,
+                                    onKeyPressDown = onKeyPressDown,
+                                    onKeyRelease = onKeyRelease,
+                                    onCommitText = onCommitText,
+                                    onGestureAction = onGestureAction,
+                                    onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
+                                    shadowEnabled = shadowEnabled,
+                                    shadowElevation = shadowElevation,
+                                    shadowShapeRadius = shadowShapeRadius,
+                                    swipeUpHintsEnabled = swipeUpHintsEnabled,
+                                )
+                                ConfigDrivenSymbolKey(
+                                    keyId = ",",
+                                    isAsciiMode = isAsciiMode,
+                                    backgroundColor = keyBackgroundColor,
+                                    textColor = keyTextColor,
+                                    modifier = Modifier.weight(0.92f),
+                                    fallbackTap = if (isAsciiMode) "," else "，",
+                                    fallbackTapLabel = if (isAsciiMode) "," else "，",
+                                    onKeyPress = onKeyPress,
+                                    onKeyPressDown = onKeyPressDown,
+                                    onKeyRelease = onKeyRelease,
+                                    onCommitText = onCommitText,
+                                    onGestureAction = onGestureAction,
+                                    onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
+                                    shadowEnabled = shadowEnabled,
+                                    shadowElevation = shadowElevation,
+                                    shadowShapeRadius = shadowShapeRadius,
+                                    swipeUpHintsEnabled = swipeUpHintsEnabled,
+                                )
+                            } else {
                             // 逗号 — 从配置读取 "'"
                             val k2KeyGesture = KeysConfigHelper.getKeyGesture("'", isAsciiMode)
                             val k2TapAction = k2KeyGesture?.tap?.action
@@ -758,7 +810,10 @@ fun KeyboardLayout(
                                 modifier = Modifier.weight(1.2f)
                             )
                         } else {
+                            }
+
                             // earth — 从配置读取
+                            val earthWeight = if (is46Layout) 0.62f else 0.8f
                             val k4KeyGesture = KeysConfigHelper.getKeyGesture("earth", isAsciiMode)
                             val k4TapAction = k4KeyGesture?.tap?.action
                             val k4TapValue = k4KeyGesture?.tap?.value?.takeIf { it.isNotEmpty() } ?: ""
@@ -834,7 +889,7 @@ fun KeyboardLayout(
                                     onClick = k4OnClick,
                                     backgroundColor = keyBackgroundColor,
                                     iconColor = keyTextColor,
-                                    modifier = Modifier.weight(0.8f),
+                                    modifier = Modifier.weight(earthWeight),
                                     onPress = { onKeyPressDown?.invoke(k4TapValue) },
                                     onRelease = { onKeyRelease?.invoke(k4TapValue) },
                                     shadowEnabled = shadowEnabled,
@@ -848,7 +903,7 @@ fun KeyboardLayout(
                                     onClick = k4OnClick,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
-                                    modifier = Modifier.weight(0.8f),
+                                    modifier = Modifier.weight(earthWeight),
                                     icon = k4Icon,
                                     swipeText = k4SwipeUpLabel.takeIf { it.isNotEmpty() },
                                     swipeDownText = k4SwipeDownBubbleText,
@@ -868,13 +923,55 @@ fun KeyboardLayout(
                                 )
                             }
 
+                            if (is46Layout) {
+                                // 46 键布局：earth 右侧补 . 与 '（宽度取自 Trime 预设 11 等权）
+                                ConfigDrivenSymbolKey(
+                                    keyId = ".",
+                                    isAsciiMode = isAsciiMode,
+                                    backgroundColor = keyBackgroundColor,
+                                    textColor = keyTextColor,
+                                    modifier = Modifier.weight(0.92f),
+                                    fallbackTap = if (isAsciiMode) "." else "。",
+                                    fallbackTapLabel = if (isAsciiMode) "." else "。",
+                                    onKeyPress = onKeyPress,
+                                    onKeyPressDown = onKeyPressDown,
+                                    onKeyRelease = onKeyRelease,
+                                    onCommitText = onCommitText,
+                                    onGestureAction = onGestureAction,
+                                    onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
+                                    shadowEnabled = shadowEnabled,
+                                    shadowElevation = shadowElevation,
+                                    shadowShapeRadius = shadowShapeRadius,
+                                    swipeUpHintsEnabled = swipeUpHintsEnabled,
+                                )
+                                ConfigDrivenSymbolKey(
+                                    keyId = "quote46",
+                                    isAsciiMode = isAsciiMode,
+                                    backgroundColor = keyBackgroundColor,
+                                    textColor = keyTextColor,
+                                    modifier = Modifier.weight(0.92f),
+                                    fallbackTap = "'",
+                                    fallbackTapLabel = "'",
+                                    onKeyPress = onKeyPress,
+                                    onKeyPressDown = onKeyPressDown,
+                                    onKeyRelease = onKeyRelease,
+                                    onCommitText = onCommitText,
+                                    onGestureAction = onGestureAction,
+                                    onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
+                                    shadowEnabled = shadowEnabled,
+                                    shadowElevation = shadowElevation,
+                                    shadowShapeRadius = shadowShapeRadius,
+                                    swipeUpHintsEnabled = swipeUpHintsEnabled,
+                                )
+                            }
+
                             // 回车 — 硬编码
                             KeyButton(
                                 text = enterKeyText,
                                 onClick = { onKeyPress("enter") },
                                 backgroundColor = specialKeyBackgroundColor,
                                 textColor = specialKeyTextColor,
-                                modifier = Modifier.weight(1.2f),
+                                modifier = Modifier.weight(if (is46Layout) 0.95f else 1.2f),
                                 onPress = { onKeyPressDown?.invoke("enter") },
                                 onRelease = { onKeyRelease?.invoke("enter") },
                                 shadowEnabled = shadowEnabled,
@@ -905,6 +1002,172 @@ fun KeyboardLayout(
     }
 
     }
+}
+
+
+/**
+ * 配置驱动的符号键（底行 / , . ' 等）。
+ *
+ * 与 [KeyboardRowWithConfig] 共用同一套 YAML 手势语义：
+ * - tap：按键主文字与提交值
+ * - swipe_up：上滑提交值（display 为 key/both 时同步显示在键帽上滑位）
+ * - long_press：display = "key" 时作为长按提交值显示在键帽长按位；
+ *               为 "bubble" 时弹出候选气泡供选择
+ *
+ * @param keyId YAML keyboard.<section>.keys 中的键 id（如 "/"、","）
+ * @param weight 该键在底行中的宽度权重
+ * @param fallbackTap 无配置时的兜底点按值
+ * @param fallbackTapLabel 无配置时的兜底显示文字
+ */
+@Composable
+fun ConfigDrivenSymbolKey(
+    keyId: String,
+    isAsciiMode: Boolean,
+    backgroundColor: Color,
+    textColor: Color,
+    modifier: Modifier = Modifier,
+    fallbackTap: String = keyId,
+    fallbackTapLabel: String = keyId,
+    onKeyPress: (String) -> Unit,
+    onKeyPressDown: ((String) -> Unit)? = null,
+    onKeyRelease: ((String) -> Unit)? = null,
+    onCommitText: ((String) -> Unit)? = null,
+    onGestureAction: ((GestureAction, String) -> Unit)? = null,
+    onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
+    shadowEnabled: Boolean = true,
+    shadowElevation: Dp = 1.dp,
+    shadowShapeRadius: Dp = 8.dp,
+    swipeUpHintsEnabled: Boolean = true,
+) {
+    val gesture = KeysConfigHelper.getKeyGesture(keyId, isAsciiMode)
+
+    val tapAction = gesture?.tap?.action
+    val tapValue = gesture?.tap?.value?.takeIf { it.isNotEmpty() }
+        ?: gesture?.tap?.label?.takeIf { it.isNotEmpty() }
+        ?: fallbackTap
+    val tapLabel = gesture?.tap?.label?.takeIf { it.isNotEmpty() } ?: fallbackTapLabel
+
+    val swipeUpRaw = gesture?.swipeUp
+    val swipeUpLabel = swipeUpRaw?.label?.takeIf { it.isNotEmpty() }
+        ?: swipeUpRaw?.value?.takeIf { it.isNotEmpty() }
+    val swipeUpValue = swipeUpRaw?.value?.takeIf { it.isNotEmpty() } ?: swipeUpLabel
+    val swipeUpAction = swipeUpRaw?.action
+    val swipeUpDisplay = swipeUpRaw?.display ?: DisplayMode.BOTH
+
+    val swipeDownRaw = gesture?.swipeDown
+    val swipeDownLabel = swipeDownRaw?.label?.takeIf { it.isNotEmpty() }
+    val swipeDownAction = swipeDownRaw?.action
+    val swipeDownValue = swipeDownRaw?.value
+    val swipeDownDisplay = swipeDownRaw?.display ?: DisplayMode.BOTH
+    val swipeDownBubbleText =
+        if (swipeDownDisplay != DisplayMode.KEY && swipeDownHintsEnabled) swipeDownLabel else null
+
+    val longPressConfig = gesture?.longPress
+    val longPressDisplay = longPressConfig?.display ?: "key"
+    // display=key：长按值显示在键帽长按位，同时作为长按提交值
+    val longPressKeyLabel = if (longPressDisplay == "key") {
+        longPressConfig?.values?.firstOrNull()?.let { lp ->
+            lp.label.takeIf { it.isNotEmpty() } ?: lp.value.takeIf { it.isNotEmpty() }
+        }
+    } else null
+    val longPressKeyValue = if (longPressDisplay == "key") {
+        longPressConfig?.values?.firstOrNull()?.let { lp ->
+            lp.value.takeIf { it.isNotEmpty() } ?: lp.label.takeIf { it.isNotEmpty() }
+        }
+    } else null
+    // display=bubble：长按弹气泡
+    val longPressBubbleLabels = if (longPressDisplay == "bubble") {
+        longPressConfig?.values?.map { it.label }?.filter { it.isNotEmpty() }?.ifEmpty { null }
+    } else null
+    val longPressBubbleMap = if (longPressDisplay == "bubble") {
+        longPressConfig?.values?.associateBy { it.label }
+    } else null
+
+    val onClick: () -> Unit = remember(tapAction, tapValue, onKeyPress, onGestureAction) {
+        {
+            if (tapAction != null && tapAction != GestureAction.COMMIT) {
+                onGestureAction?.invoke(tapAction, tapValue)
+            } else {
+                onKeyPress(tapValue)
+            }
+        }
+    }
+
+    val onSwipeUp: ((String) -> Unit)? = if (swipeUpValue != null && swipeUpAction != GestureAction.NONE) {
+        val upValue: String = swipeUpValue
+        val upAction: GestureAction? = swipeUpAction
+        remember(upAction, upValue, onKeyPress, onGestureAction, onCommitText) {
+            { _: String ->
+                if (upAction != null && upAction != GestureAction.COMMIT) {
+                    onGestureAction?.invoke(upAction, upValue)
+                } else {
+                    (onCommitText ?: onKeyPress)(upValue)
+                }
+                Unit
+            }
+        }
+    } else null
+
+    val onSwipeDown: ((String) -> Unit)? = if (swipeDownAction != null && swipeDownLabel != null) {
+        remember(swipeDownAction, swipeDownValue, swipeDownLabel, onKeyPress, onGestureAction, onCommitText) {
+            val label = swipeDownLabel
+            { _: String ->
+                if (swipeDownAction == GestureAction.COMMIT) {
+                    (onCommitText ?: onKeyPress)(swipeDownValue?.ifEmpty { label } ?: label)
+                } else {
+                    onGestureAction?.invoke(swipeDownAction, swipeDownValue?.ifEmpty { label } ?: label)
+                }
+                Unit
+            }
+        }
+    } else null
+
+    val onLongPressSelect: ((String) -> Unit)? =
+        remember(longPressBubbleMap, onGestureAction, onCommitText, onKeyPress) {
+            { selectedLabel: String ->
+                val lp = longPressBubbleMap?.get(selectedLabel)
+                if (lp != null && lp.action != GestureAction.COMMIT) {
+                    onGestureAction?.invoke(lp.action!!, lp.value.ifEmpty { selectedLabel })
+                } else {
+                    (onCommitText ?: onKeyPress)(lp?.value?.takeIf { it.isNotEmpty() } ?: selectedLabel)
+                }
+                Unit
+            }
+        }
+
+    val upKeyLabel = if (swipeUpHintsEnabled && swipeUpDisplay != DisplayMode.BUBBLE) swipeUpLabel else null
+    val downKeyLabel =
+        if (swipeUpHintsEnabled && (swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH)) swipeDownLabel else null
+    // 长按 display=key 时占键帽长按位（若已无上滑标签）
+    val finalUpKeyLabel = upKeyLabel ?: if (swipeUpHintsEnabled) longPressKeyLabel else null
+
+    SwipeableKeyButton(
+        layoutMode = KeysConfigHelper.getButtonLayout(isAsciiMode),
+        text = tapLabel,
+        onClick = onClick,
+        backgroundColor = backgroundColor,
+        textColor = textColor,
+        modifier = modifier,
+        swipeText = if (swipeUpHintsEnabled) swipeUpLabel else null,
+        swipeDownText = swipeDownBubbleText,
+        swipeUpKeyLabel = finalUpKeyLabel,
+        swipeDownKeyLabel = downKeyLabel,
+        onSwipe = onSwipeUp,
+        onSwipeDown = onSwipeDown,
+        onSwipeStateChange = onSwipeStateChange,
+        onPress = onKeyPressDown?.let { cb -> { cb(tapValue) } },
+        onRelease = onKeyRelease?.let { cb -> { cb(tapValue) } },
+        onLongPressSelect = if (longPressKeyValue != null) {
+            // display=key：长按直接提交该值
+            remember(longPressKeyValue, onKeyPress, onCommitText) {
+                { _: String -> (onCommitText ?: onKeyPress)(longPressKeyValue); Unit }
+            }
+        } else onLongPressSelect,
+        longPressItems = longPressBubbleLabels,
+        shadowEnabled = shadowEnabled,
+        shadowElevation = shadowElevation,
+        shadowShapeRadius = shadowShapeRadius,
+    )
 }
 
 @Composable

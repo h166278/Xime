@@ -49,6 +49,23 @@ object SettingsPreferences {
     /** 全键盘打开数字行时，IME 窗口额外增高，避免原有四行被挤扁 */
     const val NUMBER_ROW_EXTRA_HEIGHT_DP = 48
 
+    /** 键盘布局：默认（26 键主体，第三行 9 键） */
+    const val KEYBOARD_LAYOUT_DEFAULT = "default"
+    /** 键盘布局：46 键（第三行补分号共 10 键，底行符号键带上滑/长按映射） */
+    const val KEYBOARD_LAYOUT_46 = "layout_46"
+    const val KEY_KEYBOARD_LAYOUT = "keyboard_layout"
+
+    fun getKeyboardLayout(context: Context): String {
+        val v = getPrefs(context).getString(KEY_KEYBOARD_LAYOUT, KEYBOARD_LAYOUT_DEFAULT)
+        return if (v == KEYBOARD_LAYOUT_46) KEYBOARD_LAYOUT_46 else KEYBOARD_LAYOUT_DEFAULT
+    }
+
+    fun setKeyboardLayout(context: Context, layout: String) {
+        getPrefs(context).edit().putString(KEY_KEYBOARD_LAYOUT, layout).apply()
+    }
+
+    fun isLayout46Enabled(context: Context): Boolean = getKeyboardLayout(context) == KEYBOARD_LAYOUT_46
+
     private const val KEY_MODE_CHANGE_TARGET = "mode_change_target"
 
     fun getModeChangeTargetIsNumber(context: Context): Boolean {

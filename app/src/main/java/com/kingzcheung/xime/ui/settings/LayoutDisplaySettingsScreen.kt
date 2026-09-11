@@ -1,6 +1,15 @@
 package com.kingzcheung.xime.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.Role
+import com.kingzcheung.xime.ui.theme.KeyboardThemes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -317,6 +326,54 @@ fun LayoutDisplaySettingsContent(
 
             item {
                 SettingsSection(title = "键盘", content = {
+                    var layoutPref by remember {
+                        mutableStateOf(SettingsPreferences.getKeyboardLayout(context))
+                    }
+                    var showLayoutDialog by remember { mutableStateOf(false) }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showLayoutDialog = true }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "布局选择",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = if (layoutPref == SettingsPreferences.KEYBOARD_LAYOUT_46) "46键布局" else "默认布局",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    if (showLayoutDialog) {
+                        LayoutSelectionDialog(
+                            current = layoutPref,
+                            onDismiss = { showLayoutDialog = false },
+                            onConfirm = { selected ->
+                                layoutPref = selected
+                                SettingsPreferences.setKeyboardLayout(context, selected)
+                                showLayoutDialog = false
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 16.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+                })
+            }
+
+            item {
+                SettingsSection(title = "键盘", content = {
                     var numberRowEnabled by remember {
                         mutableStateOf(SettingsPreferences.isNumberRowEnabled(context))
                     }
@@ -469,4 +526,80 @@ fun LayoutDisplaySettingsContent(
             }
         }
     }
+}
+/**
+ * 布局选择弹窗：标题「布局选择」+ 单选列表 + 右下「确认」。
+ *
+ * 弹窗背景、选项文字沿用 MaterialTheme（随深浅模式走），
+ * 选中圆点与「确认」文字取「主题与定制」当前选中配色的强调色。
+ */
+@Composable
+fun LayoutSelectionDialog(
+    current: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var selected by remember(current) { mutableStateOf(current) }
+
+    val themeId = SettingsPreferences.getKeyboardTheme(context)
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val accent = KeyboardThemes.getAccentColor(themeId, isDark)
+    val onSurface = MaterialTheme.colorScheme.onSurface
+
+    val options = listOf(
+        SettingsPreferences.KEYBOARD_LAYOUT_DEFAULT to "默认",
+        SettingsPreferences.KEYBOARD_LAYOUT_46 to "46键",
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        title = {
+            Text(
+                text = "布局选择",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = onSurface,
+            )
+        },
+        text = {
+            Column {
+                options.forEach { (value, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(
+                                selected = selected == value,
+                                role = Role.RadioButton,
+                                onClick = { selected = value },
+                            )
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selected == value,
+                            onClick = { selected = value },
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = accent,
+                                unselectedColor = onSurface.copy(alpha = 0.6f),
+                                selectedIconColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            ),
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = onSurface,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selected) }) {
+                Text(text = "确认", color = accent, fontWeight = FontWeight.Medium)
+            }
+        },
+    )
 }

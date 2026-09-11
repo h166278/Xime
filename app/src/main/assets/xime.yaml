@@ -459,7 +459,9 @@ keyboard:
       h: { tap: "h", swipe_up: { label: "”", value: "”" }, swipe_down: { label: "目丨卜⺊上止龰", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["h", "H"] } }
       j: { tap: "j", swipe_up: { label: "－", value: "-" }, swipe_down: { label: "日曰早廾刂虫丿Ⅱ", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["j", "J"] } }
       k: { tap: "k", swipe_up: { label: "（", value: "(" }, swipe_down: { label: "口Ⅲ川", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["k", "K"] } }
-      l: { tap: "l", swipe_up: { label: "）", value: ")" }, swipe_down: { label: "田甲囗四罒车皿力", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["l", "L"] } }
+      l: { tap: "l", swipe_up: { label: "）", value: ")" }, swipe_down: { label: "田甲囗四罒车皿力", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["l", "L"] } }
+      # 分号键：仅 46 键布局使用（第三行补位）。上滑/长按均为冒号
+      ";": { tap: { label: "；", value: ";" }, swipe_up: { label: "：", value: ":" }, long_press: { display: "key", values: [ { label: "：", value: ":" } ] } }
       # ── 第三行 ──
       z: { tap: "z", swipe_up: { label: "＊", value: "*" }, swipe_down: { label: "", action: "none", display: "key" }, long_press: { display: "bubble", values: [ "z","Z"] } }
       x: { tap: "x", swipe_up: { label: "＠", value: "@" }, swipe_down: { label: "弓匕纟幺弓𠤎", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["x", "X"] } }
@@ -473,6 +475,13 @@ keyboard:
       "'": { tap: { label: "，", value: "," }, swipe_up: { label: "。", value: "." } , long_press: { display: "bubble", values: [ ",","."] }}
       # 中/英切换键，label 为按键显示文字
       earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
+
+      # ── 46 键布局专用底行符号键（默认布局不显示，仅布局选 46 键时启用）──
+      # 上滑与长按同值，长按用 display: key 直接提交；quote46 避免与默认逗号键 id "'" 冲突
+      "/": { tap: { label: "/", value: "/" }, swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "?", value: "?" } ] } }
+      ",": { tap: { label: "，", value: "，" }, swipe_up: { label: "《", value: "《" }, long_press: { display: "key", values: [ { label: "《", value: "《" } ] } }
+      ".": { tap: { label: "。", value: "。" }, swipe_up: { label: "》", value: "》" }, long_press: { display: "key", values: [ { label: "》", value: "》" } ] } }
+      quote46: { tap: { label: "'", value: "'" }, swipe_up: { label: "\"", value: "\"" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
     
   # 英文键盘布局
   qwerty_en:
@@ -520,6 +529,8 @@ keyboard:
       j: { tap: "j", swipe_up: "-", long_press: { display: "bubble", values: ["j", "J"] } }
       k: { tap: "k", swipe_up: "(", long_press: { display: "bubble", values: ["k", "K"] } }
       l: { tap: "l", swipe_up: ")", long_press: { display: "bubble", values: ["l", "L"] } }
+      # 分号键：仅 46 键布局使用（第三行补位）
+      ";": { tap: { label: ";", value: ";" }, swipe_up: { label: ":", value: ":" }, long_press: { display: "key", values: [ { label: ":", value: ":" } ] } }
       # ";": { tap: ";", shift: ":" }
 
       # ── 第三行 ──
@@ -532,6 +543,11 @@ keyboard:
       m: { tap: "m", swipe_up: "#", long_press: { display: "bubble", values: ["m", "M"] } }
       #  逗号键，label 为中文显示，value 为英文显示+提交值
       "'": { tap: { label: ".", value: "." }, swipe_up: { label: ",", value: "," } }
+      # ── 46 键布局专用底行符号键（英文）──
+      "/": { tap: { label: "/", value: "/" }, swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "?", value: "?" } ] } }
+      ",": { tap: { label: ",", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "key", values: [ { label: "《", value: "《" } ] } }
+      ".": { tap: { label: ".", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "key", values: [ { label: "》", value: "》" } ] } }
+      quote46: { tap: { label: "'", value: "'" }, swipe_up: { label: "\"", value: "\"" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
       # 中/英切换键，label 为按键显示文字
       earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
 
