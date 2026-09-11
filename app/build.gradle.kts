@@ -40,7 +40,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.kingzcheung.xime"
+        applicationId = "com.shengbitt.xime"
         minSdk = 28
         targetSdk = 35
         versionCode = 20260910
