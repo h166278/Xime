@@ -4,10 +4,6 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_run:
-    workflows: ["Build and Test APK"]
-    types:
-      - completed
   workflow_dispatch:
 
 permissions:
@@ -15,27 +11,12 @@ permissions:
 
 jobs:
   build:
-    if: >
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
 
     steps:
-      - name: Resolve source commit
-        id: src
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            echo "sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout code
         uses: actions/checkout@v7
         with:
-          ref: ${{ steps.src.outputs.sha }}
           submodules: recursive
           fetch-depth: 0
 
@@ -114,7 +95,7 @@ jobs:
         id: get_version
         run: |
           VERSION=$(grep -E '^\s*versionName\s*=' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          SHORT_SHA=$(echo "${{ steps.src.outputs.sha }}" | cut -c1-7)
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           if [ "${{ github.event_name }}" = "push" ] && [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
             TAG="${GITHUB_REF#refs/tags/}"
             NAME="Xime ${TAG}"
@@ -132,7 +113,7 @@ jobs:
         with:
           tag_name: ${{ steps.get_version.outputs.TAG }}
           name: ${{ steps.get_version.outputs.NAME }}
-          target_commitish: ${{ steps.src.outputs.sha }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
           files: |
             app/build/outputs/apk/release/Xime-*.apk
