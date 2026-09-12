@@ -610,6 +610,12 @@ fun KeyboardLayout(
                             .fillMaxWidth()
                             .weight(1f),
                     ) {
+                        // 46 键布局：底行符号键宽 = 第四行字母区(7f) / 字母键数，
+                        // 与 C 键/B 键对齐，空格随之对齐 C~B。需跨 if/else 分支复用，故提到行作用域。
+                        val symbolKeyWeight = remember(keyRows) {
+                            val n = keyRows.getOrElse(2) { listOf("z", "x", "c", "v", "b", "n", "m") }.size
+                            7f / n.coerceAtLeast(1)
+                        }
                         if (isVoiceMode && !isVoiceSticky) {
                             DummyKeyButton(
                                 backgroundColor = specialKeyBackgroundColor.copy(alpha = 0.5f),
@@ -643,12 +649,8 @@ fun KeyboardLayout(
 
                             if (is46Layout) {
                                 // 46 键布局：空格左侧为 / 与 ,
-                                // 宽度 3.5f = 第四行字母区(7f) / 字母键数(默认7或8)，
+                                // 宽度 = 第四行字母区(7f) / 字母键数(默认7或8)，
                                 // 与 C 键/B 键对齐，因此空格也正好对齐 C~B
-                                val symbolKeyWeight = remember(keyRows) {
-                                    val n = keyRows.getOrElse(2) { listOf("z", "x", "c", "v", "b", "n", "m") }.size
-                                    7f / n.coerceAtLeast(1)
-                                }
                                 ConfigDrivenSymbolKey(
                                     keyId = "/",
                                     isAsciiMode = isAsciiMode,

@@ -359,6 +359,8 @@ fun LayoutDisplaySettingsContent(
                             onConfirm = { selected ->
                                 layoutPref = selected
                                 SettingsPreferences.setKeyboardLayout(context, selected)
+                                // 布局切换会改变手势映射（46 键叠加 qwerty_46 覆盖段），必须重载配置
+                                com.kingzcheung.xime.settings.KeysConfigHelper.loadConfig(context)
                                 showLayoutDialog = false
                             }
                         )

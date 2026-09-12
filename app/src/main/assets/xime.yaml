@@ -483,7 +483,42 @@ keyboard:
       ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "key", values: [ { label: "《", value: "《" } ] } }
       ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "key", values: [ { label: "》", value: "》" } ] } }
       quote46: { tap: { label: "'", value: "'" }, swipe_up: { label: "\"", value: "\"" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
-    
+
+  # ── 46 键布局专属手势覆盖段（中文）──
+  # 与 qwerty 逐键合并（本段优先），仅在「布局选择 = 46 键」时生效。
+  # 规则：字母键上滑 = 符号，长按 = 字母；tap / swipe_down 沿用 qwerty 不动。
+  qwerty_46:
+    keys:
+      # ── 第二行 ──
+      q: { swipe_up: "`", long_press: { display: "bubble", values: ["q", "Q"] } }
+      w: { swipe_up: "~", long_press: { display: "bubble", values: ["w", "W"] } }
+      e: { swipe_up: "+", long_press: { display: "bubble", values: ["e", "E", "è", "é", "ê", "ë"] } }
+      r: { swipe_up: "-", long_press: { display: "bubble", values: ["r", "R"] } }
+      t: { swipe_up: "=", long_press: { display: "bubble", values: ["t", "T"] } }
+      y: { swipe_up: "_", long_press: { display: "bubble", values: ["y", "Y", "ÿ"] } }
+      u: { swipe_up: "{", long_press: { display: "bubble", values: ["u", "U", "ù", "ú", "û", "ü"] } }
+      i: { swipe_up: "}", long_press: { display: "bubble", values: ["i", "I", "ì", "í", "î", "ï"] } }
+      o: { swipe_up: "[", long_press: { display: "bubble", values: ["o", "O", "ò", "ó", "ô", "õ", "ö", "ø"] } }
+      p: { swipe_up: "]", long_press: { display: "bubble", values: ["p", "P"] } }
+      # ── 第三行 ──
+      a: { swipe_up: "\\", long_press: { display: "bubble", values: ["a", "A", "à", "á", "â", "ã", "ä", "å", "æ"] } }
+      s: { swipe_up: "|", long_press: { display: "bubble", values: ["s", "S", "ß"] } }
+      d: { swipe_up: "×", long_press: { display: "bubble", values: ["d", "D"] } }
+      f: { swipe_up: "÷", long_press: { display: "bubble", values: ["f", "F"] } }
+      g: { swipe_up: "←", long_press: { display: "bubble", values: [{ label: "g", value: "g" }, { label: "G", value: "G" }, { label: "行首", action: "line_start" }] } }
+      h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
+      j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
+      k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
+      l: { swipe_up: "⇐", long_press: { display: "bubble", values: ["l", "L"] } }
+      # ── 第四行 ──
+      z: { swipe_up: "*", long_press: { display: "bubble", values: ["z", "Z"] } }
+      x: { swipe_up: "@", long_press: { display: "bubble", values: ["x", "X", { label: "剪切", action: "cut" }] } }
+      c: { swipe_up: "、", long_press: { display: "bubble", values: ["c", "C", "ç", { label: "复制", action: "copy" }] } }
+      v: { swipe_up: "?", long_press: { display: "bubble", values: ["v", "V", { label: "粘贴", action: "paste" }] } }
+      b: { swipe_up: "!", long_press: { display: "bubble", values: ["b", "B"] } }
+      n: { swipe_up: "%", long_press: { display: "bubble", values: ["n", "N", "ñ"] } }
+      m: { swipe_up: "#", long_press: { display: "bubble", values: ["m", "M"] } }
+
   # 英文键盘布局
   qwerty_en:
     # ── 按键布局模式 ──
@@ -551,6 +586,40 @@ keyboard:
       quote46: { tap: { label: "'", value: "'" }, swipe_up: { label: "\"", value: "\"" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
       # 中/英切换键，label 为按键显示文字
       earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
+
+  # ── 46 键布局专属手势覆盖段（英文）──
+  # 规则同 qwerty_46：上滑 = 符号，长按 = 字母。
+  qwerty_en_46:
+    keys:
+      # ── 第一行 ──
+      q: { swipe_up: "`", long_press: { display: "bubble", values: ["q", "Q"] } }
+      w: { swipe_up: "~", long_press: { display: "bubble", values: ["w", "W"] } }
+      e: { swipe_up: "+", long_press: { display: "bubble", values: ["e", "E"] } }
+      r: { swipe_up: "-", long_press: { display: "bubble", values: ["r", "R"] } }
+      t: { swipe_up: "=", long_press: { display: "bubble", values: ["t", "T"] } }
+      y: { swipe_up: "_", long_press: { display: "bubble", values: ["y", "Y"] } }
+      u: { swipe_up: "{", long_press: { display: "bubble", values: ["u", "U"] } }
+      i: { swipe_up: "}", long_press: { display: "bubble", values: ["i", "I"] } }
+      o: { swipe_up: "[", long_press: { display: "bubble", values: ["o", "O"] } }
+      p: { swipe_up: "]", long_press: { display: "bubble", values: ["p", "P"] } }
+      # ── 第二行 ──
+      a: { swipe_up: "\\", long_press: { display: "bubble", values: ["a", "A"] } }
+      s: { swipe_up: "|", long_press: { display: "bubble", values: ["s", "S"] } }
+      d: { swipe_up: "×", long_press: { display: "bubble", values: ["d", "D"] } }
+      f: { swipe_up: "÷", long_press: { display: "bubble", values: ["f", "F"] } }
+      g: { swipe_up: "←", long_press: { display: "bubble", values: ["g", "G", { label: "行首", action: "line_start" }] } }
+      h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
+      j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
+      k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
+      l: { swipe_up: "⇐", long_press: { display: "bubble", values: ["l", "L"] } }
+      # ── 第三行 ──
+      z: { swipe_up: "*", long_press: { display: "bubble", values: ["z", "Z"] } }
+      x: { swipe_up: "@", long_press: { display: "bubble", values: ["x", "X", { label: "cut", action: "cut" }] } }
+      c: { swipe_up: "、", long_press: { display: "bubble", values: ["c", "C", { label: "copy", action: "copy" }] } }
+      v: { swipe_up: "?", long_press: { display: "bubble", values: ["v", "V", { label: "paste", action: "paste" }] } }
+      b: { swipe_up: "!", long_press: { display: "bubble", values: ["b", "B"] } }
+      n: { swipe_up: "%", long_press: { display: "bubble", values: ["n", "N"] } }
+      m: { swipe_up: "#", long_press: { display: "bubble", values: ["m", "M"] } }
 
   # 九键（T9）键盘配置
   t9:

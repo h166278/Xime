@@ -688,7 +688,38 @@ object KeysConfigHelper {
         }
         val zh = if (customZh != null) defaultZh + customZh else defaultZh
         val en = if (customEn != null) defaultEn + customEn else defaultEn
+        // 46 键布局：叠加手势覆盖段（字段级合并，未覆盖的手势沿用主表）
+        if (SettingsPreferences.isLayout46Enabled(context)) {
+            val overrideZh = parseKeyboardYamlSection(defaultText, "qwerty_46")
+            val overrideEn = parseKeyboardYamlSection(defaultText, "qwerty_en_46")
+            return Pair(
+                applyGestureOverrides(zh, overrideZh),
+                applyGestureOverrides(en, overrideEn),
+            )
+        }
         return Pair(zh, en)
+    }
+
+    /**
+     * 把覆盖段逐字段合并进基表：只替换显式给出的手势，其余（tap/swipe_down 等）保留基表值。
+     * 例：`q: { swipe_up: "`", long_press: {...} }` 只改上滑与长按，tap 仍是 "q"。
+     */
+    internal fun applyGestureOverrides(
+        base: Map<String, KeyGestureConfig>,
+        overrides: Map<String, KeyGestureConfig>?,
+    ): Map<String, KeyGestureConfig> {
+        if (overrides.isNullOrEmpty()) return base
+        val merged = base.toMutableMap()
+        for ((key, ov) in overrides) {
+            val cur = merged[key]
+            merged[key] = if (cur == null) ov else KeyGestureConfig(
+                tap = ov.tap ?: cur.tap,
+                swipeUp = ov.swipeUp ?: cur.swipeUp,
+                swipeDown = ov.swipeDown ?: cur.swipeDown,
+                longPress = ov.longPress ?: cur.longPress,
+            )
+        }
+        return merged
     }
 
     /** 从 xime.yaml + xime.custom.yaml 合并解析键盘颜色配置（字段级一路 fallback）。 */

@@ -665,4 +665,66 @@ keyboard:
         assertNull(en["w"])
     }
 
+    // ── 46 键覆盖段：字段级合并 ──
+
+    @Test
+    fun `46 键覆盖段只替换显式手势 tap 与 swipe_down 保留`() {
+        val base = parseSection("""
+keyboard:
+  qwerty:
+    keys:
+      q: { tap: "q", swipe_up: "1", swipe_down: { label: "金", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["q", "Q"] } }
+        """.trimIndent(), "qwerty")
+        val overlay = parseSection("""
+keyboard:
+  qwerty_46:
+    keys:
+      q: { swipe_up: "`", long_press: { display: "bubble", values: ["q", "Q"] } }
+        """.trimIndent(), "qwerty_46")
+
+        val merged = KeysConfigHelper.applyGestureOverrides(base, overlay)
+        val q = merged["q"]!!
+        // 覆盖生效
+        assertEquals("`", q.swipeUp!!.label)
+        // 未提及的手势保留基表值
+        assertEquals("q", q.tap!!.value)
+        assertEquals("金", q.swipeDown!!.label)
+        assertEquals(GestureAction.NONE, q.swipeDown!!.action)
+    }
+
+    @Test
+    fun `46 键覆盖段未列出的键原样保留`() {
+        val base = parseSection("""
+keyboard:
+  qwerty:
+    keys:
+      q: { tap: "q" }
+      w: { tap: "w" }
+        """.trimIndent(), "qwerty")
+        val overlay = parseSection("""
+keyboard:
+  qwerty_46:
+    keys:
+      q: { swipe_up: "`" }
+        """.trimIndent(), "qwerty_46")
+
+        val merged = KeysConfigHelper.applyGestureOverrides(base, overlay)
+        assertEquals(2, merged.size)
+        assertEquals("w", merged["w"]!!.tap!!.value)
+        assertNull(merged["w"]!!.swipeUp)
+    }
+
+    @Test
+    fun `46 键覆盖段为空时返回基表`() {
+        val base = parseSection("""
+keyboard:
+  qwerty:
+    keys:
+      q: { tap: "q" }
+        """.trimIndent(), "qwerty")
+
+        assertEquals(base, KeysConfigHelper.applyGestureOverrides(base, null))
+        assertEquals(base, KeysConfigHelper.applyGestureOverrides(base, emptyMap()))
+    }
+
 }
