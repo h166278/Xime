@@ -393,6 +393,8 @@ fun SwipeableKeyButton(
     swipeDownKeyLabel: String? = null,
     /** 上滑文本显示在按键上（气泡则为空，用于 display:bubble） */
     swipeUpKeyLabel: String? = null,
+    /** true：上滑 hint 贴右上角（46 键）；false：居中偏上（默认布局） */
+    swipeUpHintTopEnd: Boolean = false,
     onSwipe: ((String) -> Unit)? = null,
     onSwipeDown: ((String) -> Unit)? = null,
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
@@ -786,9 +788,15 @@ fun SwipeableKeyButton(
                     color = textColor.copy(alpha = 0.6f),
                     fontSize = effectiveSwipeFontSize,
                     fontWeight = FontWeight.Medium,
-                    textAlign = TextAlign.Center,
+                    textAlign = if (swipeUpHintTopEnd) TextAlign.End else TextAlign.Center,
                     maxLines = 1,
-                    modifier = Modifier.offset(y = -hintOffset),
+                    modifier = if (swipeUpHintTopEnd) {
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 3.dp, end = 4.dp)
+                    } else {
+                        Modifier.offset(y = -hintOffset)
+                    },
                     fontFamily = keyLabelFontFamily
                 )
             }

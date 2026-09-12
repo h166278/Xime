@@ -337,6 +337,7 @@ fun KeyboardLayout(
                                     onCommitText = onCommitText,
                                     onGestureAction = onGestureAction,
                                     configVersion = cfgVer,
+                                    swipeUpHintTopEnd = is46Layout,
                                 )
                             }
                         }
@@ -380,6 +381,7 @@ fun KeyboardLayout(
                                 onCommitText = onCommitText,
                                 onGestureAction = onGestureAction,
                                 configVersion = cfgVer,
+                                swipeUpHintTopEnd = is46Layout,
                             )
                         }
                     }
@@ -433,6 +435,7 @@ fun KeyboardLayout(
                                 onCommitText = onCommitText,
                                 onGestureAction = onGestureAction,
                                 configVersion = cfgVer,
+                                swipeUpHintTopEnd = is46Layout,
                             )
                         }
                     }
@@ -555,6 +558,7 @@ fun KeyboardLayout(
                                         swipeDownText = swipeDownBubbleText,
                                         swipeUpKeyLabel = swipeUpKeyLabel,
                                         swipeDownKeyLabel = if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH)) swipeDownLabel else null,
+                                        swipeUpHintTopEnd = is46Layout,
                                         onSwipe = if (swipeUpCommitValue != null && swipeUpAction != GestureAction.NONE) { { onKeyPress(swipeUpCommitValue) } } else null,
                                         onSwipeDown = onSwipeDown,
                                         onSwipeStateChange = onSwipeStateChange,
@@ -658,6 +662,7 @@ fun KeyboardLayout(
                                     shadowShapeRadius = shadowShapeRadius,
                                     swipeUpHintsEnabled = swipeUpHintsEnabled,
                                     swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
+                                    swipeUpHintTopEnd = true,
                                 )
                                 ConfigDrivenSymbolKey(
                                     keyId = ",",
@@ -678,6 +683,7 @@ fun KeyboardLayout(
                                     shadowShapeRadius = shadowShapeRadius,
                                     swipeUpHintsEnabled = swipeUpHintsEnabled,
                                     swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
+                                    swipeUpHintTopEnd = true,
                                 )
                             } else {
                             // 逗号 — 从配置读取 "'"
@@ -949,6 +955,7 @@ fun KeyboardLayout(
                                     shadowShapeRadius = shadowShapeRadius,
                                     swipeUpHintsEnabled = swipeUpHintsEnabled,
                                     swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
+                                    swipeUpHintTopEnd = true,
                                 )
                                 ConfigDrivenSymbolKey(
                                     keyId = "quote46",
@@ -969,6 +976,7 @@ fun KeyboardLayout(
                                     shadowShapeRadius = shadowShapeRadius,
                                     swipeUpHintsEnabled = swipeUpHintsEnabled,
                                     swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
+                                    swipeUpHintTopEnd = true,
                                 )
                             }
 
@@ -1047,6 +1055,7 @@ fun ConfigDrivenSymbolKey(
     shadowShapeRadius: Dp = 8.dp,
     swipeUpHintsEnabled: Boolean = true,
     swipeDownHintsEnabled: Boolean = true,
+    swipeUpHintTopEnd: Boolean = false,
 ) {
     val gesture = KeysConfigHelper.getKeyGesture(keyId, isAsciiMode)
 
@@ -1161,6 +1170,7 @@ fun ConfigDrivenSymbolKey(
         swipeDownText = swipeDownBubbleText,
         swipeUpKeyLabel = finalUpKeyLabel,
         swipeDownKeyLabel = downKeyLabel,
+        swipeUpHintTopEnd = swipeUpHintTopEnd,
         onSwipe = onSwipeUp,
         onSwipeDown = onSwipeDown,
         onSwipeStateChange = onSwipeStateChange,
@@ -1261,6 +1271,7 @@ fun KeyboardRowWithConfig(
     onCommitText: ((String) -> Unit)? = null,
     onGestureAction: ((GestureAction, String) -> Unit)? = null,
     configVersion: Int = 0,
+    swipeUpHintTopEnd: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -1347,6 +1358,7 @@ fun KeyboardRowWithConfig(
                 swipeDownText = swipeDownBubbleText,
                 swipeUpKeyLabel = swipeUpKeyLabel,
                 swipeDownKeyLabel = if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH) && swipeDownHintsEnabled) swipeDownLabel else null,
+                swipeUpHintTopEnd = swipeUpHintTopEnd,
                 onSwipe = if (swipeUpCommitValue != null && swipeUpAction != GestureAction.NONE) { { onKeyPress(swipeUpCommitValue) } } else null,
                 onSwipeDown = onSwipeDown,
                 onSwipeStateChange = onSwipeStateChange,
