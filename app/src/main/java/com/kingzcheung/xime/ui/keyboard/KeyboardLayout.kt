@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitPointerEventScope
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -986,6 +985,7 @@ fun KeyboardLayout(
                                 shadowElevation = shadowElevation,
                                 shadowShapeRadius = shadowShapeRadius,
                             )
+                        }
                         }
                     }
                 }
@@ -2624,20 +2624,18 @@ private fun SpaceKey(
                         }
                     }
 
-                    // 追踪指针：上滑切中/英，松手时若未达阈值则按轻触处理
-                    awaitPointerEventScope {
-                        var startY: Float? = null
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: break
-                            if (startY == null) startY = change.position.y
-                            if (!change.pressed) break
-                            val dy = startY!! - change.position.y
-                            if (dy > swipeUpThresholdPx && !swipeUpTriggered) {
-                                swipeUpTriggered = true
-                                // 已判定为上滑：取消长按（语音/连发空格）
-                                longPressJob.cancel()
-                            }
+                    // 已在 awaitEachGesture 的 AwaitPointerEventScope 内，不能再套 awaitPointerEventScope
+                    var startY: Float? = null
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull() ?: break
+                        if (startY == null) startY = change.position.y
+                        if (!change.pressed) break
+                        val dy = startY!! - change.position.y
+                        if (dy > swipeUpThresholdPx && !swipeUpTriggered) {
+                            swipeUpTriggered = true
+                            // 已判定为上滑：取消长按（语音/连发空格）
+                            longPressJob.cancel()
                         }
                     }
 
