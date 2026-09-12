@@ -610,11 +610,26 @@ fun KeyboardLayout(
                             .fillMaxWidth()
                             .weight(1f),
                     ) {
-                        // 46 键布局：底行符号键宽 = 第四行字母区(7f) / 字母键数，
-                        // 与 C 键/B 键对齐，空格随之对齐 C~B。需跨 if/else 分支复用，故提到行作用域。
+                        // 46 键布局：底行符号键宽 = 第四行字母区(7f) / 字母键数，与字母键对齐。
+                        // 123/回车改成跟默认布局同物理宽度（默认底行总权重 7，各占 1.2），
+                        // 四颗符号键权重不动，差值从空格扣。总权重保持不变，所以四键像素宽度也不变。
                         val symbolKeyWeight = remember(keyRows) {
                             val n = keyRows.getOrElse(2) { listOf("z", "x", "c", "v", "b", "n", "m") }.size
                             7f / n.coerceAtLeast(1)
+                        }
+                        val modeChangeWeight: Float
+                        val spaceKeyWeight: Float
+                        val enterKeyWeight: Float
+                        if (is46Layout) {
+                            val total = 5.4f + 4f * symbolKeyWeight
+                            val ctrl = 1.2f / 7f * total
+                            modeChangeWeight = ctrl
+                            enterKeyWeight = ctrl
+                            spaceKeyWeight = total - 2f * ctrl - 4f * symbolKeyWeight
+                        } else {
+                            modeChangeWeight = 1.2f
+                            spaceKeyWeight = 3f
+                            enterKeyWeight = 1.2f
                         }
                         if (isVoiceMode && !isVoiceSticky) {
                             DummyKeyButton(
@@ -632,7 +647,7 @@ fun KeyboardLayout(
                                 onClick = { onKeyPress("mode_change") },
                                 backgroundColor = specialKeyBackgroundColor,
                                 textColor = specialKeyTextColor,
-                                modifier = Modifier.weight(1.2f),
+                                modifier = Modifier.weight(modeChangeWeight),
                                 onPress = { onKeyPressDown?.invoke("mode_change") },
                                 onRelease = { onKeyRelease?.invoke("mode_change") },
                                 onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
@@ -808,7 +823,7 @@ fun KeyboardLayout(
                             shadowEnabled = shadowEnabled,
                             shadowElevation = shadowElevation,
                             shadowShapeRadius = shadowShapeRadius,
-                            modifier = Modifier.weight(3f),
+                            modifier = Modifier.weight(spaceKeyWeight),
                             onKeyPress = onKeyPress,
                             onKeyPressDown = onKeyPressDown,
                             onKeyRelease = onKeyRelease,
@@ -999,7 +1014,7 @@ fun KeyboardLayout(
                                 onClick = { onKeyPress("enter") },
                                 backgroundColor = specialKeyBackgroundColor,
                                 textColor = specialKeyTextColor,
-                                modifier = Modifier.weight(1.2f),
+                                modifier = Modifier.weight(enterKeyWeight),
                                 onPress = { onKeyPressDown?.invoke("enter") },
                                 onRelease = { onKeyRelease?.invoke("enter") },
                                 shadowEnabled = shadowEnabled,
