@@ -97,6 +97,8 @@ data class KeyboardUiState(
     val toolPanelDisplay: String? = null,
     val toolPanelUiNodes: List<com.kingzcheung.xime.plugin.core.config.UiNode>? = null,
     val clipboardSyncEnabled: Boolean = false,
+    /** 当前编码（供助记等面板读取），随候选状态同步 */
+    val inputText: String = "",
 )
 
 class KeyboardViewModel(application: Application) : AndroidViewModel(application) {

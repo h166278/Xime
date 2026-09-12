@@ -1270,8 +1270,18 @@ fun KeyboardView(
                         bottomPaddingDp = state.keyboardBottomPaddingDp,
                         modifier = Modifier.fillMaxWidth().fillMaxHeight()
                     )
-                    is OverlayRoute.ToolPanel -> InfoPanel(
-                        title = state.toolPanelTitle,
+                    is OverlayRoute.Mnemonic -> MnemonicView(
+                        input = p.route.input,
+                        isAsciiMode = state.isAsciiMode,
+                        backgroundColor = keyboardBgColor,
+                        textColor = keyTextColor,
+                        accentColor = accentColor,
+                        keyBgColor = keyBgColor,
+                        onBack = { viewModel.closeOverlay() },
+                        bottomPaddingDp = state.keyboardBottomPaddingDp,
+                        modifier = Modifier.fillMaxWidth().fillMaxHeight(),
+                    )
+                    is OverlayRoute.ToolPanel -> InfoPanel(                        title = state.toolPanelTitle,
                         nodes = state.toolPanelUiNodes ?: emptyList(),
                         items = state.toolPanelItems,
                         isLoading = state.toolPanelLoading,

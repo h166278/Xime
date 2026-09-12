@@ -511,13 +511,15 @@ keyboard:
       k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
       l: { swipe_up: "⇐", long_press: { display: "bubble", values: ["l", "L"] } }
       # ── 第四行 ──
-      z: { swipe_up: "*", long_press: { display: "bubble", values: ["z", "Z"] } }
-      x: { swipe_up: "@", long_press: { display: "bubble", values: ["x", "X", { label: "剪切", action: "cut" }] } }
-      c: { swipe_up: "、", long_press: { display: "bubble", values: ["c", "C", "ç", { label: "复制", action: "copy" }] } }
-      v: { swipe_up: "?", long_press: { display: "bubble", values: ["v", "V", { label: "粘贴", action: "paste" }] } }
-      b: { swipe_up: "!", long_press: { display: "bubble", values: ["b", "B"] } }
-      n: { swipe_up: "%", long_press: { display: "bubble", values: ["n", "N", "ñ"] } }
-      m: { swipe_up: "#", long_press: { display: "bubble", values: ["m", "M"] } }
+      # 上滑走编辑/工具动作：z 全选 x 剪切 c 复制 v 粘贴 b 剪贴板 n 助记 m 收起键盘
+      # label 以 @ 开头 = 图标名（渲染成矢量图），否则为文字
+      z: { swipe_up: { label: "@select_all", action: "select_all" }, long_press: { display: "bubble", values: ["z", "Z"] } }
+      x: { swipe_up: { label: "@cut", action: "cut" }, long_press: { display: "bubble", values: ["x", "X", { label: "剪切", action: "cut" }] } }
+      c: { swipe_up: { label: "@copy", action: "copy" }, long_press: { display: "bubble", values: ["c", "C", "ç", { label: "复制", action: "copy" }] } }
+      v: { swipe_up: { label: "@paste", action: "paste" }, long_press: { display: "bubble", values: ["v", "V", { label: "粘贴", action: "paste" }] } }
+      b: { swipe_up: { label: "@clipboard", action: "clipboard" }, long_press: { display: "bubble", values: ["b", "B"] } }
+      n: { swipe_up: { label: "助记", action: "mnemonic" }, long_press: { display: "bubble", values: ["n", "N", "ñ"] } }
+      m: { swipe_up: { label: "收起", action: "hide_keyboard" }, long_press: { display: "bubble", values: ["m", "M"] } }
 
   # 英文键盘布局
   qwerty_en:
@@ -613,13 +615,15 @@ keyboard:
       k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
       l: { swipe_up: "⇐", long_press: { display: "bubble", values: ["l", "L"] } }
       # ── 第三行 ──
-      z: { swipe_up: "*", long_press: { display: "bubble", values: ["z", "Z"] } }
-      x: { swipe_up: "@", long_press: { display: "bubble", values: ["x", "X", { label: "cut", action: "cut" }] } }
-      c: { swipe_up: "、", long_press: { display: "bubble", values: ["c", "C", { label: "copy", action: "copy" }] } }
-      v: { swipe_up: "?", long_press: { display: "bubble", values: ["v", "V", { label: "paste", action: "paste" }] } }
-      b: { swipe_up: "!", long_press: { display: "bubble", values: ["b", "B"] } }
-      n: { swipe_up: "%", long_press: { display: "bubble", values: ["n", "N"] } }
-      m: { swipe_up: "#", long_press: { display: "bubble", values: ["m", "M"] } }
+      # 上滑走编辑/工具动作：z 全选 x 剪切 c 复制 v 粘贴 b 剪贴板 n 助记 m 收起键盘
+      # label 以 @ 开头 = 图标名（渲染成矢量图），否则为文字
+      z: { swipe_up: { label: "@select_all", action: "select_all" }, long_press: { display: "bubble", values: ["z", "Z"] } }
+      x: { swipe_up: { label: "@cut", action: "cut" }, long_press: { display: "bubble", values: ["x", "X", { label: "cut", action: "cut" }] } }
+      c: { swipe_up: { label: "@copy", action: "copy" }, long_press: { display: "bubble", values: ["c", "C", { label: "copy", action: "copy" }] } }
+      v: { swipe_up: { label: "@paste", action: "paste" }, long_press: { display: "bubble", values: ["v", "V", { label: "paste", action: "paste" }] } }
+      b: { swipe_up: { label: "@clipboard", action: "clipboard" }, long_press: { display: "bubble", values: ["b", "B"] } }
+      n: { swipe_up: { label: "mnemonic", action: "mnemonic" }, long_press: { display: "bubble", values: ["n", "N"] } }
+      m: { swipe_up: { label: "hide", action: "hide_keyboard" }, long_press: { display: "bubble", values: ["m", "M"] } }
 
   # 九键（T9）键盘配置
   t9:

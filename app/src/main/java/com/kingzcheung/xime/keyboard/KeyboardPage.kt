@@ -37,4 +37,6 @@ sealed interface OverlayRoute {
     data object CandidatePage : OverlayRoute
     data object Edit : OverlayRoute
     data object ToolPanel : OverlayRoute
+    /** 助记：展示当前输入序列对应的字根/口诀提示 */
+    data class Mnemonic(val input: String) : OverlayRoute
 }

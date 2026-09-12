@@ -175,6 +175,15 @@ fun KeyboardLayout(
             GestureAction.TOGGLE_SYMBOLS -> {
                 callbacks.onKeyPress("mode_change", false)
             }
+            GestureAction.CLIPBOARD -> {
+                viewModel.showOverlay(OverlayRoute.Clipboard(0))
+            }
+            GestureAction.MNEMONIC -> {
+                viewModel.showOverlay(OverlayRoute.Mnemonic(uiState.inputText))
+            }
+            GestureAction.HIDE_KEYBOARD -> {
+                callbacks.onHideKeyboard?.invoke()
+            }
             else -> callbacks.onGestureAction?.invoke(action, value) ?: Unit
         }
     }
@@ -547,16 +556,20 @@ fun KeyboardLayout(
                                         Unit
                                     } }
 
+                                    // 46 键布局：上滑位若配置了 @图标，则用 Box 叠一个右上角图标；
+                                    // 默认布局（swipeUpIconRes = 0）走原路径，渲染完全不变。
+                                    val swipeUpIconRes = if (is46Layout) KeysConfigHelper.getSwipeUpIconRes(key, isAsciiMode) else 0
+                                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
                                     SwipeableKeyButton(
                                         layoutMode = KeysConfigHelper.getButtonLayout(isAsciiMode),
                                         text = displayText,
                                         onClick = onClick,
                                         backgroundColor = keyBackgroundColor,
                                         textColor = keyTextColor,
-                                        modifier = Modifier.weight(1f),
+                                        modifier = Modifier.fillMaxWidth().fillMaxHeight(),
                                         swipeText = swipeUpText,
                                         swipeDownText = swipeDownBubbleText,
-                                        swipeUpKeyLabel = swipeUpKeyLabel,
+                                        swipeUpKeyLabel = if (swipeUpIconRes != 0) null else swipeUpKeyLabel,
                                         swipeDownKeyLabel = if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH)) swipeDownLabel else null,
                                         swipeUpHintTopEnd = is46Layout,
                                         onSwipe = if (swipeUpCommitValue != null && swipeUpAction != GestureAction.NONE) { { onKeyPress(swipeUpCommitValue) } } else null,
@@ -570,6 +583,18 @@ fun KeyboardLayout(
                                         shadowElevation = shadowElevation,
                                         shadowShapeRadius = shadowShapeRadius,
                                     )
+                                    if (swipeUpIconRes != 0) {
+                                        Icon(
+                                            painter = painterResource(swipeUpIconRes),
+                                            contentDescription = rawSwipeUpLabel,
+                                            tint = keyTextColor.copy(alpha = 0.75f),
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(top = 3.dp, end = 4.dp)
+                                                .size(14.dp)
+                                        )
+                                    }
+                                    }
                                 }
                             }
 
@@ -610,12 +635,21 @@ fun KeyboardLayout(
                             .fillMaxWidth()
                             .weight(1f),
                     ) {
-                        // 46 键布局：底行符号键宽 = 第四行字母区(7f) / 字母键数，
-                        // 与 C 键/B 键对齐，空格随之对齐 C~B。需跨 if/else 分支复用，故提到行作用域。
+                        // 46 键布局：底行要在 10 个字母键宽的区间里，
+                        // 让 / 与 , 对齐第三行的 Z/X（/ 与 Z 同宽），
+                        // 并让 . 右缘对齐第三行末键（M）右缘。
+                        // 解法：空格与 / , 一起放进一个 2 字母宽的容器，
+                        // 容器右缘正好落在 B 键右缘（Z..B 共 5 键），
+                        // 再由 SpaceKey 占满容器右侧、. 与 ' 归入末尾 2 字母宽。
+                        // 全部用字母键宽 w 的倍数表达，与上方行严格对齐。
                         val symbolKeyWeight = remember(keyRows) {
                             val n = keyRows.getOrElse(2) { listOf("z", "x", "c", "v", "b", "n", "m") }.size
                             7f / n.coerceAtLeast(1)
                         }
+                        // 空格 + 左侧符号键容器宽度 = 4 个字母键（对应 Z X C V，右缘落在 B 键内），
+                        // 减去 / 与 , 各占的 1 字母宽 = 空格实际宽度
+                        val spaceLeftContainerWeight = symbolKeyWeight * 5f
+                        val spaceWeight = (spaceLeftContainerWeight - symbolKeyWeight * 2f).coerceAtLeast(symbolKeyWeight)
                         if (isVoiceMode && !isVoiceSticky) {
                             DummyKeyButton(
                                 backgroundColor = specialKeyBackgroundColor.copy(alpha = 0.5f),
@@ -648,9 +682,13 @@ fun KeyboardLayout(
                             )
 
                             if (is46Layout) {
-                                // 46 键布局：空格左侧为 / 与 ,
-                                // 宽度 = 第四行字母区(7f) / 字母键数(默认7或8)，
-                                // 与 C 键/B 键对齐，因此空格也正好对齐 C~B
+                                // 46 键布局：/ 与 , 和空格同处一个 5 字母宽容器，
+                                // 容器右缘 = B 键右缘，因此 / 右缘对齐 Z 右缘、, 右缘对齐 X 右缘
+                                Row(
+                                    modifier = Modifier
+                                        .weight(spaceLeftContainerWeight)
+                                        .fillMaxHeight(),
+                                ) {
                                 ConfigDrivenSymbolKey(
                                     keyId = "/",
                                     isAsciiMode = isAsciiMode,
@@ -693,6 +731,26 @@ fun KeyboardLayout(
                                     swipeDownHintsEnabled = effectiveSwipeDownHintsEnabled,
                                     swipeUpHintTopEnd = true,
                                 )
+                                SpaceKey(
+                                    schemaName = schemaName,
+                                    isAsciiMode = isAsciiMode,
+                                    isSttEnabled = isSttEnabled,
+                                    isVoiceMode = isVoiceMode,
+                                    voiceSticky = isVoiceSticky,
+                                    keyBackgroundColor = keyBackgroundColor,
+                                    keyTextColor = keyTextColor,
+                                    shadowEnabled = shadowEnabled,
+                                    shadowElevation = shadowElevation,
+                                    shadowShapeRadius = shadowShapeRadius,
+                                    modifier = Modifier.weight(spaceWeight),
+                                    onKeyPress = onKeyPress,
+                                    onKeyPressDown = onKeyPressDown,
+                                    onKeyRelease = onKeyRelease,
+                                    onVoiceModeChange = onVoiceModeChange,
+                                    onGestureAction = onGestureAction,
+                                    onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
+                                )
+                                }
                             } else {
                             // 逗号 — 从配置读取 "'"
                             val k2KeyGesture = KeysConfigHelper.getKeyGesture("'", isAsciiMode)
@@ -993,13 +1051,14 @@ fun KeyboardLayout(
                                 )
                             }
 
-                            // 回车 — 硬编码
+                            // 回车 — 硬编码。46 键布局下左侧是 ?123 与 2 个符号键，
+                            // 回车需补足到行尾，取 1.2 + (5 - 4) * 字母键宽 才与顶行右缘对齐
                             KeyButton(
                                 text = enterKeyText,
                                 onClick = { onKeyPress("enter") },
                                 backgroundColor = specialKeyBackgroundColor,
                                 textColor = specialKeyTextColor,
-                                modifier = Modifier.weight(1.2f),
+                                modifier = Modifier.weight(if (is46Layout) 1.2f + symbolKeyWeight else 1.2f),
                                 onPress = { onKeyPressDown?.invoke("enter") },
                                 onRelease = { onKeyRelease?.invoke("enter") },
                                 shadowEnabled = shadowEnabled,
@@ -1578,6 +1637,15 @@ private fun LandscapeKeyboardContent(
             }
             GestureAction.TOGGLE_SYMBOLS -> {
                 callbacks.onKeyPress("mode_change", false)
+            }
+            GestureAction.CLIPBOARD -> {
+                viewModel.showOverlay(OverlayRoute.Clipboard(0))
+            }
+            GestureAction.MNEMONIC -> {
+                viewModel.showOverlay(OverlayRoute.Mnemonic(uiState.inputText))
+            }
+            GestureAction.HIDE_KEYBOARD -> {
+                callbacks.onHideKeyboard?.invoke()
             }
             else -> callbacks.onGestureAction?.invoke(action, value) ?: Unit
         }

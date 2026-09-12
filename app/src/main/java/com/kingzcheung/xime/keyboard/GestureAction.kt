@@ -144,6 +144,21 @@ enum class GestureAction(val value: String) {
     /** 切换符号键盘。由 UI 层拦截处理。 */
     TOGGLE_SYMBOLS("toggle_symbols") {
         override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
+    },
+
+    /** 打开剪贴板面板。由 UI 层拦截处理。 */
+    CLIPBOARD("clipboard") {
+        override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
+    },
+
+    /** 打开助记面板。由 UI 层拦截处理。 */
+    MNEMONIC("mnemonic") {
+        override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
+    },
+
+    /** 收起键盘。由 UI 层拦截处理。 */
+    HIDE_KEYBOARD("hide_keyboard") {
+        override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
     };
 
     /**

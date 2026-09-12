@@ -1307,6 +1307,29 @@ object KeysConfigHelper {
         return config[key.lowercase()]
     }
 
+    /**
+     * 按键上滑位的图标资源 id：YAML 里 `swipe_up: "@copy"` 这类写法经解析后
+     * icon 字段存的就是图标名，这里映射到 drawable。无匹配返回 0（调用方回退到文字）。
+     */
+    fun getSwipeUpIconRes(key: String, isAsciiMode: Boolean = false): Int {
+        val config = if (isAsciiMode) _keyGestureConfigEn.value else _keyGestureConfig.value
+        val icon = config[key.lowercase()]?.swipeUp?.icon ?: return 0
+        return iconResFor(icon)
+    }
+
+    /** 图标名 → drawable 资源 id。未知名字记日志，便于排查拼写。 */
+    fun iconResFor(icon: String): Int = when (icon) {
+        "select_all" -> com.kingzcheung.xime.R.drawable.ic_edit_select_all
+        "cut" -> com.kingzcheung.xime.R.drawable.ic_edit_cut
+        "copy" -> com.kingzcheung.xime.R.drawable.ic_edit_copy
+        "paste" -> com.kingzcheung.xime.R.drawable.ic_edit_paste
+        "clipboard" -> com.kingzcheung.xime.R.drawable.ic_edit_clipboard
+        else -> {
+            Log.w("KeysConfigHelper", "Unknown swipe_up icon: $icon")
+            0
+        }
+    }
+
     fun getKeyDisplayLabel(key: String, isAsciiMode: Boolean = false): String {
         val config = if (isAsciiMode) _keyGestureConfigEn.value else _keyGestureConfig.value
         val label = config[key.lowercase()]?.tap?.label
@@ -1387,9 +1410,28 @@ object KeysConfigHelper {
         return configMap[key.lowercase()]?.swipeDown?.action
     }
 
-    /** 获取下滑显示位置：key（按键上）或 bubble（气泡） */
-    fun getSwipeDownDisplay(key: String, isAsciiMode: Boolean = false): DisplayMode {
+    /** 获取下滑字根文本（优先 label，fallback value） */
+    fun getSwipeDownLabel(key: String, isAsciiMode: Boolean = false): String? {
         val configMap = if (isAsciiMode) _keyGestureConfigEn.value else _keyGestureConfig.value
+        val gesture = configMap[key.lowercase()]?.swipeDown
+        if (gesture != null) {
+            if (gesture.label.isNotEmpty()) return gesture.label
+            if (gesture.value.isNotEmpty()) return gesture.value
+        }
+        return null
+    }
+
+    /** 获取长按可选值标签（display=bubble 时的候选项；display=key 时取第一个） */
+    fun getLongPressLabels(key: String, isAsciiMode: Boolean = false): List<String> {
+        val configMap = if (isAsciiMode) _keyGestureConfigEn.value else _keyGestureConfig.value
+        val lp = configMap[key.lowercase()]?.longPress ?: return emptyList()
+        return lp.values.mapNotNull { v ->
+            v.label.takeIf { it.isNotEmpty() } ?: v.value.takeIf { it.isNotEmpty() }
+        }
+    }
+
+    /** 获取下滑显示位置：key（按键上）或 bubble（气泡） */
+    fun getSwipeDownDisplay(key: String, isAsciiMode: Boolean = false): DisplayMode {        val configMap = if (isAsciiMode) _keyGestureConfigEn.value else _keyGestureConfig.value
         return configMap[key.lowercase()]?.swipeDown?.display ?: DisplayMode.BOTH
     }
 
