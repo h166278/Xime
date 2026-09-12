@@ -610,9 +610,10 @@ fun KeyboardLayout(
                             .fillMaxWidth()
                             .weight(1f),
                     ) {
-                        // 46 键布局：底行符号键宽 = 第四行字母区(7f) / 字母键数，与字母键对齐。
-                        // 123/回车改成跟默认布局同物理宽度（默认底行总权重 7，各占 1.2），
-                        // 四颗符号键权重不动，差值从空格扣。总权重保持不变，所以四键像素宽度也不变。
+                        // 46 键 A 方案：底行总权重 = 第四行 1.4+7+1.4 = 9.8。
+                        // 四键权重 = 字母区 7 / 字母键数，像素宽与 z~m 相同；
+                        // 123/回车 = 1.2/7 × 9.8 = 1.68，物理宽与默认布局 1.2/7 相同；
+                        // 差额全部给空格。
                         val symbolKeyWeight = remember(keyRows) {
                             val n = keyRows.getOrElse(2) { listOf("z", "x", "c", "v", "b", "n", "m") }.size
                             7f / n.coerceAtLeast(1)
@@ -621,7 +622,7 @@ fun KeyboardLayout(
                         val spaceKeyWeight: Float
                         val enterKeyWeight: Float
                         if (is46Layout) {
-                            val total = 5.4f + 4f * symbolKeyWeight
+                            val total = 1.4f + 7f + 1.4f
                             val ctrl = 1.2f / 7f * total
                             modeChangeWeight = ctrl
                             enterKeyWeight = ctrl
@@ -663,9 +664,7 @@ fun KeyboardLayout(
                             )
 
                             if (is46Layout) {
-                                // 46 键布局：空格左侧为 / 与 ,
-                                // 宽度 = 第四行字母区(7f) / 字母键数(默认7或8)，
-                                // 与 C 键/B 键对齐，因此空格也正好对齐 C~B
+                                // 46 键布局：空格左侧为 / 与 ,，宽度同 z~m（权重 7/n）
                                 ConfigDrivenSymbolKey(
                                     keyId = "/",
                                     isAsciiMode = isAsciiMode,
