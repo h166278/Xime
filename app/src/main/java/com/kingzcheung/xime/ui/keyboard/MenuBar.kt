@@ -5,10 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -151,6 +151,7 @@ fun MenuBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .fillMaxHeight()
             .background(state.backgroundColor),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -226,39 +227,51 @@ fun MenuBar(
                     .fillMaxWidth()
                     .weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceAround
             ) {
                 HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
                 ) { page ->
-                    FlowRow(
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        maxItemsInEachRow = 4
                     ) {
-                        pages[page].forEach { item ->
-                            if (item != null) {
-                                MenuItemButton(
-                                    item = item,
-                                    bgColor = itemBgColor,
-                                    textColor = textColor,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            } else {
-                                Box(modifier = Modifier.weight(1f).aspectRatio(1f))
+                        pages[page].chunked(4).forEach { rowItems ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                rowItems.forEach { item ->
+                                    if (item != null) {
+                                        MenuItemButton(
+                                            item = item,
+                                            bgColor = itemBgColor,
+                                            textColor = textColor,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight(),
+                                        )
+                                    } else {
+                                        Box(modifier = Modifier.weight(1f).fillMaxHeight())
+                                    }
+                                }
+                                repeat(4 - rowItems.size) {
+                                    Box(modifier = Modifier.weight(1f).fillMaxHeight())
+                                }
                             }
                         }
                     }
                 }
 
                 if (pages.size > 1) {
-
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -274,6 +287,7 @@ fun MenuBar(
                             )
                         }
                     }
+                } else {
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
@@ -291,7 +305,7 @@ fun MenuItemButton(
 ) {
     Column(
         modifier = modifier
-            .then(if (isLandscape) Modifier.height(72.dp) else Modifier.aspectRatio(1f))
+            .then(if (isLandscape) Modifier.height(72.dp) else Modifier.fillMaxHeight())
             .clip(RoundedCornerShape(12.dp))
             .background(bgColor)
             .clickable { item.action() }
