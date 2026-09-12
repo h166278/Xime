@@ -642,13 +642,19 @@ fun KeyboardLayout(
                             )
 
                             if (is46Layout) {
-                                // 46 键布局：空格左侧为 / 与 ,（宽度与默认布局逗号键一致）
+                                // 46 键布局：空格左侧为 / 与 ,
+                                // 宽度 3.5f = 第四行字母区(7f) / 字母键数(默认7或8)，
+                                // 与 C 键/B 键对齐，因此空格也正好对齐 C~B
+                                val symbolKeyWeight = remember(keyRows) {
+                                    val n = keyRows.getOrElse(2) { listOf("z", "x", "c", "v", "b", "n", "m") }.size
+                                    7f / n.coerceAtLeast(1)
+                                }
                                 ConfigDrivenSymbolKey(
                                     keyId = "/",
                                     isAsciiMode = isAsciiMode,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
-                                    modifier = Modifier.weight(0.8f),
+                                    modifier = Modifier.weight(symbolKeyWeight),
                                     fallbackTap = "/",
                                     fallbackTapLabel = "/",
                                     onKeyPress = onKeyPress,
@@ -669,7 +675,7 @@ fun KeyboardLayout(
                                     isAsciiMode = isAsciiMode,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
-                                    modifier = Modifier.weight(0.8f),
+                                    modifier = Modifier.weight(symbolKeyWeight),
                                     fallbackTap = ",",
                                     fallbackTapLabel = if (isAsciiMode) "," else "，",
                                     onKeyPress = onKeyPress,
@@ -940,13 +946,13 @@ fun KeyboardLayout(
                             } // end if (!is46Layout)
 
                             if (is46Layout) {
-                                // 46 键布局：空格右侧为 . 与 '（宽度与逗号键一致）
+                                // 46 键布局：空格右侧为 . 与 '，宽度同字母键
                                 ConfigDrivenSymbolKey(
                                     keyId = ".",
                                     isAsciiMode = isAsciiMode,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
-                                    modifier = Modifier.weight(0.8f),
+                                    modifier = Modifier.weight(symbolKeyWeight),
                                     fallbackTap = ".",
                                     fallbackTapLabel = if (isAsciiMode) "." else "。",
                                     onKeyPress = onKeyPress,
@@ -967,7 +973,7 @@ fun KeyboardLayout(
                                     isAsciiMode = isAsciiMode,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
-                                    modifier = Modifier.weight(0.8f),
+                                    modifier = Modifier.weight(symbolKeyWeight),
                                     fallbackTap = "'",
                                     fallbackTapLabel = "'",
                                     onKeyPress = onKeyPress,
