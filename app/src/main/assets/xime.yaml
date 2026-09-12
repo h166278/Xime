@@ -477,10 +477,11 @@ keyboard:
       earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
 
       # ── 46 键布局专用底行符号键（默认布局不显示，仅布局选 46 键时启用）──
+      # tap.value 必须半角：组词时进声笔加码（, . / ; '），空码时由 punctuator 转全角。
       # 上滑与长按同值，长按用 display: key 直接提交；quote46 避免与默认逗号键 id "'" 冲突
       "/": { tap: { label: "/", value: "/" }, swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "?", value: "?" } ] } }
-      ",": { tap: { label: "，", value: "，" }, swipe_up: { label: "《", value: "《" }, long_press: { display: "key", values: [ { label: "《", value: "《" } ] } }
-      ".": { tap: { label: "。", value: "。" }, swipe_up: { label: "》", value: "》" }, long_press: { display: "key", values: [ { label: "》", value: "》" } ] } }
+      ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "key", values: [ { label: "《", value: "《" } ] } }
+      ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "key", values: [ { label: "》", value: "》" } ] } }
       quote46: { tap: { label: "'", value: "'" }, swipe_up: { label: "\"", value: "\"" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
     
   # 英文键盘布局

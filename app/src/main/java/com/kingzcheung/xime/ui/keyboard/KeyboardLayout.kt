@@ -670,7 +670,7 @@ fun KeyboardLayout(
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
                                     modifier = Modifier.weight(0.8f),
-                                    fallbackTap = if (isAsciiMode) "," else "，",
+                                    fallbackTap = ",",
                                     fallbackTapLabel = if (isAsciiMode) "," else "，",
                                     onKeyPress = onKeyPress,
                                     onKeyPressDown = onKeyPressDown,
@@ -806,6 +806,11 @@ fun KeyboardLayout(
                             onKeyRelease = onKeyRelease,
                             onVoiceModeChange = onVoiceModeChange,
                             onGestureAction = onGestureAction,
+                            // 46 键：上滑切中/英带气泡提示（中/英两种模式都要）
+                            swipeUpLabel = if (is46Layout) {
+                                if (isAsciiMode) "中文" else "English"
+                            } else null,
+                            onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
                         )
 
                         // 中/英切换 + 回车（硬编码 + 配置驱动）
@@ -942,7 +947,7 @@ fun KeyboardLayout(
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
                                     modifier = Modifier.weight(0.8f),
-                                    fallbackTap = if (isAsciiMode) "." else "。",
+                                    fallbackTap = ".",
                                     fallbackTapLabel = if (isAsciiMode) "." else "。",
                                     onKeyPress = onKeyPress,
                                     onKeyPressDown = onKeyPressDown,
@@ -2569,12 +2574,18 @@ private fun SpaceKey(
     onKeyRelease: ((String) -> Unit)?,
     onVoiceModeChange: ((Boolean) -> Unit)?,
     onGestureAction: ((GestureAction, String) -> Unit)? = null,
+    swipeUpLabel: String? = null,
+    onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
 ) {
     val currentOnKeyPress by rememberUpdatedState(onKeyPress)
     val currentOnKeyPressDown by rememberUpdatedState(onKeyPressDown)
     val currentOnKeyRelease by rememberUpdatedState(onKeyRelease)
     val currentOnVoiceModeChange by rememberUpdatedState(onVoiceModeChange)
     val currentOnGestureAction by rememberUpdatedState(onGestureAction)
+    val currentSwipeUpLabel by rememberUpdatedState(swipeUpLabel)
+    val currentOnSwipeStateChange by rememberUpdatedState(onSwipeStateChange)
+    var buttonBounds by remember { mutableStateOf(Rect(0f, 0f, 0f, 0f)) }
+    var isBubbleShowing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -2599,6 +2610,9 @@ private fun SpaceKey(
     Box(
         modifier = modifier
             .fillMaxHeight()
+            .onGloballyPositioned { coordinates ->
+                buttonBounds = coordinates.boundsInRoot()
+            }
             .pointerInput(isSttEnabled, voiceSticky) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
@@ -2614,6 +2628,8 @@ private fun SpaceKey(
 
                     // 上滑阈值：约为键高一半，避免误触
                     val swipeUpThresholdPx = with(density) { 24.dp.toPx() }
+                    // 气泡显示阈值：轻扫即出，与 SwipeableKeyButton 保持同一手感（阈值的 30%）
+                    val bubbleShowThresholdPx = swipeUpThresholdPx * 0.3f
                     var swipeUpTriggered = false
                     var longPressTriggered = false
                     val longPressJob = scope.launch {
@@ -2644,6 +2660,21 @@ private fun SpaceKey(
                         if (startY == null) startY = change.position.y
                         if (!change.pressed) break
                         val dy = startY!! - change.position.y
+                        // 上滑气泡：与普通键一致，越过起泡阈值即亮出「切换中/英」
+                        if (currentSwipeUpLabel != null) {
+                            val shouldShowBubble = dy > bubbleShowThresholdPx
+                            if (shouldShowBubble != isBubbleShowing) {
+                                isBubbleShowing = shouldShowBubble
+                                currentOnSwipeStateChange?.invoke(
+                                    if (shouldShowBubble) {
+                                        SwipeState(isSwiping = true, swipeText = currentSwipeUpLabel)
+                                    } else {
+                                        SwipeState()
+                                    },
+                                    buttonBounds
+                                )
+                            }
+                        }
                         if (dy > swipeUpThresholdPx && !swipeUpTriggered) {
                             swipeUpTriggered = true
                             // 已判定为上滑：取消长按（语音/连发空格）
@@ -2653,6 +2684,10 @@ private fun SpaceKey(
 
                     longPressJob.cancel()
                     currentOnKeyRelease?.invoke("space")
+                    if (isBubbleShowing) {
+                        isBubbleShowing = false
+                        currentOnSwipeStateChange?.invoke(SwipeState(), buttonBounds)
+                    }
 
                     if (swipeUpTriggered) {
                         // 上滑空格：切换中/英
