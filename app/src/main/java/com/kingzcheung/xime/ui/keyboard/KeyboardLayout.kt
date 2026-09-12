@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitPointerEventScope
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
@@ -799,6 +800,7 @@ fun KeyboardLayout(
                             onKeyPressDown = onKeyPressDown,
                             onKeyRelease = onKeyRelease,
                             onVoiceModeChange = onVoiceModeChange,
+                            onGestureAction = onGestureAction,
                         )
 
                         // 中/英切换 + 回车（硬编码 + 配置驱动）
@@ -2554,11 +2556,13 @@ private fun SpaceKey(
     onKeyPressDown: ((String) -> Unit)?,
     onKeyRelease: ((String) -> Unit)?,
     onVoiceModeChange: ((Boolean) -> Unit)?,
+    onGestureAction: ((GestureAction, String) -> Unit)? = null,
 ) {
     val currentOnKeyPress by rememberUpdatedState(onKeyPress)
     val currentOnKeyPressDown by rememberUpdatedState(onKeyPressDown)
     val currentOnKeyRelease by rememberUpdatedState(onKeyRelease)
     val currentOnVoiceModeChange by rememberUpdatedState(onVoiceModeChange)
+    val currentOnGestureAction by rememberUpdatedState(onGestureAction)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -2596,6 +2600,9 @@ private fun SpaceKey(
 
                     currentOnKeyPressDown?.invoke("space")
 
+                    // 上滑阈值：约为键高一半，避免误触
+                    val swipeUpThresholdPx = with(density) { 24.dp.toPx() }
+                    var swipeUpTriggered = false
                     var longPressTriggered = false
                     val longPressJob = scope.launch {
                         delay(400)
@@ -2617,11 +2624,30 @@ private fun SpaceKey(
                         }
                     }
 
-                    waitForUpOrCancellation()
+                    // 追踪指针：上滑切中/英，松手时若未达阈值则按轻触处理
+                    awaitPointerEventScope {
+                        var startY: Float? = null
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+                            if (startY == null) startY = change.position.y
+                            if (!change.pressed) break
+                            val dy = startY!! - change.position.y
+                            if (dy > swipeUpThresholdPx && !swipeUpTriggered) {
+                                swipeUpTriggered = true
+                                // 已判定为上滑：取消长按（语音/连发空格）
+                                longPressJob.cancel()
+                            }
+                        }
+                    }
+
                     longPressJob.cancel()
                     currentOnKeyRelease?.invoke("space")
 
-                    if (!longPressTriggered) {
+                    if (swipeUpTriggered) {
+                        // 上滑空格：切换中/英
+                        currentOnGestureAction?.invoke(GestureAction.TOGGLE_ASCII, "")
+                    } else if (!longPressTriggered) {
                         currentOnKeyPress("space")
                     }
                 }
