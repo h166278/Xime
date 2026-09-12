@@ -622,7 +622,7 @@ fun KeyboardLayout(
                                 onClick = { onKeyPress("mode_change") },
                                 backgroundColor = specialKeyBackgroundColor,
                                 textColor = specialKeyTextColor,
-                                modifier = Modifier.weight(if (is46Layout) 0.95f else 1.2f),
+                                modifier = Modifier.weight(1.2f),
                                 onPress = { onKeyPressDown?.invoke("mode_change") },
                                 onRelease = { onKeyRelease?.invoke("mode_change") },
                                 onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
@@ -638,13 +638,13 @@ fun KeyboardLayout(
                             )
 
                             if (is46Layout) {
-                                // 46 键布局：空格左侧为 / 与 ,（宽度取自 Trime 预设 11 等权）
+                                // 46 键布局：空格左侧为 / 与 ,（宽度与默认布局逗号键一致）
                                 ConfigDrivenSymbolKey(
                                     keyId = "/",
                                     isAsciiMode = isAsciiMode,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
-                                    modifier = Modifier.weight(0.92f),
+                                    modifier = Modifier.weight(0.8f),
                                     fallbackTap = "/",
                                     fallbackTapLabel = "/",
                                     onKeyPress = onKeyPress,
@@ -664,7 +664,7 @@ fun KeyboardLayout(
                                     isAsciiMode = isAsciiMode,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
-                                    modifier = Modifier.weight(0.92f),
+                                    modifier = Modifier.weight(0.8f),
                                     fallbackTap = if (isAsciiMode) "," else "，",
                                     fallbackTapLabel = if (isAsciiMode) "," else "，",
                                     onKeyPress = onKeyPress,
@@ -812,10 +812,10 @@ fun KeyboardLayout(
                                 modifier = Modifier.weight(1.2f)
                             )
                         } else {
-                            }
-
+                            // 46 键布局：删除中/英切换键（earth），仅保留回车
+                            if (!is46Layout) {
                             // earth — 从配置读取
-                            val earthWeight = if (is46Layout) 0.62f else 0.8f
+                            val earthWeight = 0.8f
                             val k4KeyGesture = KeysConfigHelper.getKeyGesture("earth", isAsciiMode)
                             val k4TapAction = k4KeyGesture?.tap?.action
                             val k4TapValue = k4KeyGesture?.tap?.value?.takeIf { it.isNotEmpty() } ?: ""
@@ -925,14 +925,16 @@ fun KeyboardLayout(
                                 )
                             }
 
+                            } // end if (!is46Layout)
+
                             if (is46Layout) {
-                                // 46 键布局：earth 右侧补 . 与 '（宽度取自 Trime 预设 11 等权）
+                                // 46 键布局：空格右侧为 . 与 '（宽度与逗号键一致）
                                 ConfigDrivenSymbolKey(
                                     keyId = ".",
                                     isAsciiMode = isAsciiMode,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
-                                    modifier = Modifier.weight(0.92f),
+                                    modifier = Modifier.weight(0.8f),
                                     fallbackTap = if (isAsciiMode) "." else "。",
                                     fallbackTapLabel = if (isAsciiMode) "." else "。",
                                     onKeyPress = onKeyPress,
@@ -952,7 +954,7 @@ fun KeyboardLayout(
                                     isAsciiMode = isAsciiMode,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
-                                    modifier = Modifier.weight(0.92f),
+                                    modifier = Modifier.weight(0.8f),
                                     fallbackTap = "'",
                                     fallbackTapLabel = "'",
                                     onKeyPress = onKeyPress,
@@ -975,7 +977,7 @@ fun KeyboardLayout(
                                 onClick = { onKeyPress("enter") },
                                 backgroundColor = specialKeyBackgroundColor,
                                 textColor = specialKeyTextColor,
-                                modifier = Modifier.weight(if (is46Layout) 0.95f else 1.2f),
+                                modifier = Modifier.weight(1.2f),
                                 onPress = { onKeyPressDown?.invoke("enter") },
                                 onRelease = { onKeyRelease?.invoke("enter") },
                                 shadowEnabled = shadowEnabled,
