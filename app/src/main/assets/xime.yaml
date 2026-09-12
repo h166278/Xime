@@ -510,14 +510,14 @@ keyboard:
       j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
       k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
       l: { swipe_up: "⇐", long_press: { display: "bubble", values: ["l", "L"] } }
-      # ── 第四行 ──
-      z: { swipe_up: "*", long_press: { display: "bubble", values: ["z", "Z"] } }
-      x: { swipe_up: "@", long_press: { display: "bubble", values: ["x", "X", { label: "剪切", action: "cut" }] } }
-      c: { swipe_up: "、", long_press: { display: "bubble", values: ["c", "C", "ç", { label: "复制", action: "copy" }] } }
-      v: { swipe_up: "?", long_press: { display: "bubble", values: ["v", "V", { label: "粘贴", action: "paste" }] } }
-      b: { swipe_up: "!", long_press: { display: "bubble", values: ["b", "B"] } }
-      n: { swipe_up: "%", long_press: { display: "bubble", values: ["n", "N", "ñ"] } }
-      m: { swipe_up: "#", long_press: { display: "bubble", values: ["m", "M"] } }
+      # ── 第四行：上滑执行编辑动作，气泡只显示文案；助记暂空操作 ──
+      z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
+      x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }
+      c: { swipe_up: { label: "复制", action: "copy", icon: "copy", display: "both" }, long_press: { display: "bubble", values: ["c", "C", "ç"] } }
+      v: { swipe_up: { label: "粘贴", action: "paste", icon: "paste", display: "both" }, long_press: { display: "bubble", values: ["v", "V"] } }
+      b: { swipe_up: { label: "剪贴板", action: "switch_route", value: "clipboard", icon: "clipboard", display: "both" }, long_press: { display: "bubble", values: ["b", "B"] } }
+      n: { swipe_up: { label: "助记", action: "none", display: "both" }, long_press: { display: "bubble", values: ["n", "N", "ñ"] } }
+      m: { swipe_up: { label: "收起", action: "command", value: "hide_keyboard", display: "both" }, long_press: { display: "bubble", values: ["m", "M"] } }
 
   # 英文键盘布局
   qwerty_en:
@@ -612,14 +612,14 @@ keyboard:
       j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
       k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
       l: { swipe_up: "⇐", long_press: { display: "bubble", values: ["l", "L"] } }
-      # ── 第三行 ──
-      z: { swipe_up: "*", long_press: { display: "bubble", values: ["z", "Z"] } }
-      x: { swipe_up: "@", long_press: { display: "bubble", values: ["x", "X", { label: "cut", action: "cut" }] } }
-      c: { swipe_up: "、", long_press: { display: "bubble", values: ["c", "C", { label: "copy", action: "copy" }] } }
-      v: { swipe_up: "?", long_press: { display: "bubble", values: ["v", "V", { label: "paste", action: "paste" }] } }
-      b: { swipe_up: "!", long_press: { display: "bubble", values: ["b", "B"] } }
-      n: { swipe_up: "%", long_press: { display: "bubble", values: ["n", "N"] } }
-      m: { swipe_up: "#", long_press: { display: "bubble", values: ["m", "M"] } }
+      # ── 第三行：上滑执行编辑动作，气泡只显示文案；助记暂空操作 ──
+      z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
+      x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }
+      c: { swipe_up: { label: "复制", action: "copy", icon: "copy", display: "both" }, long_press: { display: "bubble", values: ["c", "C"] } }
+      v: { swipe_up: { label: "粘贴", action: "paste", icon: "paste", display: "both" }, long_press: { display: "bubble", values: ["v", "V"] } }
+      b: { swipe_up: { label: "剪贴板", action: "switch_route", value: "clipboard", icon: "clipboard", display: "both" }, long_press: { display: "bubble", values: ["b", "B"] } }
+      n: { swipe_up: { label: "助记", action: "none", display: "both" }, long_press: { display: "bubble", values: ["n", "N"] } }
+      m: { swipe_up: { label: "收起", action: "command", value: "hide_keyboard", display: "both" }, long_press: { display: "bubble", values: ["m", "M"] } }
 
   # 九键（T9）键盘配置
   t9:

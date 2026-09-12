@@ -227,6 +227,7 @@ private fun parseGestureNode(node: com.charleskorn.kaml.YamlNode): GestureDef {
         var action: GestureAction? = GestureAction.COMMIT
         var value = ""
         var display = "key"
+        var iconField = ""
         for ((k, v) in node.entries) {
             val key = (k as? com.charleskorn.kaml.YamlScalar)?.content ?: continue
             when (key) {
@@ -251,10 +252,14 @@ private fun parseGestureNode(node: com.charleskorn.kaml.YamlNode): GestureDef {
                     val vStr = (v as? YamlScalar)?.content ?: continue
                     display = vStr
                 }
+                "icon" -> {
+                    iconField = (v as? YamlScalar)?.content ?: continue
+                }
             }
         }
-        val icon = if (label.startsWith("@")) label.removePrefix("@") else ""
-        val cleanLabel = if (icon.isNotEmpty()) "" else label
+        val iconFromLabel = if (label.startsWith("@")) label.removePrefix("@") else ""
+        val icon = iconField.ifEmpty { iconFromLabel }
+        val cleanLabel = if (iconFromLabel.isNotEmpty()) "" else label
         return GestureDef(label = cleanLabel, labels = labels, action = action, value = value, icon = icon, display = DisplayMode.fromValue(display))
     }
     return GestureDef()
@@ -1397,6 +1402,12 @@ object KeysConfigHelper {
     fun getSwipeUpDisplay(key: String, isAsciiMode: Boolean = false): DisplayMode {
         val configMap = if (isAsciiMode) _keyGestureConfigEn.value else _keyGestureConfig.value
         return configMap[key.lowercase()]?.swipeUp?.display ?: DisplayMode.BOTH
+    }
+
+    /** 上滑键帽图标 id（xime.yaml swipe_up.icon），空则走文字 hint。 */
+    fun getSwipeUpIcon(key: String, isAsciiMode: Boolean = false): String? {
+        val configMap = if (isAsciiMode) _keyGestureConfigEn.value else _keyGestureConfig.value
+        return configMap[key.lowercase()]?.swipeUp?.icon?.takeIf { it.isNotEmpty() }
     }
 
     private fun getDefaultSwipeUp(): Map<String, String> = mapOf(

@@ -395,6 +395,8 @@ fun SwipeableKeyButton(
     swipeUpKeyLabel: String? = null,
     /** true：上滑 hint 贴右上角（46 键）；false：居中偏上（默认布局） */
     swipeUpHintTopEnd: Boolean = false,
+    /** 上滑键帽图标；非空时替代右上角文字 hint */
+    swipeUpHintIcon: Painter? = null,
     onSwipe: ((String) -> Unit)? = null,
     onSwipeDown: ((String) -> Unit)? = null,
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
@@ -722,7 +724,14 @@ fun SwipeableKeyButton(
                     horizontalAlignment = Alignment.End
                 ) {
                     val swipeUpHint = swipeUpKeyLabel ?: swipeText
-                    if (!swipeUpHint.isNullOrEmpty()) {
+                    if (swipeUpHintIcon != null) {
+                        Icon(
+                            painter = swipeUpHintIcon,
+                            contentDescription = swipeUpHint,
+                            tint = textColor.copy(alpha = 0.6f),
+                            modifier = Modifier.size((effectiveSwipeFontSize.value + 3f).dp)
+                        )
+                    } else if (!swipeUpHint.isNullOrEmpty()) {
                         val displayText = if (swipeUpHint.length <= 2) swipeUpHint else swipeUpHint.take(2)
                         Text(
                             text = displayText,
@@ -780,9 +789,22 @@ fun SwipeableKeyButton(
                 )
             }
 
-            if (!(swipeUpKeyLabel ?: swipeText).isNullOrEmpty()) {
-                val keyLabel = (swipeUpKeyLabel ?: swipeText)!!
-                val displayText = if (keyLabel.length <= 4) keyLabel else keyLabel.take(4)
+            val swipeUpHint = swipeUpKeyLabel ?: swipeText
+            if (swipeUpHintIcon != null) {
+                Icon(
+                    painter = swipeUpHintIcon,
+                    contentDescription = swipeUpHint,
+                    tint = textColor.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .align(if (swipeUpHintTopEnd) Alignment.TopEnd else Alignment.TopCenter)
+                        .then(
+                            if (swipeUpHintTopEnd) Modifier.padding(top = 3.dp, end = 4.dp)
+                            else Modifier.offset(y = -hintOffset)
+                        )
+                        .size((effectiveSwipeFontSize.value + 3f).dp)
+                )
+            } else if (!swipeUpHint.isNullOrEmpty()) {
+                val displayText = if (swipeUpHint.length <= 4) swipeUpHint else swipeUpHint.take(4)
                 Text(
                     text = displayText,
                     color = textColor.copy(alpha = 0.6f),

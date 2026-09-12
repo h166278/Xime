@@ -1595,6 +1595,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                 @Suppress("DEPRECATION")
                 imm.showInputMethodPicker()
             }
+            "hide_keyboard" -> hideKeyboard()
             else -> Log.w(TAG, "Unknown command: $name")
         }
     }

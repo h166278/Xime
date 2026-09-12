@@ -30,6 +30,11 @@ import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Square
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.ContentCut
+import androidx.compose.material.icons.outlined.ContentPaste
+import androidx.compose.material.icons.outlined.CropSquare
 import androidx.compose.material.icons.twotone.EmojiEmotions
 import androidx.compose.material.icons.twotone.KeyboardCapslock
 import androidx.compose.material3.Icon
@@ -160,6 +165,7 @@ fun KeyboardLayout(
                 val overlayRoute = when (value) {
                     "emoji" -> OverlayRoute.Emoji
                     "symbol" -> OverlayRoute.Symbol
+                    "clipboard" -> OverlayRoute.Clipboard(0)
                     else -> null
                 }
                 overlayRoute?.let { viewModel.showOverlay(it) }
@@ -559,7 +565,17 @@ fun KeyboardLayout(
                                         swipeUpKeyLabel = swipeUpKeyLabel,
                                         swipeDownKeyLabel = if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH)) swipeDownLabel else null,
                                         swipeUpHintTopEnd = is46Layout,
-                                        onSwipe = if (swipeUpCommitValue != null && swipeUpAction != GestureAction.NONE) { { onKeyPress(swipeUpCommitValue) } } else null,
+                                        swipeUpHintIcon = rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
+                                        onSwipe = remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
+                                            swipeUpClick(
+                                                swipeUpAction,
+                                                KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
+                                                rawSwipeUpLabel,
+                                                onKeyPress,
+                                                onGestureAction,
+                                                onCommitText,
+                                            )
+                                        },
                                         onSwipeDown = onSwipeDown,
                                         onSwipeStateChange = onSwipeStateChange,
                                         onPress = onPress,
@@ -1386,7 +1402,17 @@ fun KeyboardRowWithConfig(
                 swipeUpKeyLabel = swipeUpKeyLabel,
                 swipeDownKeyLabel = if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH) && swipeDownHintsEnabled) swipeDownLabel else null,
                 swipeUpHintTopEnd = swipeUpHintTopEnd,
-                onSwipe = if (swipeUpCommitValue != null && swipeUpAction != GestureAction.NONE) { { onKeyPress(swipeUpCommitValue) } } else null,
+                swipeUpHintIcon = rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
+                onSwipe = remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
+                    swipeUpClick(
+                        swipeUpAction,
+                        KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
+                        rawSwipeUpLabel,
+                        onKeyPress,
+                        onGestureAction,
+                        onCommitText,
+                    )
+                },
                 onSwipeDown = onSwipeDown,
                 onSwipeStateChange = onSwipeStateChange,
                 onPress = onPress,
@@ -1578,6 +1604,7 @@ private fun LandscapeKeyboardContent(
                 val overlayRoute = when (value) {
                     "emoji" -> OverlayRoute.Emoji
                     "symbol" -> OverlayRoute.Symbol
+                    "clipboard" -> OverlayRoute.Clipboard(0)
                     else -> null
                 }
                 overlayRoute?.let { viewModel.showOverlay(it) }
@@ -2486,7 +2513,16 @@ fun CompactKeyboardRowWithConfig(
                 swipeDownText = swipeDownBubbleText,
                 swipeUpKeyLabel = swipeUpKeyLabel,
                 swipeDownKeyLabel = swipeDownKeyLabel,
-                onSwipe = if (swipeUpCommitValue != null && swipeUpAction != GestureAction.NONE) { { onKeyPress(swipeUpCommitValue) } } else null,
+                onSwipe = remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
+                    swipeUpClick(
+                        swipeUpAction,
+                        KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
+                        rawSwipeUpLabel,
+                        onKeyPress,
+                        onGestureAction,
+                        onCommitText,
+                    )
+                },
                 onSwipeDown = compactOnSwipeDown,
                 onSwipeStateChange = onSwipeStateChange,
                 onPress = compactOnPress,
@@ -2779,4 +2815,38 @@ private fun SpaceKey(
             }
         }
     }
+}
+
+/** 上滑：COMMIT 才上屏，其余走动作；NONE 不触发。气泡文案由 swipeText 单独负责。 */
+private fun swipeUpClick(
+    action: GestureAction?,
+    value: String,
+    label: String?,
+    onKeyPress: (String) -> Unit,
+    onGestureAction: ((GestureAction, String) -> Unit)?,
+    onCommitText: ((String) -> Unit)?,
+): ((String) -> Unit)? {
+    if (action == null || action == GestureAction.NONE) return null
+    return { _: String ->
+        if (action == GestureAction.COMMIT) {
+            val text = value.ifEmpty { label.orEmpty() }
+            if (text.isNotEmpty()) (onCommitText ?: onKeyPress)(text)
+        } else {
+            onGestureAction?.invoke(action, value)
+        }
+        Unit
+    }
+}
+
+@Composable
+private fun rememberSwipeUpHintPainter(icon: String?): Painter? {
+    val image = when (icon) {
+        "select_all" -> Icons.Outlined.CheckBox
+        "cut" -> Icons.Outlined.ContentCut
+        "copy" -> Icons.Outlined.CropSquare
+        "paste" -> Icons.Filled.Square
+        "clipboard" -> Icons.Outlined.ContentPaste
+        else -> null
+    } ?: return null
+    return rememberVectorPainter(image)
 }
