@@ -1,6 +1,5 @@
 package com.kingzcheung.xime.ui.settings
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
@@ -365,63 +364,6 @@ fun LayoutDisplaySettingsContent(
                             }
                         )
                     }
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 16.dp),
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-                })
-            }
-
-            item {
-                SettingsSection(title = "键盘", content = {
-                    var numberRowEnabled by remember {
-                        mutableStateOf(SettingsPreferences.isNumberRowEnabled(context))
-                    }
-
-                    Text(
-                        text = "数字行",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-                    )
-                    Text(
-                        text = "在 QWERTY 上方显示 1234567890",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
-                    )
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(112.dp)
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        NumberRowCard(
-                            title = "显示",
-                            isSelected = numberRowEnabled,
-                            showNumberRow = true,
-                            onClick = {
-                                numberRowEnabled = true
-                                SettingsPreferences.setNumberRowEnabled(context, true)
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                        NumberRowCard(
-                            title = "隐藏",
-                            isSelected = !numberRowEnabled,
-                            showNumberRow = false,
-                            onClick = {
-                                numberRowEnabled = false
-                                SettingsPreferences.setNumberRowEnabled(context, false)
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
                 })
             }
 

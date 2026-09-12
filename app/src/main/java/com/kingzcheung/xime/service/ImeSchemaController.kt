@@ -401,7 +401,7 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
         val portraitWidth = minOf(screenW, screenH)
         val cardWidth = (portraitWidth * 0.85f).roundToInt()
         val halfMargin = maxOf(0, (screenW - cardWidth) / 2)
-        val numberRowExtra = if (SettingsPreferences.isNumberRowEnabled(service) &&
+        val numberRowExtra = if (SettingsPreferences.isLayout46Enabled(service) &&
             (service.keyboardViewModel.keyboardState.value is KeyboardLayoutState.Chinese ||
                 service.keyboardViewModel.keyboardState.value is KeyboardLayoutState.English)
         ) SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP else 0

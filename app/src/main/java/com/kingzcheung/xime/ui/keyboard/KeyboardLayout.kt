@@ -200,10 +200,10 @@ fun KeyboardLayout(
         )
     }
     val effectiveSwipeDownHintsEnabled = swipeDownHintsEnabled
-    val showNumberRow = uiState.numberRowEnabled
 
-    // 46 键布局开关（设置 → 布局与显示 → 布局选择）
+    // 46 键布局开关（设置 → 布局与显示 → 布局选择）；数字行只跟 46 键走
     var is46Layout by remember { mutableStateOf(SettingsPreferences.isLayout46Enabled(context)) }
+    val showNumberRow = is46Layout
 
     // 监听设置变化
     DisposableEffect(context) {

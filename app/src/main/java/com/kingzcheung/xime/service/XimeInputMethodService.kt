@@ -365,7 +365,6 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             isSttEnabled = SettingsPreferences.isSttEnabled(this@XimeInputMethodService),
             keyboardHeightDp = SettingsPreferences.getKeyboardHeightDp(this, isLandscape),
             keyboardBottomPaddingDp = SettingsPreferences.getKeyboardBottomPaddingDp(this),
-            numberRowEnabled = SettingsPreferences.isNumberRowEnabled(this),
             toolbarButtons = SettingsPreferences.getToolbarButtons(this),
             isFloatingMode = isFloatingMode,
             floatingOffsetX = clampedX,
@@ -378,7 +377,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         sharedPrefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             when (key) {
                 "dark_mode", "keyboard_theme", "show_bottom_buttons", "keyboard_height_dp", "keyboard_bottom_padding_dp",
-                SettingsPreferences.KEY_NUMBER_ROW_ENABLED -> {
+                SettingsPreferences.KEY_KEYBOARD_LAYOUT -> {
                     loadDarkModePreference()
                     applyWindowBackground()
                 }
@@ -1149,7 +1148,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                 val kbLayoutState by keyboardViewModel.keyboardState.collectAsState(com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState.Chinese)
                 val isHandwritingMode = (page as? com.kingzcheung.xime.keyboard.KeyboardPage.Main)?.type == com.kingzcheung.xime.keyboard.MainType.HANDWRITING
                 val numberRowExtra = if (!isHandwritingMode &&
-                    state.numberRowEnabled &&
+                    SettingsPreferences.isLayout46Enabled(this@XimeInputMethodService) &&
                     (kbLayoutState is com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState.Chinese ||
                         kbLayoutState is com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState.English)
                 ) SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP else 0
@@ -1325,7 +1324,6 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                                     themeId = state.themeId,
                                     keyboardHeightDp = effectiveKeyboardHeight,
                                     keyboardBottomPaddingDp = state.keyboardBottomPaddingDp,
-                                    numberRowEnabled = state.numberRowEnabled,
                                     clipboardItems = clipboardItemsState.value,
                                     quickSendItems = quickSendItemsState.value,
                                     recentClipboardItems = recentClipboardItemsState.value,
@@ -1490,7 +1488,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                     resources.configuration.screenWidthDp > resources.configuration.screenHeightDp
                 val displayHeight = SettingsPreferences.getKeyboardHeightDp(this, isLandscape)
                     .coerceAtMost((resources.configuration.screenHeightDp * 8) / 10)
-                val numberRowExtra = if (SettingsPreferences.isNumberRowEnabled(this)) {
+                val numberRowExtra = if (SettingsPreferences.isLayout46Enabled(this)) {
                     when (keyboardViewModel.keyboardState.value) {
                         is KeyboardLayoutState.Chinese, is KeyboardLayoutState.English ->
                             SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP
@@ -2232,7 +2230,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                 if (currentEffectiveKeyboardHeight <= 0) {
                     val isLandscape = resources.configuration.screenWidthDp > resources.configuration.screenHeightDp
                     val kbH = SettingsPreferences.getKeyboardHeightDp(this@XimeInputMethodService, isLandscape)
-                    val numberRowExtra = if (state.numberRowEnabled &&
+                    val numberRowExtra = if (SettingsPreferences.isLayout46Enabled(this@XimeInputMethodService) &&
                         (keyboardViewModel.keyboardState.value is KeyboardLayoutState.Chinese ||
                             keyboardViewModel.keyboardState.value is KeyboardLayoutState.English)
                     ) SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP else 0

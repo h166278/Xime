@@ -20,7 +20,6 @@ data class InputUIState(
     val isSttEnabled: Boolean = false,
     val keyboardHeightDp: Int = 0,
     val keyboardBottomPaddingDp: Int = 0,
-    val numberRowEnabled: Boolean = false,
     val showKeyboardResize: Boolean = false,
     val resizePreviewHeightDp: Int = 0,
     val associationEnabled: Boolean = false,
