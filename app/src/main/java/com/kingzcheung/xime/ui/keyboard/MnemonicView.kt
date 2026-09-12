@@ -131,7 +131,7 @@ fun MnemonicView(
                 .fillMaxWidth()
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, bottom = bottomPaddingDp.dp + 8.dp),
+                .padding(start = 8.dp, end = 8.dp, bottom = bottomPaddingDp.dp + 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (rows.isEmpty()) {
