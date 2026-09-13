@@ -501,7 +501,7 @@ keyboard:
       o: { swipe_up: "[", long_press: { display: "bubble", values: ["o", "O", "ò", "ó", "ô", "õ", "ö", "ø"] } }
       p: { swipe_up: "]", long_press: { display: "bubble", values: ["p", "P"] } }
       # ── 第三行 ──
-      a: { swipe_up: "\\", long_press: { display: "bubble", values: ["a", "A", "à", "á", "â", "ã", "ä", "å", "æ"] } }
+      a: { swipe_up: { label: "\\", action: "process_rime_key", value: "\\", display: "both" }, long_press: { display: "bubble", values: ["a", "A", "à", "á", "â", "ã", "ä", "å", "æ"] } }
       s: { swipe_up: "|", long_press: { display: "bubble", values: ["s", "S", "ß"] } }
       d: { swipe_up: "×", long_press: { display: "bubble", values: ["d", "D"] } }
       f: { swipe_up: "÷", long_press: { display: "bubble", values: ["f", "F"] } }
@@ -509,7 +509,7 @@ keyboard:
       h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
       j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
       k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
-      l: { swipe_up: "⇐", long_press: { display: "bubble", values: ["l", "L"] } }
+      l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter", display: "both" }, long_press: { display: "bubble", values: ["l", "L"] } }
       # ── 第四行：上滑执行编辑动作，气泡只显示文案；助记暂空操作 ──
       z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
       x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }
@@ -603,7 +603,7 @@ keyboard:
       o: { swipe_up: "[", long_press: { display: "bubble", values: ["o", "O"] } }
       p: { swipe_up: "]", long_press: { display: "bubble", values: ["p", "P"] } }
       # ── 第二行 ──
-      a: { swipe_up: "\\", long_press: { display: "bubble", values: ["a", "A"] } }
+      a: { swipe_up: { label: "\\", action: "process_rime_key", value: "\\", display: "both" }, long_press: { display: "bubble", values: ["a", "A"] } }
       s: { swipe_up: "|", long_press: { display: "bubble", values: ["s", "S"] } }
       d: { swipe_up: "×", long_press: { display: "bubble", values: ["d", "D"] } }
       f: { swipe_up: "÷", long_press: { display: "bubble", values: ["f", "F"] } }
@@ -611,7 +611,7 @@ keyboard:
       h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
       j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
       k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
-      l: { swipe_up: "⇐", long_press: { display: "bubble", values: ["l", "L"] } }
+      l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter", display: "both" }, long_press: { display: "bubble", values: ["l", "L"] } }
       # ── 第三行：上滑执行编辑动作，气泡只显示文案；助记暂空操作 ──
       z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
       x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }

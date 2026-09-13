@@ -123,6 +123,8 @@ fun KeyboardLayoutScreen(
                         uiState = uiState,
                         isAsciiMode = false,
                         modifier = modifier,
+                        isComposing = candidateState.value.isComposing ||
+                            candidateState.value.inputText.isNotEmpty(),
                     )
                 }
             }
@@ -152,6 +154,8 @@ fun KeyboardLayoutScreen(
                         uiState = uiState,
                         isAsciiMode = true,
                         modifier = modifier,
+                        isComposing = candidateState.value.isComposing ||
+                            candidateState.value.inputText.isNotEmpty(),
                     )
                 }
             }

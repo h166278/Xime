@@ -201,6 +201,15 @@ internal fun rememberImeKeyboardCallbacks(
             onPageDown = { service.keyRouter.pageDown() },
             onPageUp = { service.keyRouter.pageUp() },
             onCursorMove = { direction ->
+                val cand = service.candidateState.value
+                val composing = cand.isComposing || cand.inputText.isNotEmpty()
+                if (SettingsPreferences.isLayout46Enabled(service) && composing && direction != 0) {
+                    val key = if (direction < 0) "rime_left" else "rime_right"
+                    repeat(kotlin.math.abs(direction)) {
+                        service.keyRouter.handleKeyPress(key, false)
+                    }
+                    return@onCursorMove
+                }
                 val ic = service.currentInputConnection
                 if (ic != null && direction != 0) {
                     if (SettingsPreferences.getInputTextLocation(service) == SettingsPreferences.INPUT_TEXT_INPUT_BOX &&

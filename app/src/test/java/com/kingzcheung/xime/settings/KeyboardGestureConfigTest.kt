@@ -727,4 +727,20 @@ keyboard:
         assertEquals(base, KeysConfigHelper.applyGestureOverrides(base, emptyMap()))
     }
 
+    @Test
+    fun `process_rime_key 解析为 PROCESS_RIME_KEY`() {
+        val keys = parseKeys("""
+            a: { swipe_up: { label: "\\", action: "process_rime_key", value: "\\" } }
+            l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter" } }
+        """.trimIndent())
+        val a = keys["a"]!!.swipeUp!!
+        assertEquals(GestureAction.PROCESS_RIME_KEY, a.action)
+        assertEquals("\\", a.value)
+        assertEquals("\\", a.label)
+        val l = keys["l"]!!.swipeUp!!
+        assertEquals(GestureAction.PROCESS_RIME_KEY, l.action)
+        assertEquals("shift_enter", l.value)
+        assertEquals("Aa", l.label)
+    }
+
 }

@@ -370,7 +370,9 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             )
                         }
                     } else if (candState.isComposing) {
-                        if (candState.candidates.isNotEmpty()) {
+                        if (SettingsPreferences.isLayout46Enabled(service)) {
+                            sendRimeKey(0x20, 0)
+                        } else if (candState.candidates.isNotEmpty()) {
                             selectCandidateAsync(0)
                         } else {
                             val input = candState.inputText
@@ -436,6 +438,24 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     } else {
                         needsUIUpdate = true
                     }
+                }
+                "tab" -> {
+                    if (hasInputState(candState)) sendRimeKey(0xff09, 0)
+                }
+                "shift_tab" -> {
+                    if (hasInputState(candState)) sendRimeKey(0xff09, 0x1)
+                }
+                "shift_enter" -> {
+                    if (hasInputState(candState)) sendRimeKey(0xff0d, 0x1)
+                }
+                "ctrl_enter" -> {
+                    if (hasInputState(candState)) sendRimeKey(0xff0d, 0x4)
+                }
+                "rime_left" -> {
+                    if (hasInputState(candState)) sendRimeKey(0xff51, 0)
+                }
+                "rime_right" -> {
+                    if (hasInputState(candState)) sendRimeKey(0xff53, 0)
                 }
                 "shift" -> {
                 }
@@ -902,6 +922,17 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
      * Posts a rime operation to [keyJobs] for sequential execution.
      * Ensures no interleaving with key processing.
      */
+    /** 把 X11 keysym 送给 Rime 并刷新候选；有 committedText 则先上屏。 */
+    private suspend fun sendRimeKey(keycode: Int, mask: Int) {
+        val result = service.rimeEngine.processKeyAndGetResult(keycode, mask)
+        if (result.processed) {
+            if (result.committedText.isNotEmpty()) {
+                withContext(Dispatchers.Main) { service.commitText(result.committedText) }
+            }
+            sendTransformedResult(result)
+        }
+    }
+
     internal fun postRimeJob(block: suspend CoroutineScope.() -> Unit) {
         val job = service.serviceScope.launch(service.keyProcessingDispatcher, start = CoroutineStart.LAZY) {
             block()

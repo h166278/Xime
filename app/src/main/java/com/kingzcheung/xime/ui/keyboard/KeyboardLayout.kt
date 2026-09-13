@@ -105,6 +105,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.TextUnit
+import kotlin.math.abs
 
 private val NUMBER_ROW_KEYS = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "0")
 private val NUMBER_ROW_KEYS_LEFT = listOf("1", "2", "3", "4", "5")
@@ -118,6 +119,7 @@ fun KeyboardLayout(
     uiState: KeyboardUiState,
     isAsciiMode: Boolean,
     modifier: Modifier = Modifier,
+    isComposing: Boolean = false,
 ) {
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
@@ -184,6 +186,9 @@ fun KeyboardLayout(
             }
             GestureAction.TOGGLE_SYMBOLS -> {
                 callbacks.onKeyPress("mode_change", false)
+            }
+            GestureAction.PROCESS_RIME_KEY -> {
+                if (value.isNotEmpty()) onKeyPress(value)
             }
             else -> callbacks.onGestureAction?.invoke(action, value) ?: Unit
         }
@@ -297,6 +302,8 @@ fun KeyboardLayout(
                 isAsciiMode = isAsciiMode,
                 showNumberRow = showNumberRow,
                 onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
+                is46Layout = is46Layout,
+                isComposing = isComposing,
             )
         } else {
                 Column(
@@ -478,6 +485,8 @@ fun KeyboardLayout(
                                 shadowEnabled = shadowEnabled,
                                 shadowElevation = shadowElevation,
                                 shadowShapeRadius = shadowShapeRadius,
+                                tabWhenComposing = is46Layout && isComposing,
+                                onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
                             )
 
                                 Row(
@@ -853,6 +862,7 @@ fun KeyboardLayout(
                                 if (isAsciiMode) "中文" else "English"
                             } else null,
                             onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
+                            rimeArrowsWhenComposing = is46Layout && isComposing,
                         )
 
                         // 中/英切换 + 回车（硬编码 + 配置驱动）
@@ -1027,7 +1037,24 @@ fun KeyboardLayout(
                                 )
                             }
 
-                            // 回车 — 硬编码
+                            // 回车 — 46 键有编码时上滑 Control+Enter 全大写
+                            if (is46Layout) {
+                                SwipeableKeyButton(
+                                    text = enterKeyText,
+                                    onClick = { onKeyPress("enter") },
+                                    backgroundColor = specialKeyBackgroundColor,
+                                    textColor = specialKeyTextColor,
+                                    modifier = Modifier.weight(enterKeyWeight),
+                                    swipeText = if (isComposing) "全大写" else null,
+                                    onSwipe = if (isComposing) { { onKeyPress("ctrl_enter") } } else null,
+                                    onPress = { onKeyPressDown?.invoke("enter") },
+                                    onRelease = { onKeyRelease?.invoke("enter") },
+                                    onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
+                                    shadowEnabled = shadowEnabled,
+                                    shadowElevation = shadowElevation,
+                                    shadowShapeRadius = shadowShapeRadius,
+                                )
+                            } else {
                             KeyButton(
                                 text = enterKeyText,
                                 onClick = { onKeyPress("enter") },
@@ -1040,6 +1067,7 @@ fun KeyboardLayout(
                                 shadowElevation = shadowElevation,
                                 shadowShapeRadius = shadowShapeRadius,
                             )
+                            }
                         }
                         }
                     }
@@ -1444,9 +1472,14 @@ private fun ShiftCapsKeyButton(
     shadowEnabled: Boolean = true,
     shadowElevation: Dp = 1.dp,
     shadowShapeRadius: Dp = 8.dp,
+    tabWhenComposing: Boolean = false,
+    onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val density = LocalDensity.current
+    var buttonBounds by remember { mutableStateOf(Rect(0f, 0f, 0f, 0f)) }
+    val currentOnKeyPress by rememberUpdatedState(onKeyPress)
+    val currentOnSwipeStateChange by rememberUpdatedState(onSwipeStateChange)
 
     val shadowModifier = remember(shadowEnabled, shadowElevation, shadowShapeRadius, density, backgroundColor) {
         if (shadowEnabled) {
@@ -1477,12 +1510,61 @@ private fun ShiftCapsKeyButton(
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .pointerInput(Unit) {
+            .onGloballyPositioned { coordinates ->
+                buttonBounds = coordinates.boundsInRoot()
+            }
+            .pointerInput(tabWhenComposing) {
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown(requireUnconsumed = false)
                     isPressed = true
                     onKeyPressDown?.invoke("shift")
-                    onKeyPress("shift_single")
+
+                    if (tabWhenComposing) {
+                        val swipeUpThresholdPx = with(density) { 50.dp.toPx() }
+                        val bubbleShowThresholdPx = swipeUpThresholdPx * 0.3f
+                        var swipe: String? = null
+                        var startY: Float? = down.position.y
+                        var isBubbleShowing = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+                            if (startY == null) startY = change.position.y
+                            if (!change.pressed) break
+                            val dy = change.position.y - startY!!
+                            val nextSwipe = when {
+                                dy < -swipeUpThresholdPx -> "up"
+                                dy > swipeUpThresholdPx -> "down"
+                                else -> null
+                            }
+                            if (nextSwipe != null) swipe = nextSwipe
+                            val bubbleLabel = when (swipe) {
+                                "up" -> "Shift+Tab"
+                                "down" -> "Tab"
+                                else -> null
+                            }
+                            val shouldShow = abs(dy) > bubbleShowThresholdPx && bubbleLabel != null
+                            if (shouldShow != isBubbleShowing) {
+                                isBubbleShowing = shouldShow
+                                currentOnSwipeStateChange?.invoke(
+                                    if (shouldShow) SwipeState(isSwiping = true, swipeText = bubbleLabel)
+                                    else SwipeState(),
+                                    buttonBounds
+                                )
+                            }
+                        }
+                        if (isBubbleShowing) {
+                            currentOnSwipeStateChange?.invoke(SwipeState(), buttonBounds)
+                        }
+                        when (swipe) {
+                            "up" -> currentOnKeyPress("shift_tab")
+                            "down" -> currentOnKeyPress("tab")
+                            else -> currentOnKeyPress("tab")
+                        }
+                        isPressed = false
+                        return@awaitEachGesture
+                    }
+
+                    currentOnKeyPress("shift_single")
 
                     val firstUp = waitForUpOrCancellation()
                     if (firstUp != null) {
@@ -1492,7 +1574,7 @@ private fun ShiftCapsKeyButton(
                             awaitFirstDown(requireUnconsumed = false)
                         }
                         if (secondDown != null) {
-                            onKeyPress("shift_caps")
+                            currentOnKeyPress("shift_caps")
                             waitForUpOrCancellation()
                         }
                     }
@@ -1549,6 +1631,8 @@ private fun LandscapeKeyboardContent(
     isAsciiMode: Boolean,
     showNumberRow: Boolean = false,
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
+    is46Layout: Boolean = false,
+    isComposing: Boolean = false,
 ) {
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
@@ -1623,6 +1707,9 @@ private fun LandscapeKeyboardContent(
             }
             GestureAction.TOGGLE_SYMBOLS -> {
                 callbacks.onKeyPress("mode_change", false)
+            }
+            GestureAction.PROCESS_RIME_KEY -> {
+                if (value.isNotEmpty()) onKeyPress(value)
             }
             else -> callbacks.onGestureAction?.invoke(action, value) ?: Unit
         }
@@ -1769,6 +1856,8 @@ private fun LandscapeKeyboardContent(
                         shadowEnabled = shadowEnabled,
                         shadowElevation = shadowElevation,
                         shadowShapeRadius = shadowShapeRadius,
+                    tabWhenComposing = is46Layout && isComposing,
+                    onSwipeStateChange = onSwipeStateChange,
                     )
                     val k2Gesture = KeysConfigHelper.getKeyGesture("'")
                     val k2Action = k2Gesture?.tap?.action
@@ -2048,6 +2137,23 @@ private fun LandscapeKeyboardContent(
                         shadowShapeRadius = shadowShapeRadius,
                     )
                 }
+                if (is46Layout) {
+                    SwipeableKeyButtonLandscape(
+                        text = enterKeyText,
+                        onClick = { onKeyPress("enter") },
+                        backgroundColor = specialKeyBackgroundColor,
+                        textColor = specialKeyTextColor,
+                        modifier = Modifier.weight(1.2f),
+                        swipeText = if (isComposing) "全大写" else null,
+                        onSwipe = if (isComposing) { { onKeyPress("ctrl_enter") } } else null,
+                        onPress = { onKeyPressDown?.invoke("enter") },
+                        onRelease = { onKeyRelease?.invoke("enter") },
+                        onSwipeStateChange = onSwipeStateChange,
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                    )
+                } else {
                 KeyButton(
                     text = enterKeyText,
                     onClick = { onKeyPress("enter") },
@@ -2060,6 +2166,7 @@ private fun LandscapeKeyboardContent(
                     shadowElevation = shadowElevation,
                     shadowShapeRadius = shadowShapeRadius,
                 )
+                }
             }
         }
     }
@@ -2638,6 +2745,7 @@ private fun SpaceKey(
     onGestureAction: ((GestureAction, String) -> Unit)? = null,
     swipeUpLabel: String? = null,
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
+    rimeArrowsWhenComposing: Boolean = false,
 ) {
     val currentOnKeyPress by rememberUpdatedState(onKeyPress)
     val currentOnKeyPressDown by rememberUpdatedState(onKeyPressDown)
@@ -2646,6 +2754,8 @@ private fun SpaceKey(
     val currentOnGestureAction by rememberUpdatedState(onGestureAction)
     val currentSwipeUpLabel by rememberUpdatedState(swipeUpLabel)
     val currentOnSwipeStateChange by rememberUpdatedState(onSwipeStateChange)
+    val currentRimeArrows by rememberUpdatedState(rimeArrowsWhenComposing)
+    val suppressCursorMove = LocalSuppressCursorMove.current
     var buttonBounds by remember { mutableStateOf(Rect(0f, 0f, 0f, 0f)) }
     var isBubbleShowing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -2675,7 +2785,7 @@ private fun SpaceKey(
             .onGloballyPositioned { coordinates ->
                 buttonBounds = coordinates.boundsInRoot()
             }
-            .pointerInput(isSttEnabled, voiceSticky) {
+            .pointerInput(isSttEnabled, voiceSticky, rimeArrowsWhenComposing) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
 
@@ -2687,12 +2797,15 @@ private fun SpaceKey(
                     }
 
                     currentOnKeyPressDown?.invoke("space")
+                    if (currentRimeArrows) suppressCursorMove.value = true
 
                     // 上滑阈值：约为键高一半，避免误触
                     val swipeUpThresholdPx = with(density) { 24.dp.toPx() }
+                    val swipeHThresholdPx = with(density) { 50.dp.toPx() }
                     // 气泡显示阈值：轻扫即出，与 SwipeableKeyButton 保持同一手感（阈值的 30%）
                     val bubbleShowThresholdPx = swipeUpThresholdPx * 0.3f
                     var swipeUpTriggered = false
+                    var swipeH: String? = null
                     var longPressTriggered = false
                     val longPressJob = scope.launch {
                         delay(400)
@@ -2716,12 +2829,19 @@ private fun SpaceKey(
 
                     // 已在 awaitEachGesture 的 AwaitPointerEventScope 内，不能再套 awaitPointerEventScope
                     var startY: Float? = null
+                    var startX: Float? = null
                     while (true) {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull() ?: break
                         if (startY == null) startY = change.position.y
+                        if (startX == null) startX = change.position.x
                         if (!change.pressed) break
                         val dy = startY!! - change.position.y
+                        val dx = change.position.x - startX!!
+                        if (currentRimeArrows && abs(dx) > swipeHThresholdPx && abs(dx) > abs(dy)) {
+                            swipeH = if (dx < 0) "left" else "right"
+                            longPressJob.cancel()
+                        }
                         // 上滑气泡：与普通键一致，越过起泡阈值即亮出「切换中/英」
                         if (currentSwipeUpLabel != null) {
                             val shouldShowBubble = dy > bubbleShowThresholdPx
@@ -2751,11 +2871,10 @@ private fun SpaceKey(
                         currentOnSwipeStateChange?.invoke(SwipeState(), buttonBounds)
                     }
 
-                    if (swipeUpTriggered) {
-                        // 上滑空格：切换中/英
-                        currentOnGestureAction?.invoke(GestureAction.TOGGLE_ASCII, "")
-                    } else if (!longPressTriggered) {
-                        currentOnKeyPress("space")
+                    when {
+                        swipeH != null -> currentOnKeyPress(if (swipeH == "left") "rime_left" else "rime_right")
+                        swipeUpTriggered -> currentOnGestureAction?.invoke(GestureAction.TOGGLE_ASCII, "")
+                        !longPressTriggered -> currentOnKeyPress("space")
                     }
                 }
             }
