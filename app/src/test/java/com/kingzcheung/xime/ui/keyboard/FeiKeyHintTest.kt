@@ -4,6 +4,7 @@ import com.kingzcheung.xime.keyboard.GestureAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FeiKeyHintTest {
@@ -32,6 +33,20 @@ class FeiKeyHintTest {
         assertEquals("一", FeiKeyHint.forKey("e")!!.bubbleLabel)
         assertEquals("去气欠犬犭青其攴", FeiKeyHint.forKey("q")!!.bubbleLabel)
         assertEquals("人人亻", FeiKeyHint.forKey("r")!!.bubbleLabel)
+        val zBubble = FeiKeyHint.forKey("z")!!.bubbleLabel
+        assertEquals("在子舟自走豸隹足⻊爪爫丬爿長镸罒巛乙", zBubble)
+        assertTrue(zBubble.contains("镸罒巛"))
+        assertTrue(!zBubble.contains("爫罒"))
+        assertEquals(zBubble, letterSwipeDownLabel("z", is46Layout = true, ""))
+    }
+
+    @Test
+    fun `末行短于列数的键会居中`() {
+        listOf("q", "d", "g", "k", "l", "x", "c", "v", "b", "m", "z", "s", "y").forEach { key ->
+            val hint = FeiKeyHint.forKey(key)!!
+            val cols = hint.rows.maxOf { it.length }
+            assertTrue("$key 末行应短于列数", hint.rows.last().length < cols)
+        }
     }
 
     @Test
@@ -58,8 +73,14 @@ class FeiKeyHintTest {
     fun `密键按图2最宽行取列数`() {
         assertEquals(4, FeiKeyHint.forKey("s")!!.rows.maxOf { it.length })
         assertEquals(5, FeiKeyHint.forKey("s")!!.rows.size)
-        assertEquals(4, FeiKeyHint.forKey("z")!!.rows.maxOf { it.length })
+        assertEquals(5, FeiKeyHint.forKey("z")!!.rows.maxOf { it.length })
         assertEquals(5, FeiKeyHint.forKey("z")!!.rows.size)
+        assertEquals("爪爫丬", FeiKeyHint.forKey("z")!!.rows[2])
+        assertEquals("爿長镸罒巛", FeiKeyHint.forKey("z")!!.rows[3])
+        assertEquals("乙", FeiKeyHint.forKey("z")!!.rows[4])
+        assertEquals("丨厶", FeiKeyHint.forKey("s")!!.rows.last())
+        assertEquals("疋", FeiKeyHint.forKey("y")!!.rows.last())
+        assertTrue(FeiKeyHint.forKey("z")!!.rows[3].contains("镸罒巛"))
         assertEquals(3, FeiKeyHint.forKey("y")!!.rows.maxOf { it.length })
         assertEquals(5, FeiKeyHint.forKey("y")!!.rows.size)
         assertEquals(4, FeiKeyHint.forKey("m")!!.rows.maxOf { it.length })
@@ -82,5 +103,14 @@ class FeiKeyHintTest {
         assertEquals(10f, q.cellWidthDp, 0.01f)
         assertEquals(12f, q.cellHeightDp, 0.01f)
         assertEquals(10f * 0.92f, q.glyphSp, 0.01f)
+
+        val z = mnemonicGridMetrics(30f, 40f, FeiKeyHint.forKey("z")!!.rows)
+        assertEquals(5, z.colCount)
+        assertEquals(5, z.rowCount)
+        assertEquals(6f, z.cellWidthDp, 0.01f)
+        assertEquals(8f, z.cellHeightDp, 0.01f)
+        assertTrue(FeiKeyHint.forKey("z")!!.rows[4].length < z.colCount)
+        assertTrue(FeiKeyHint.forKey("s")!!.rows.last().length < 4)
+        assertTrue(FeiKeyHint.forKey("y")!!.rows.last().length < 3)
     }
 }

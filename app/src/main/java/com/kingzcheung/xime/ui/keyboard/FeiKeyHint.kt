@@ -64,7 +64,7 @@ data class FeiKeyHint(
             "j" to FeiKeyHint("就", rows = listOf("几己巾斤", "见見臼角", "金钅釒纟")),
             "k" to FeiKeyHint("可", rows = listOf("口囗匚", "凵冂")),
             "l" to FeiKeyHint("了", rows = listOf("力立龙龍", "里鹿耒刂", "忄廴辶灬", "卤鹵")),
-            "z" to FeiKeyHint("在", rows = listOf("子舟自走", "豸隹足⻊", "爪爫罒丬", "爿長镸巛", "乙")),
+            "z" to FeiKeyHint("在", rows = listOf("子舟自走", "豸隹足⻊", "爪爫丬", "爿長镸罒巛", "乙")),
             "x" to FeiKeyHint("下", rows = listOf("夕小心", "穴血覀", "辛彐糸", "⺍⺌")),
             "c" to FeiKeyHint("出", rows = listOf("厂寸车車", "虫赤辰彳", "齿齒艹卝", "屮")),
             "v" to FeiKeyHint("而", rows = listOf("二儿耳聿", "羽鱼魚雨", "日曰月", "阝卩")),
@@ -119,7 +119,7 @@ private val KeyCapInset = 0.5.dp
 
 /**
  * 46 键助记开：字母/助记叠在键帽上沿两角，不挤进字根网格。
- * 字根按最宽行列逐字铺满剩余区域，末行左对齐。单笔大字根居中。
+ * 字根按最宽行列逐字铺满剩余区域，末行短则居中。单笔大字根居中。
  */
 @Composable
 fun MnemonicKeyCap(
@@ -207,12 +207,17 @@ fun MnemonicKeyCap(
                     rows = hint.rows,
                 )
                 Column(modifier = Modifier.fillMaxSize()) {
-                    hint.rows.forEach { row ->
+                    hint.rows.forEachIndexed { index, row ->
+                        val centerLast = index == hint.rows.lastIndex && row.length < metrics.colCount
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
-                            horizontalArrangement = Arrangement.Start,
+                            horizontalArrangement = if (centerLast) {
+                                Arrangement.Center
+                            } else {
+                                Arrangement.Start
+                            },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             row.forEach { ch ->

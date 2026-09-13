@@ -3200,7 +3200,7 @@ private fun swipeUpClick(
     }
 }
 
-/** 粘贴键帽：空心外框套实心内块，12dp 仍能和复制叠纸、剪贴板板子分开。 */
+/** 粘贴键帽：▣。外框几何跟 Outlined.CheckBox 一致，圆角/视觉大小对齐 Z 全选。 */
 private val PasteFrameIcon: ImageVector by lazy {
     ImageVector.Builder(
         name = "PasteFrame",
@@ -3213,11 +3213,24 @@ private val PasteFrameIcon: ImageVector by lazy {
             fill = SolidColor(Color.Black),
             pathFillType = PathFillType.EvenOdd,
         ) {
-            roundedRectPath(3.5f, 3.5f, 20.5f, 20.5f, 2.5f)
-            roundedRectPath(7f, 7f, 17f, 17f, 1.2f)
+            moveTo(19f, 5f)
+            verticalLineToRelative(14f)
+            horizontalLineTo(5f)
+            verticalLineTo(5f)
+            horizontalLineToRelative(14f)
+            moveToRelative(0f, -2f)
+            horizontalLineTo(5f)
+            curveToRelative(-1.1f, 0f, -2f, 0.9f, -2f, 2f)
+            verticalLineToRelative(14f)
+            curveToRelative(0f, 1.1f, 0.9f, 2f, 2f, 2f)
+            horizontalLineToRelative(14f)
+            curveToRelative(1.1f, 0f, 2f, -0.9f, 2f, -2f)
+            verticalLineTo(5f)
+            curveToRelative(0f, -1.1f, -0.9f, -2f, -2f, -2f)
+            close()
         }
         path(fill = SolidColor(Color.Black)) {
-            roundedRectPath(9f, 9f, 15f, 15f, 1f)
+            roundedRectPath(8f, 8f, 16f, 16f, 1f)
         }
     }.build()
 }
