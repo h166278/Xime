@@ -30,11 +30,10 @@ import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Square
 import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.ContentPaste
-import androidx.compose.material.icons.outlined.CropSquare
 import androidx.compose.material.icons.twotone.EmojiEmotions
 import androidx.compose.material.icons.twotone.KeyboardCapslock
 import androidx.compose.material3.Icon
@@ -65,7 +64,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathBuilder
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
@@ -2838,13 +2842,54 @@ private fun swipeUpClick(
     }
 }
 
+/** 粘贴键帽：空心外框套实心内块，12dp 仍能和复制叠纸、剪贴板板子分开。 */
+private val PasteFrameIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "PasteFrame",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f,
+    ).apply {
+        path(
+            fill = SolidColor(Color.Black),
+            pathFillType = PathFillType.EvenOdd,
+        ) {
+            roundedRectPath(3.5f, 3.5f, 20.5f, 20.5f, 2.5f)
+            roundedRectPath(7f, 7f, 17f, 17f, 1.2f)
+        }
+        path(fill = SolidColor(Color.Black)) {
+            roundedRectPath(9f, 9f, 15f, 15f, 1f)
+        }
+    }.build()
+}
+
+private fun PathBuilder.roundedRectPath(
+    left: Float,
+    top: Float,
+    right: Float,
+    bottom: Float,
+    radius: Float,
+) {
+    moveTo(left + radius, top)
+    lineTo(right - radius, top)
+    quadTo(right, top, right, top + radius)
+    lineTo(right, bottom - radius)
+    quadTo(right, bottom, right - radius, bottom)
+    lineTo(left + radius, bottom)
+    quadTo(left, bottom, left, bottom - radius)
+    lineTo(left, top + radius)
+    quadTo(left, top, left + radius, top)
+    close()
+}
+
 @Composable
 private fun rememberSwipeUpHintPainter(icon: String?): Painter? {
     val image = when (icon) {
         "select_all" -> Icons.Outlined.CheckBox
         "cut" -> Icons.Outlined.ContentCut
-        "copy" -> Icons.Outlined.CropSquare
-        "paste" -> Icons.Filled.Square
+        "copy" -> Icons.Outlined.ContentCopy
+        "paste" -> PasteFrameIcon
         "clipboard" -> Icons.Outlined.ContentPaste
         else -> null
     } ?: return null
