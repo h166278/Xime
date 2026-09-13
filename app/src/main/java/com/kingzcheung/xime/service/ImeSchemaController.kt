@@ -23,6 +23,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
+ * 暖启动（onStartInput）是否跳过 select_schema。
+ * 方案已是目标时再切会把 translator/词库热路径再走一遍，主线程卡唤醒。
+ * 冷启动仍由 initRimeEngine 在 createSession 后强制切一次。
+ */
+internal fun shouldSkipWarmStartSchemaReselect(
+    savedSchema: String,
+    currentSchema: String,
+): Boolean = savedSchema.isNotEmpty() && savedSchema == currentSchema
+
+/**
  * 方案管理与输入模式切换。
  *
  * 承载方案切换（switchSchema/applyPageSizeSetting）、部署（reloadConfig/deploy/deploySchema/downloadSchema）、

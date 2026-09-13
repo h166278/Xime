@@ -1678,13 +1678,13 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                         }
                     }
                     savedSchema in availableSchemas -> {
-                        if (savedSchema != currentSchema) {
-                            debugLog("onStartInput: Switching to saved schema: $savedSchema")
-                            schemaController.applyPageSizeSetting(savedSchema)
-                            rimeEngine.switchSchema(savedSchema)
+                        if (shouldSkipWarmStartSchemaReselect(savedSchema, currentSchema)) {
+                            // 暖启动：session 已在目标方案上。再 select_schema / ApplySchema
+                            // 会重挂 translator（词库越大越慢），processor 冷启动已由
+                            // initRimeEngine 切过一次。page_size 覆盖对当前方案同样会 ApplySchema，一起跳过。
+                            debugLog("onStartInput: Schema already matches, skip reselect: $savedSchema")
                         } else {
-                            // 即使 schema 相同也重新 switch 一下，确保 processor 完全初始化
-                            debugLog("onStartInput: Schema already matches, re-switching to init processors")
+                            debugLog("onStartInput: Switching to saved schema: $savedSchema")
                             schemaController.applyPageSizeSetting(savedSchema)
                             rimeEngine.switchSchema(savedSchema)
                         }
