@@ -88,6 +88,19 @@ internal fun adaptiveBubbleScale(contentScale: Float): Float =
 internal fun adaptiveHintOffsetDp(contentScale: Float): Float =
     (14f + (contentScale - 1f) * 25f).coerceIn(14f, 24f)
 
+/** 删除键同款：上/下滑阈值只在对应半平面更新，反向时旗标保留。 */
+internal data class ArmedFlags(val up: Boolean = false, val down: Boolean = false)
+
+internal fun updateArmedFlags(
+    current: ArmedFlags,
+    deltaY: Float,
+    upThreshold: Float,
+    downThreshold: Float,
+): ArmedFlags = ArmedFlags(
+    up = if (deltaY < 0f) deltaY < upThreshold else current.up,
+    down = if (deltaY > 0f) deltaY > downThreshold else current.down,
+)
+
 data class SwipeState(
     val isSwiping: Boolean = false,
     val swipeText: String? = null,
@@ -418,11 +431,17 @@ fun SwipeableKeyButton(
     longPressDefaultIndex: Int = 0,
     /** 46 键助记开：字母左上 + 字根铺满。空则走原 layoutMode。 */
     mnemonicHint: FeiKeyHint? = null,
+    /**
+     * 为真时上/下滑到阈值只武装，松手才触发（删除键同款）。
+     * 上/下滑旗标跨方向保留；松手优先走上滑。气泡不印到键帽。
+     */
+    commitSwipeOnRelease: Boolean = false,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     var dragOffsetY by remember { mutableStateOf(0f) }
     var hasTriggeredSwipeUp by remember { mutableStateOf(false) }
     var hasTriggeredSwipeDown by remember { mutableStateOf(false) }
+    var armedFlags by remember { mutableStateOf(ArmedFlags()) }
     var dragOffsetX by remember { mutableStateOf(0f) }
     var isSwiping by remember { mutableStateOf(false) }
     var isSwipeDown by remember { mutableStateOf(false) }
@@ -442,6 +461,7 @@ fun SwipeableKeyButton(
     val currentLongPressItems by rememberUpdatedState(longPressItems)
     val currentLongPressDrawableIds by rememberUpdatedState(longPressDrawableIds)
     val currentLongPressDefaultIndex by rememberUpdatedState(longPressDefaultIndex)
+    val currentCommitSwipeOnRelease by rememberUpdatedState(commitSwipeOnRelease)
     val scope = rememberCoroutineScope()
     val view = LocalView.current
     
@@ -490,13 +510,23 @@ fun SwipeableKeyButton(
                         dragOffsetY = 0f
                         hasTriggeredSwipeUp = false
                         hasTriggeredSwipeDown = false
+                        armedFlags = ArmedFlags()
                         isSwiping = false
                         isSwipeDown = false
                     },
                     onDragEnd = {
-                        val shouldClick = !hasTriggeredSwipeUp && !hasTriggeredSwipeDown && abs(dragOffsetX) < horizontalClickCancelThreshold
-                        if (shouldClick) {
-                            currentOnClick()
+                        if (currentCommitSwipeOnRelease) {
+                            when {
+                                armedFlags.up && currentOnSwipe != null ->
+                                    currentOnSwipe?.invoke(currentSwipeText.orEmpty())
+                                armedFlags.down && currentOnSwipeDown != null ->
+                                    currentOnSwipeDown?.invoke(currentSwipeDownText.orEmpty())
+                                abs(dragOffsetX) < horizontalClickCancelThreshold ->
+                                    currentOnClick()
+                            }
+                        } else {
+                            val shouldClick = !hasTriggeredSwipeUp && !hasTriggeredSwipeDown && abs(dragOffsetX) < horizontalClickCancelThreshold
+                            if (shouldClick) currentOnClick()
                         }
                         isPressed = false
                         currentOnRelease?.invoke()
@@ -504,6 +534,7 @@ fun SwipeableKeyButton(
                         dragOffsetY = 0f
                         hasTriggeredSwipeUp = false
                         hasTriggeredSwipeDown = false
+                        armedFlags = ArmedFlags()
                         isSwiping = false
                         isSwipeDown = false
                         dragActivated = false
@@ -516,6 +547,7 @@ fun SwipeableKeyButton(
                         dragOffsetY = 0f
                         hasTriggeredSwipeUp = false
                         hasTriggeredSwipeDown = false
+                        armedFlags = ArmedFlags()
                         isSwiping = false
                         isSwipeDown = false
                         dragActivated = false
@@ -524,16 +556,52 @@ fun SwipeableKeyButton(
                     onDrag = { change, dragAmount ->
                         dragOffsetX += dragAmount.x
                         dragOffsetY += dragAmount.y
-                        
-                        if (dragOffsetY < 0) {
-                            if (abs(dragOffsetY) > abs(dragOffsetX) * 1.1f) {
+                        val vertical = abs(dragOffsetY) > abs(dragOffsetX) * 1.1f
+                        if (currentCommitSwipeOnRelease) {
+                            if (vertical) {
+                                armedFlags = updateArmedFlags(
+                                    armedFlags, dragOffsetY, swipeUpThreshold, swipeDownThreshold,
+                                )
+                            }
+                            if (dragOffsetY < 0 && vertical) {
+                                val showUp = dragOffsetY < swipeUpThreshold && currentSwipeText != null
+                                if (showUp != isSwiping) {
+                                    isSwiping = showUp
+                                    isSwipeDown = false
+                                    currentOnSwipeStateChange?.invoke(
+                                        SwipeState(
+                                            isSwiping = showUp,
+                                            swipeText = currentSwipeText,
+                                            isSwipeDown = false,
+                                            isDanger = showUp,
+                                        ),
+                                        buttonBounds,
+                                    )
+                                }
+                            } else if (dragOffsetY > 0 && vertical) {
+                                val showDown = dragOffsetY > swipeDownThreshold && currentSwipeDownText != null
+                                if (showDown != isSwipeDown) {
+                                    isSwipeDown = showDown
+                                    isSwiping = false
+                                    currentOnSwipeStateChange?.invoke(
+                                        SwipeState(
+                                            isSwiping = showDown,
+                                            swipeText = currentSwipeDownText,
+                                            isSwipeDown = true,
+                                            isDanger = showDown,
+                                        ),
+                                        buttonBounds,
+                                    )
+                                }
+                            }
+                        } else if (dragOffsetY < 0) {
+                            if (vertical) {
                                 val shouldShowBubble = dragOffsetY < bubbleShowThresholdUp && currentSwipeText != null
                                 if (shouldShowBubble != isSwiping) {
                                     isSwiping = shouldShowBubble
                                     isSwipeDown = false
                                     currentOnSwipeStateChange?.invoke(SwipeState(shouldShowBubble, currentSwipeText, false, emptyList(), false, null), buttonBounds)
                                 }
-                                
                                 val swipeTextValue = currentSwipeText
                                 val onSwipeValue = currentOnSwipe
                                 if (dragOffsetY < swipeUpThreshold && !hasTriggeredSwipeUp && swipeTextValue != null && onSwipeValue != null) {
@@ -542,14 +610,13 @@ fun SwipeableKeyButton(
                                 }
                             }
                         } else if (dragOffsetY > 0) {
-                            if (dragOffsetY > abs(dragOffsetX) * 1.1f) {
+                            if (vertical) {
                                 val shouldShowBubble = dragOffsetY > bubbleShowThresholdDown && currentSwipeDownText != null
                                 if (shouldShowBubble != isSwipeDown) {
                                     isSwipeDown = shouldShowBubble
                                     isSwiping = shouldShowBubble
                                     currentOnSwipeStateChange?.invoke(SwipeState(shouldShowBubble, currentSwipeDownText, true, emptyList(), false, null), buttonBounds)
                                 }
-                                
                                 val swipeDownTextValue = currentSwipeDownText
                                 val onSwipeDownValue = currentOnSwipeDown
                                 if (dragOffsetY > swipeDownThreshold && !hasTriggeredSwipeDown && onSwipeDownValue != null) {
@@ -631,18 +698,27 @@ fun SwipeableKeyButton(
                                     swipeDetected = true
                                     longPressJob.cancel()
                                     // 123 等带 longPressItems 的键：按下气泡是键帽文案（有编码时是「清空」）。
-                                    // 上滑气泡必须改走 swipeText（?123），不能一直卡在 pressedText。
+                                    // 上滑气泡必须改走 swipeText，不能一直卡在 pressedText。
                                     if (kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX) * 1.1f) {
-                                        val isUp = deltaY < 0
-                                        val bubbleText = if (isUp) currentSwipeText else currentSwipeDownText
+                                        val goingDown = deltaY > 0
+                                        val bubbleText = if (currentCommitSwipeOnRelease) {
+                                            when {
+                                                !goingDown && deltaY < swipeUpThreshold -> currentSwipeText
+                                                goingDown && deltaY > swipeDownThreshold -> currentSwipeDownText
+                                                else -> null
+                                            }
+                                        } else {
+                                            if (goingDown) currentSwipeDownText else currentSwipeText
+                                        }
                                         if (bubbleText != null) {
                                             currentOnSwipeStateChange?.invoke(
                                                 SwipeState(
                                                     isSwiping = true,
                                                     swipeText = bubbleText,
-                                                    isSwipeDown = !isUp,
+                                                    isSwipeDown = goingDown,
                                                     isPressed = true,
                                                     pressedText = bubbleText,
+                                                    isDanger = currentCommitSwipeOnRelease,
                                                 ),
                                                 buttonBounds
                                             )
@@ -759,7 +835,7 @@ fun SwipeableKeyButton(
                         .padding(top = 4.dp, end = 4.dp, bottom = 2.dp),
                     horizontalAlignment = Alignment.End
                 ) {
-                    val swipeUpHint = swipeUpKeyLabel ?: swipeText
+                    val swipeUpHint = swipeUpKeyLabel ?: swipeText.takeUnless { commitSwipeOnRelease }
                     if (swipeUpHintIcon != null) {
                         Icon(
                             painter = swipeUpHintIcon,
@@ -825,7 +901,7 @@ fun SwipeableKeyButton(
                 )
             }
 
-            val swipeUpHint = swipeUpKeyLabel ?: swipeText
+            val swipeUpHint = swipeUpKeyLabel ?: swipeText.takeUnless { commitSwipeOnRelease }
             if (swipeUpHintIcon != null) {
                 Icon(
                     painter = swipeUpHintIcon,
