@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -87,9 +89,38 @@ internal fun letterSwipeDownLabel(key: String, is46Layout: Boolean, yamlLabel: S
     return yamlLabel
 }
 
+/** 字根网格：列数取最宽行，格子铺满剩余区域，字号取格子较短边。 */
+internal data class MnemonicGridMetrics(
+    val colCount: Int,
+    val rowCount: Int,
+    val cellWidthDp: Float,
+    val cellHeightDp: Float,
+    val glyphSp: Float,
+)
+
+internal fun mnemonicGridMetrics(
+    gridWidthDp: Float,
+    gridHeightDp: Float,
+    rows: List<String>,
+): MnemonicGridMetrics {
+    val colCount = rows.maxOfOrNull { it.length }?.coerceAtLeast(1) ?: 1
+    val rowCount = rows.size.coerceAtLeast(1)
+    val width = gridWidthDp.coerceAtLeast(1f)
+    val height = gridHeightDp.coerceAtLeast(1f)
+    val cellW = width / colCount
+    val cellH = height / rowCount
+    val glyphSp = minOf(cellW, cellH) * 0.92f
+    return MnemonicGridMetrics(colCount, rowCount, cellW, cellH, glyphSp)
+}
+
 private val NoPad = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false))
 
-/** 46 键助记开：字母左上、助记右上、字根按行铺满；单笔大字根居中。颜色跟字母键。 */
+private val KeyCapInset = 0.5.dp
+
+/**
+ * 46 键助记开：字母/助记叠在键帽上沿两角，不挤进字根网格。
+ * 字根按最宽行列逐字铺满剩余区域，末行左对齐。单笔大字根居中。
+ */
 @Composable
 fun MnemonicKeyCap(
     letter: String,
@@ -99,15 +130,43 @@ fun MnemonicKeyCap(
     labelFontFamily: FontFamily?,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val h = maxHeight.value
-        val letterSp = (h * 0.22f).coerceIn(9f, 13f)
-        val strokeSp = (h * 0.52f).coerceIn(20f, 34f)
-        val rowCount = hint.rows.size.coerceAtLeast(1)
-        val bodySp = ((h * 0.70f) / rowCount).coerceIn(6f, 12f)
+        val letterSp = (maxHeight.value * 0.18f).coerceIn(8f, 11f)
+        val strokeSp = (minOf(maxWidth.value, maxHeight.value) * 0.58f).coerceIn(18f, 36f)
+        if (hint.largeStroke != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(KeyCapInset),
+            ) {
+                Text(
+                    text = letter,
+                    color = textColor,
+                    fontSize = letterSp.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = fontFamily,
+                    style = NoPad,
+                    lineHeight = letterSp.sp,
+                    maxLines = 1,
+                    modifier = Modifier.align(Alignment.TopStart),
+                )
+                Text(
+                    text = hint.largeStroke,
+                    color = textColor,
+                    fontSize = strokeSp.sp,
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = labelFontFamily,
+                    style = NoPad,
+                    lineHeight = strokeSp.sp,
+                    maxLines = 1,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
+            return@BoxWithConstraints
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 2.dp, end = 2.dp, top = 1.dp, bottom = 1.dp),
+                .padding(KeyCapInset),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -137,45 +196,47 @@ fun MnemonicKeyCap(
                     )
                 }
             }
-            if (hint.largeStroke != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = hint.largeStroke,
-                        color = textColor,
-                        fontSize = strokeSp.sp,
-                        fontWeight = FontWeight.Normal,
-                        fontFamily = labelFontFamily,
-                        style = NoPad,
-                        lineHeight = strokeSp.sp,
-                        maxLines = 1,
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.SpaceEvenly,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                val metrics = mnemonicGridMetrics(
+                    gridWidthDp = maxWidth.value,
+                    gridHeightDp = maxHeight.value,
+                    rows = hint.rows,
+                )
+                Column(modifier = Modifier.fillMaxSize()) {
                     hint.rows.forEach { row ->
-                        Text(
-                            text = row,
-                            color = textColor,
-                            fontSize = bodySp.sp,
-                            fontWeight = FontWeight.Normal,
-                            fontFamily = labelFontFamily,
-                            style = NoPad,
-                            lineHeight = bodySp.sp,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Clip,
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            horizontalArrangement = Arrangement.Start,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            row.forEach { ch ->
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .width(metrics.cellWidthDp.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = ch.toString(),
+                                        color = textColor,
+                                        fontSize = metrics.glyphSp.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        fontFamily = labelFontFamily,
+                                        style = NoPad,
+                                        lineHeight = metrics.glyphSp.sp,
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Clip,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
