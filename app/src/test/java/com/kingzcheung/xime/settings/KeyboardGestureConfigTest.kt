@@ -743,4 +743,14 @@ keyboard:
         assertEquals("Aa", l.label)
     }
 
+    @Test
+    fun `toggle_mnemonic 解析为 TOGGLE_MNEMONIC`() {
+        val keys = parseKeys("""
+            n: { swipe_up: { label: "助记", action: "toggle_mnemonic", display: "both" } }
+        """.trimIndent())
+        val n = keys["n"]!!.swipeUp!!
+        assertEquals(GestureAction.TOGGLE_MNEMONIC, n.action)
+        assertEquals("助记", n.label)
+    }
+
 }

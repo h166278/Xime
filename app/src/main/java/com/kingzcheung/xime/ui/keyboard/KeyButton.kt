@@ -416,6 +416,8 @@ fun SwipeableKeyButton(
     swipeDownThresholdDp: Dp = 50.dp,
     /** 长按气泡默认选中项（46 键空闲上滑 Shift 切换大小写默认）。 */
     longPressDefaultIndex: Int = 0,
+    /** 46 键助记开：字母左上 + 字根铺满。空则走原 layoutMode。 */
+    mnemonicHint: FeiKeyHint? = null,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     var dragOffsetY by remember { mutableStateOf(0f) }
@@ -707,14 +709,22 @@ fun SwipeableKeyButton(
                 else if (isHighlighted) backgroundColor.copy(alpha = 0.8f)
                 else backgroundColor
             ),
-        contentAlignment = if (layoutMode == ButtonLayout.COMPACT) Alignment.TopStart else Alignment.Center
+        contentAlignment = if (layoutMode == ButtonLayout.COMPACT && mnemonicHint == null) Alignment.TopStart else Alignment.Center
     ) {
         val contentScale = adaptiveKeyContentScale(maxHeight.value)
         val hintScale = adaptiveHintScale(contentScale)
         val hintOffset = adaptiveHintOffsetDp(contentScale).dp
         val effectiveSwipeFontSize = (swipeFontSize.value * hintScale).sp
 
-        if (layoutMode == ButtonLayout.COMPACT) {
+        if (mnemonicHint != null) {
+            MnemonicKeyCap(
+                letter = text,
+                hint = mnemonicHint,
+                textColor = textColor,
+                fontFamily = keyFontFamily,
+                labelFontFamily = keyLabelFontFamily,
+            )
+        } else if (layoutMode == ButtonLayout.COMPACT) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (icon != null) {
                     Icon(

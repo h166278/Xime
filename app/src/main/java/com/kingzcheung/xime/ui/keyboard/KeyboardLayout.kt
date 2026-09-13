@@ -125,6 +125,7 @@ fun KeyboardLayout(
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
     val longPressPreferUppercase by viewModel.longPressPreferUppercase.collectAsStateWithLifecycle()
+    val mnemonicHintsEnabled by viewModel.mnemonicHintsEnabled.collectAsStateWithLifecycle()
 
     var visualIsShifted by remember { mutableStateOf(false) }
     LaunchedEffect(isShifted) {
@@ -191,6 +192,9 @@ fun KeyboardLayout(
             }
             GestureAction.PROCESS_RIME_KEY -> {
                 if (value.isNotEmpty()) onKeyPress(value)
+            }
+            GestureAction.TOGGLE_MNEMONIC -> {
+                viewModel.toggleMnemonicHints()
             }
             else -> callbacks.onGestureAction?.invoke(action, value) ?: Unit
         }
@@ -358,6 +362,8 @@ fun KeyboardLayout(
                                     configVersion = cfgVer,
                                     swipeUpHintTopEnd = is46Layout,
                                     longPressPreferUppercase = longPressPreferUppercase,
+                                    is46Layout = is46Layout,
+                                    mnemonicHintsEnabled = mnemonicHintsEnabled,
                                 )
                             }
                         }
@@ -403,6 +409,8 @@ fun KeyboardLayout(
                                 configVersion = cfgVer,
                                 swipeUpHintTopEnd = is46Layout,
                                 longPressPreferUppercase = longPressPreferUppercase,
+                                is46Layout = is46Layout,
+                                mnemonicHintsEnabled = mnemonicHintsEnabled,
                             )
                         }
                     }
@@ -458,6 +466,8 @@ fun KeyboardLayout(
                                 configVersion = cfgVer,
                                 swipeUpHintTopEnd = is46Layout,
                                 longPressPreferUppercase = longPressPreferUppercase,
+                                is46Layout = is46Layout,
+                                mnemonicHintsEnabled = mnemonicHintsEnabled,
                             )
                         }
                     }
@@ -508,22 +518,27 @@ fun KeyboardLayout(
                                 ) {
                                 val bottomKeys = keyRows.getOrElse(2) { listOf("z", "x", "c", "v", "b", "n", "m") }
                                 bottomKeys.forEach { key ->
+                                    val mnemonicHint = letterMnemonicHint(key, is46Layout, mnemonicHintsEnabled)
                                     val rawSwipeUpLabel = KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
                                     val swipeUpText =
                                         if (swipeUpHintsEnabled) rawSwipeUpLabel else null
                                     val swipeUpAction = KeysConfigHelper.getSwipeUpAction(key, isAsciiMode)
                                     val swipeUpDisplay = KeysConfigHelper.getSwipeUpDisplay(key, isAsciiMode)
                                     val swipeUpKeyLabel =
-                                        if (swipeUpDisplay != DisplayMode.BUBBLE && swipeUpHintsEnabled) swipeUpText else null
+                                        if (mnemonicHint != null) null
+                                        else if (swipeUpDisplay != DisplayMode.BUBBLE && swipeUpHintsEnabled) swipeUpText else null
                                     val swipeUpCommitValue = KeysConfigHelper.getSwipeUpCommitValue(key, isAsciiMode)
                                     val swipeDownRaw =
                                         KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeDown
-                                    val swipeDownLabel =
+                                    val yamlDownLabel =
                                         swipeDownRaw?.label?.takeIf { it.isNotEmpty() }
+                                    val swipeDownLabel = letterSwipeDownLabel(key, is46Layout, yamlDownLabel)
                                     val swipeDownAction = swipeDownRaw?.action
                                     val swipeDownValue = swipeDownRaw?.value
                                     val swipeDownDisplay = swipeDownRaw?.display ?: DisplayMode.BOTH
-                                    val swipeDownBubbleText = if (swipeDownDisplay != DisplayMode.KEY) swipeDownLabel else null
+                                    val swipeDownBubbleText = if (is46Layout && FeiKeyHint.forKey(key) != null) swipeDownLabel
+                                    else if (swipeDownDisplay != DisplayMode.KEY) yamlDownLabel
+                                    else null
                                     val longPressConfig =
                                         KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.longPress
                                     val longPressDisplay = longPressConfig?.display ?: "key"
@@ -588,9 +603,11 @@ fun KeyboardLayout(
                                         swipeText = swipeUpText,
                                         swipeDownText = swipeDownBubbleText,
                                         swipeUpKeyLabel = swipeUpKeyLabel,
-                                        swipeDownKeyLabel = if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH)) swipeDownLabel else null,
+                                        swipeDownKeyLabel = if (mnemonicHint != null) null
+                                        else if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH)) yamlDownLabel else null,
                                         swipeUpHintTopEnd = is46Layout,
-                                        swipeUpHintIcon = rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
+                                        swipeUpHintIcon = if (mnemonicHint != null) null else rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
+                                        mnemonicHint = mnemonicHint,
                                         onSwipe = remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
                                             swipeUpClick(
                                                 swipeUpAction,
@@ -1377,26 +1394,33 @@ fun KeyboardRowWithConfig(
     configVersion: Int = 0,
     swipeUpHintTopEnd: Boolean = false,
     longPressPreferUppercase: Boolean = false,
+    is46Layout: Boolean = false,
+    mnemonicHintsEnabled: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth(),
     ) {
         keys.forEach { key ->
+            val mnemonicHint = letterMnemonicHint(key, is46Layout, mnemonicHintsEnabled)
             val rawSwipeUpLabel = KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
             val swipeUpText = if (swipeUpHintsEnabled) rawSwipeUpLabel else null
             val swipeUpAction = KeysConfigHelper.getSwipeUpAction(key, isAsciiMode)
             val swipeUpDisplay = KeysConfigHelper.getSwipeUpDisplay(key, isAsciiMode)
             val swipeUpKeyLabel =
-                if (swipeUpDisplay != DisplayMode.BUBBLE && swipeUpHintsEnabled) swipeUpText else null
+                if (mnemonicHint != null) null
+                else if (swipeUpDisplay != DisplayMode.BUBBLE && swipeUpHintsEnabled) swipeUpText else null
             val swipeUpCommitValue = KeysConfigHelper.getSwipeUpCommitValue(key, isAsciiMode)
             val swipeDownRaw = KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeDown
-            val swipeDownLabel = swipeDownRaw?.label?.takeIf { it.isNotEmpty() }
+            val yamlDownLabel = swipeDownRaw?.label?.takeIf { it.isNotEmpty() }
+            val swipeDownLabel = letterSwipeDownLabel(key, is46Layout, yamlDownLabel)
             val swipeDownAction = swipeDownRaw?.action
             val swipeDownValue = swipeDownRaw?.value
             val swipeDownDisplay = swipeDownRaw?.display ?: DisplayMode.BOTH
-            val swipeDownBubbleText =
-                if (swipeDownDisplay != DisplayMode.KEY && swipeDownHintsEnabled) swipeDownLabel else null
+            val swipeDownBubbleText = if (!swipeDownHintsEnabled) null
+            else if (is46Layout && FeiKeyHint.forKey(key) != null) swipeDownLabel
+            else if (swipeDownDisplay != DisplayMode.KEY) yamlDownLabel
+            else null
 
             // 长按选项
             val longPressConfig = KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.longPress
@@ -1462,9 +1486,11 @@ fun KeyboardRowWithConfig(
                 swipeText = swipeUpText,
                 swipeDownText = swipeDownBubbleText,
                 swipeUpKeyLabel = swipeUpKeyLabel,
-                swipeDownKeyLabel = if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH) && swipeDownHintsEnabled) swipeDownLabel else null,
+                swipeDownKeyLabel = if (mnemonicHint != null) null
+                else if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH) && swipeDownHintsEnabled) yamlDownLabel else null,
                 swipeUpHintTopEnd = swipeUpHintTopEnd,
-                swipeUpHintIcon = rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
+                swipeUpHintIcon = if (mnemonicHint != null) null else rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
+                mnemonicHint = mnemonicHint,
                 onSwipe = remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
                     swipeUpClick(
                         swipeUpAction,
@@ -1723,6 +1749,7 @@ private fun LandscapeKeyboardContent(
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
     val longPressPreferUppercase by viewModel.longPressPreferUppercase.collectAsStateWithLifecycle()
+    val mnemonicHintsEnabled by viewModel.mnemonicHintsEnabled.collectAsStateWithLifecycle()
 
     var visualIsShifted by remember { mutableStateOf(false) }
     LaunchedEffect(isShifted) {
@@ -1798,6 +1825,9 @@ private fun LandscapeKeyboardContent(
             GestureAction.PROCESS_RIME_KEY -> {
                 if (value.isNotEmpty()) onKeyPress(value)
             }
+            GestureAction.TOGGLE_MNEMONIC -> {
+                viewModel.toggleMnemonicHints()
+            }
             else -> callbacks.onGestureAction?.invoke(action, value) ?: Unit
         }
     }
@@ -1870,6 +1900,8 @@ private fun LandscapeKeyboardContent(
                     onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
                     longPressPreferUppercase = longPressPreferUppercase,
+                    is46Layout = is46Layout,
+                    mnemonicHintsEnabled = mnemonicHintsEnabled,
                 )
             }
             Box(
@@ -1899,6 +1931,8 @@ private fun LandscapeKeyboardContent(
                     onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
                     longPressPreferUppercase = longPressPreferUppercase,
+                    is46Layout = is46Layout,
+                    mnemonicHintsEnabled = mnemonicHintsEnabled,
                 )
             }
             Box(
@@ -1928,6 +1962,8 @@ private fun LandscapeKeyboardContent(
                     onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
                     longPressPreferUppercase = longPressPreferUppercase,
+                    is46Layout = is46Layout,
+                    mnemonicHintsEnabled = mnemonicHintsEnabled,
                 )
             }
             Row(
@@ -2075,6 +2111,8 @@ private fun LandscapeKeyboardContent(
                     onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
                     longPressPreferUppercase = longPressPreferUppercase,
+                    is46Layout = is46Layout,
+                    mnemonicHintsEnabled = mnemonicHintsEnabled,
                 )
             }
             Box(
@@ -2101,6 +2139,8 @@ private fun LandscapeKeyboardContent(
                     onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
                     longPressPreferUppercase = longPressPreferUppercase,
+                    is46Layout = is46Layout,
+                    mnemonicHintsEnabled = mnemonicHintsEnabled,
                 )
             }
             Row(
@@ -2129,6 +2169,8 @@ private fun LandscapeKeyboardContent(
                         onGestureAction = onGestureAction,
                         onSwipeStateChange = onSwipeStateChange,
                         longPressPreferUppercase = longPressPreferUppercase,
+                        is46Layout = is46Layout,
+                        mnemonicHintsEnabled = mnemonicHintsEnabled,
                     )
                 }
                 SwipeableIconKeyButton(
@@ -2299,6 +2341,7 @@ fun SwipeableKeyButtonLandscape(
     swipeDownText: String? = null,
     swipeUpKeyLabel: String? = null,
     swipeDownKeyLabel: String? = null,
+    mnemonicHint: FeiKeyHint? = null,
     onSwipe: ((String) -> Unit)? = null,
     onSwipeDown: ((String) -> Unit)? = null,
     onPress: (() -> Unit)? = null,
@@ -2591,7 +2634,15 @@ fun SwipeableKeyButtonLandscape(
         ) * contentScale
         val effectiveSwipeFontSize = swipeFontSize.value * hintScale
 
-        Box(
+        if (mnemonicHint != null) {
+            MnemonicKeyCap(
+                letter = text,
+                hint = mnemonicHint,
+                textColor = textColor,
+                fontFamily = keyFontFamily,
+                labelFontFamily = keyLabelFontFamily,
+            )
+        } else Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
@@ -2607,7 +2658,7 @@ fun SwipeableKeyButtonLandscape(
             )
         }
 
-        val keyLabel = swipeUpKeyLabel ?: swipeText
+        val keyLabel = if (mnemonicHint != null) null else swipeUpKeyLabel ?: swipeText
         if (keyLabel != null) {
             Text(
                 text = keyLabel,
@@ -2622,7 +2673,7 @@ fun SwipeableKeyButtonLandscape(
                     .padding(top = 2.dp, end = 4.dp)
             )
         }
-        if (swipeDownKeyLabel != null) {
+        if (mnemonicHint == null && swipeDownKeyLabel != null) {
             Text(
                 text = swipeDownKeyLabel,
                 color = textColor.copy(alpha = 0.5f),
@@ -2660,28 +2711,36 @@ fun CompactKeyboardRowWithConfig(
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
     configVersion: Int = 0,
     longPressPreferUppercase: Boolean = false,
+    is46Layout: Boolean = false,
+    mnemonicHintsEnabled: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .fillMaxSize(),
     ) {
         keys.forEach { key ->
+            val mnemonicHint = letterMnemonicHint(key, is46Layout, mnemonicHintsEnabled)
             val rawSwipeUpLabel = KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
             val swipeUpText = if (swipeUpHintsEnabled) rawSwipeUpLabel else null
             val swipeUpAction = KeysConfigHelper.getSwipeUpAction(key, isAsciiMode)
             val swipeUpDisplay = KeysConfigHelper.getSwipeUpDisplay(key, isAsciiMode)
             val swipeUpKeyLabel =
-                if (swipeUpDisplay != DisplayMode.BUBBLE && swipeUpHintsEnabled) swipeUpText else null
+                if (mnemonicHint != null) null
+                else if (swipeUpDisplay != DisplayMode.BUBBLE && swipeUpHintsEnabled) swipeUpText else null
             val swipeUpCommitValue = KeysConfigHelper.getSwipeUpCommitValue(key, isAsciiMode)
             val swipeDownRaw = KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeDown
-            val swipeDownLabel = swipeDownRaw?.label?.takeIf { it.isNotEmpty() }
+            val yamlDownLabel = swipeDownRaw?.label?.takeIf { it.isNotEmpty() }
+            val swipeDownLabel = letterSwipeDownLabel(key, is46Layout, yamlDownLabel)
             val swipeDownAction = swipeDownRaw?.action
             val swipeDownValue = swipeDownRaw?.value
             val swipeDownDisplay = swipeDownRaw?.display ?: DisplayMode.BOTH
-            val swipeDownBubbleText =
-                if (swipeDownDisplay != DisplayMode.KEY && swipeDownHintsEnabled) swipeDownLabel else null
+            val swipeDownBubbleText = if (!swipeDownHintsEnabled) null
+            else if (is46Layout && FeiKeyHint.forKey(key) != null) swipeDownLabel
+            else if (swipeDownDisplay != DisplayMode.KEY) yamlDownLabel
+            else null
             val swipeDownKeyLabel =
-                if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH) && swipeDownHintsEnabled) swipeDownLabel else null
+                if (mnemonicHint != null) null
+                else if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH) && swipeDownHintsEnabled) yamlDownLabel else null
 
             val longPressConfig = KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.longPress
             val longPressDisplay = longPressConfig?.display ?: "key"
@@ -2740,6 +2799,7 @@ fun CompactKeyboardRowWithConfig(
                 swipeDownText = swipeDownBubbleText,
                 swipeUpKeyLabel = swipeUpKeyLabel,
                 swipeDownKeyLabel = swipeDownKeyLabel,
+                mnemonicHint = mnemonicHint,
                 onSwipe = remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
                     swipeUpClick(
                         swipeUpAction,

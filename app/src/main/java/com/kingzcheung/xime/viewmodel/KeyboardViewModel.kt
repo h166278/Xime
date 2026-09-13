@@ -122,6 +122,16 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
         _isShifted.value = mode != ShiftMode.OFF
     }
 
+    /**
+     * 46 键上滑 N：字母键帽切到飞系字根助记。
+     * 会话内有效，不落盘。
+     */
+    private val _mnemonicHintsEnabled = MutableStateFlow(false)
+    val mnemonicHintsEnabled: StateFlow<Boolean> = _mnemonicHintsEnabled.asStateFlow()
+    fun toggleMnemonicHints() {
+        _mnemonicHintsEnabled.update { !it }
+    }
+
     private val _keyboardState = MutableStateFlow<KeyboardLayoutState>(KeyboardLayoutState.Chinese)
     val keyboardState: StateFlow<KeyboardLayoutState> = _keyboardState.asStateFlow()
 

@@ -486,7 +486,8 @@ keyboard:
 
   # ── 46 键布局专属手势覆盖段（中文）──
   # 与 qwerty 逐键合并（本段优先），仅在「布局选择 = 46 键」时生效。
-  # 规则：字母键上滑 = 符号，长按 = 字母；tap / swipe_down 沿用 qwerty 不动。
+  # 规则：字母键上滑 = 符号，长按 = 字母；tap 沿用 qwerty。
+  # 下滑气泡在 46 键由代码换成飞系字根；N 上滑切助记键帽。
   qwerty_46:
     keys:
       # ── 第二行 ──
@@ -510,13 +511,13 @@ keyboard:
       j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
       k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
       l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter", display: "both" }, long_press: { display: "bubble", values: ["l", "L"] } }
-      # ── 第四行：上滑执行编辑动作，气泡只显示文案；助记暂空操作 ──
+      # ── 第四行：上滑执行编辑动作；N 上滑切换飞系字根助记键帽 ──
       z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
       x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }
       c: { swipe_up: { label: "复制", action: "copy", icon: "copy", display: "both" }, long_press: { display: "bubble", values: ["c", "C", "ç"] } }
       v: { swipe_up: { label: "粘贴", action: "paste", icon: "paste", display: "both" }, long_press: { display: "bubble", values: ["v", "V"] } }
       b: { swipe_up: { label: "剪贴板", action: "switch_route", value: "clipboard", icon: "clipboard", display: "both" }, long_press: { display: "bubble", values: ["b", "B"] } }
-      n: { swipe_up: { label: "助记", action: "none", display: "both" }, long_press: { display: "bubble", values: ["n", "N", "ñ"] } }
+      n: { swipe_up: { label: "助记", action: "toggle_mnemonic", display: "both" }, long_press: { display: "bubble", values: ["n", "N", "ñ"] } }
       m: { swipe_up: { label: "收起", action: "command", value: "hide_keyboard", display: "both" }, long_press: { display: "bubble", values: ["m", "M"] } }
 
   # 英文键盘布局
@@ -612,13 +613,13 @@ keyboard:
       j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
       k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
       l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter", display: "both" }, long_press: { display: "bubble", values: ["l", "L"] } }
-      # ── 第三行：上滑执行编辑动作，气泡只显示文案；助记暂空操作 ──
+      # ── 第三行：上滑执行编辑动作；N 上滑切换飞系字根助记键帽 ──
       z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
       x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }
       c: { swipe_up: { label: "复制", action: "copy", icon: "copy", display: "both" }, long_press: { display: "bubble", values: ["c", "C"] } }
       v: { swipe_up: { label: "粘贴", action: "paste", icon: "paste", display: "both" }, long_press: { display: "bubble", values: ["v", "V"] } }
       b: { swipe_up: { label: "剪贴板", action: "switch_route", value: "clipboard", icon: "clipboard", display: "both" }, long_press: { display: "bubble", values: ["b", "B"] } }
-      n: { swipe_up: { label: "助记", action: "none", display: "both" }, long_press: { display: "bubble", values: ["n", "N"] } }
+      n: { swipe_up: { label: "助记", action: "toggle_mnemonic", display: "both" }, long_press: { display: "bubble", values: ["n", "N"] } }
       m: { swipe_up: { label: "收起", action: "command", value: "hide_keyboard", display: "both" }, long_press: { display: "bubble", values: ["m", "M"] } }
 
   # 九键（T9）键盘配置

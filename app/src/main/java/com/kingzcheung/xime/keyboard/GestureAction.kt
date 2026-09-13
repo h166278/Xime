@@ -153,6 +153,14 @@ enum class GestureAction(val value: String) {
      */
     PROCESS_RIME_KEY("process_rime_key") {
         override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
+    },
+
+    /**
+     * 46 键上滑 N：切换飞系字根助记键帽。
+     * 由 UI 层拦截，[ActionExecutor] 层 no-op。
+     */
+    TOGGLE_MNEMONIC("toggle_mnemonic") {
+        override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
     };
 
     /**
