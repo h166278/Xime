@@ -10,6 +10,7 @@ import com.kingzcheung.xime.settings.SettingsPreferences
 import com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState
 import com.kingzcheung.xime.ui.keyboard.isT9Schema
 import com.kingzcheung.xime.util.FileLogger
+import com.kingzcheung.xime.viewmodel.ShiftMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -196,6 +197,9 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             handleDeleteKey()
             return
         }
+        // 必须在主线程、onCharacterTyped() 把 SINGLE 清掉之前拍下来：
+        // KeyboardView 是 onKeyPress 返回后立刻 onCharacterTyped，协程里再读已经是 OFF。
+        val shiftModeAtPress = service.keyboardViewModel.shiftMode.value
         val job = service.serviceScope.launch(service.keyProcessingDispatcher, start = CoroutineStart.LAZY) {
             val state = service.uiState.value
             val candState = service.candidateState.value
@@ -569,10 +573,28 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     } else {
                         val isChinese = !state.isAsciiMode
                         val char = key
-                        val keyCode = key.lowercase()[0].code
-                        val mask = if (isShifted) KeyEvent.META_SHIFT_ON else 0
                         val isLetter = key.matches(Regex("[a-zA-Z]"))
-                        val isShiftedChinese = isShifted && isChinese && isLetter
+                        // 46 键空闲单击 Shift + 字母：交给声笔 auto_inline（首字母大写进临时英文）。
+                        // 必须发 A-Z keycode；小写+SHIFT 过不了 lua 的 is_upper。
+                        // 同时绕开下面 isShiftedChinese 硬提交，否则组合会被清掉、变成一次性大写直出。
+                        // Caps / 26 键 / 已在组合态（先字母再 Shift→Tab）都不走这条。
+                        val is46IdleShiftLetter = shouldRouteShiftLetterToInlineAscii(
+                            layout46 = SettingsPreferences.isLayout46Enabled(service),
+                            chineseMode = isChinese,
+                            isLetter = isLetter,
+                            isShifted = isShifted,
+                            composing = candState.isComposing,
+                            hasInput = candState.inputText.isNotEmpty(),
+                            shiftMode = shiftModeAtPress,
+                            autoInlineEnabled = service.rimeEngine.getOption("auto_inline"),
+                        )
+                        val keyCode = if (is46IdleShiftLetter) {
+                            key.uppercase()[0].code
+                        } else {
+                            key.lowercase()[0].code
+                        }
+                        val mask = if (isShifted) KeyEvent.META_SHIFT_ON else 0
+                        val isShiftedChinese = isShifted && isChinese && isLetter && !is46IdleShiftLetter
 
                         // 非 ASCII 可打印字符（全角符号/中文标点）：直接上屏，不进入 Rime 引擎。
                         // Rime processKey 只接受标准键码，全角键码（如 U+FF0F）无法识别会被静默
@@ -1305,4 +1327,29 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         }
     }
 
+}
+
+/**
+ * 46 键空闲单击 Shift + 字母是否改走声笔 auto_inline（临时英文，首字母大写）。
+ *
+ * Caps / 26 键 / 组合态 / auto_inline 关：一律 false，保持原 Shift 硬提交或 Tab 路径。
+ */
+internal fun shouldRouteShiftLetterToInlineAscii(
+    layout46: Boolean,
+    chineseMode: Boolean,
+    isLetter: Boolean,
+    isShifted: Boolean,
+    composing: Boolean,
+    hasInput: Boolean,
+    shiftMode: ShiftMode,
+    autoInlineEnabled: Boolean,
+): Boolean {
+    return layout46 &&
+        chineseMode &&
+        isLetter &&
+        isShifted &&
+        !composing &&
+        !hasInput &&
+        shiftMode == ShiftMode.SINGLE &&
+        autoInlineEnabled
 }
