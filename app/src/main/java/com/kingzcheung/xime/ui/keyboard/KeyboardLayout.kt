@@ -99,6 +99,7 @@ import com.kingzcheung.xime.ui.theme.keyboardBackground
 
 import androidx.compose.material.icons.twotone.KeyboardControlKey
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -875,6 +876,7 @@ fun KeyboardLayout(
                             } else null,
                             onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
                             rimeArrowsWhenComposing = is46Layout && isComposing,
+                            onCursorMove = if (is46Layout) callbacks.onCursorMove else null,
                         )
 
                         // 中/英切换 + 回车（硬编码 + 配置驱动）
@@ -2769,6 +2771,7 @@ private fun SpaceKey(
     swipeUpLabel: String? = null,
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
     rimeArrowsWhenComposing: Boolean = false,
+    onCursorMove: ((Int) -> Unit)? = null,
 ) {
     val currentOnKeyPress by rememberUpdatedState(onKeyPress)
     val currentOnKeyPressDown by rememberUpdatedState(onKeyPressDown)
@@ -2778,11 +2781,12 @@ private fun SpaceKey(
     val currentSwipeUpLabel by rememberUpdatedState(swipeUpLabel)
     val currentOnSwipeStateChange by rememberUpdatedState(onSwipeStateChange)
     val currentRimeArrows by rememberUpdatedState(rimeArrowsWhenComposing)
+    val currentOnCursorMove by rememberUpdatedState(onCursorMove)
     val suppressCursorMove = LocalSuppressCursorMove.current
     var buttonBounds by remember { mutableStateOf(Rect(0f, 0f, 0f, 0f)) }
     var isBubbleShowing by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val view = LocalView.current
 
     val density = LocalDensity.current
     val shadowModifier = remember(shadowEnabled, shadowElevation, shadowShapeRadius, density, keyBackgroundColor) {
@@ -2808,9 +2812,13 @@ private fun SpaceKey(
             .onGloballyPositioned { coordinates ->
                 buttonBounds = coordinates.boundsInRoot()
             }
-            .pointerInput(isSttEnabled, voiceSticky, rimeArrowsWhenComposing) {
+            // 组合态不能当 pointerInput key：空格上屏后 isComposing 翻转会取消手势协程，
+            // 长按连发若挂在 Composable scope 上会停不掉，表现为自动点空格、光标一直往前跑。
+            .pointerInput(isSttEnabled, voiceSticky) {
+                coroutineScope {
+                val gestureScope = this
                 awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown(requireUnconsumed = false)
 
                     if (voiceSticky) {
                         // 常驻语音模式：轻触空格即结束语音
@@ -2820,19 +2828,31 @@ private fun SpaceKey(
                     }
 
                     currentOnKeyPressDown?.invoke("space")
-                    if (currentRimeArrows) suppressCursorMove.value = true
+                    val stepCursor = currentOnCursorMove != null
+                    // 46 键空格自己管横滑光标，压掉键盘级手势避免双发
+                    if (stepCursor || currentRimeArrows) suppressCursorMove.value = true
 
                     // 上滑阈值：约为键高一半，避免误触
                     val swipeUpThresholdPx = with(density) { 24.dp.toPx() }
                     val swipeHThresholdPx = with(density) { 50.dp.toPx() }
+                    // 与 KeyboardView / KeyButton 光标手势激活阈值对齐，空格上横滑不点空格
+                    val cursorCancelPx = with(density) { 60.dp.toPx() }
+                    // 46 键：滑一点移一格
+                    val cursorActivatePx = with(density) { 20.dp.toPx() }
+                    val cursorStepPx = with(density) { 25.dp.toPx() }
                     // 气泡显示阈值：轻扫即出，与 SwipeableKeyButton 保持同一手感（阈值的 30%）
                     val bubbleShowThresholdPx = swipeUpThresholdPx * 0.3f
                     var swipeUpTriggered = false
                     var swipeH: String? = null
+                    var cursorSwipe = false
+                    var cursorMoved = false
+                    var lastCursorSteps = 0
+                    var cursorAnchorX = down.position.x
                     var longPressTriggered = false
-                    val longPressJob = scope.launch {
+                    val longPressJob = gestureScope.launch {
                         delay(400)
                         longPressTriggered = true
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
 
                         if (isSttEnabled) {
                             if (!PermissionHelper.hasRecordAudioPermission(context)) {
@@ -2851,54 +2871,78 @@ private fun SpaceKey(
                     }
 
                     // 已在 awaitEachGesture 的 AwaitPointerEventScope 内，不能再套 awaitPointerEventScope
-                    var startY: Float? = null
-                    var startX: Float? = null
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull() ?: break
-                        if (startY == null) startY = change.position.y
-                        if (startX == null) startX = change.position.x
-                        if (!change.pressed) break
-                        val dy = startY!! - change.position.y
-                        val dx = change.position.x - startX!!
-                        if (currentRimeArrows && abs(dx) > swipeHThresholdPx && abs(dx) > abs(dy)) {
-                            swipeH = if (dx < 0) "left" else "right"
-                            longPressJob.cancel()
-                        }
-                        // 上滑气泡：与普通键一致，越过起泡阈值即亮出「切换中/英」
-                        if (currentSwipeUpLabel != null) {
-                            val shouldShowBubble = dy > bubbleShowThresholdPx
-                            if (shouldShowBubble != isBubbleShowing) {
-                                isBubbleShowing = shouldShowBubble
-                                currentOnSwipeStateChange?.invoke(
-                                    if (shouldShowBubble) {
-                                        SwipeState(isSwiping = true, swipeText = currentSwipeUpLabel)
-                                    } else {
-                                        SwipeState()
-                                    },
-                                    buttonBounds
-                                )
+                    val startY = down.position.y
+                    val startX = down.position.x
+                    try {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+                            if (!change.pressed) break
+                            val dy = startY - change.position.y
+                            val dx = change.position.x - startX
+                            if (stepCursor && !swipeUpTriggered && abs(dx) > abs(dy)) {
+                                if (!cursorMoved && abs(dx) > cursorActivatePx) {
+                                    cursorMoved = true
+                                    cursorAnchorX = change.position.x
+                                    lastCursorSteps = 0
+                                    longPressJob.cancel()
+                                }
+                                if (cursorMoved) {
+                                    val steps = ((change.position.x - cursorAnchorX) / cursorStepPx).toInt()
+                                    if (steps != lastCursorSteps) {
+                                        currentOnCursorMove?.invoke(steps - lastCursorSteps)
+                                        view.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+                                        lastCursorSteps = steps
+                                    }
+                                }
+                            } else if (!stepCursor) {
+                                if (currentRimeArrows && abs(dx) > swipeHThresholdPx && abs(dx) > abs(dy)) {
+                                    swipeH = if (dx < 0) "left" else "right"
+                                    longPressJob.cancel()
+                                } else if (abs(dx) > cursorCancelPx && abs(dx) > abs(dy)) {
+                                    cursorSwipe = true
+                                    longPressJob.cancel()
+                                }
+                            }
+                            // 上滑气泡：与普通键一致，越过起泡阈值即亮出「切换中/英」
+                            if (currentSwipeUpLabel != null && !cursorMoved) {
+                                val shouldShowBubble = dy > bubbleShowThresholdPx
+                                if (shouldShowBubble != isBubbleShowing) {
+                                    isBubbleShowing = shouldShowBubble
+                                    currentOnSwipeStateChange?.invoke(
+                                        if (shouldShowBubble) {
+                                            SwipeState(isSwiping = true, swipeText = currentSwipeUpLabel)
+                                        } else {
+                                            SwipeState()
+                                        },
+                                        buttonBounds
+                                    )
+                                }
+                            }
+                            if (dy > swipeUpThresholdPx && !swipeUpTriggered && !cursorMoved) {
+                                swipeUpTriggered = true
+                                // 已判定为上滑：取消长按（语音/连发空格）
+                                longPressJob.cancel()
                             }
                         }
-                        if (dy > swipeUpThresholdPx && !swipeUpTriggered) {
-                            swipeUpTriggered = true
-                            // 已判定为上滑：取消长按（语音/连发空格）
-                            longPressJob.cancel()
+                    } finally {
+                        // pointerInput 被重组取消时也必须停掉连发，不能等循环正常结束
+                        longPressJob.cancel()
+                        currentOnKeyRelease?.invoke("space")
+                        if (isBubbleShowing) {
+                            isBubbleShowing = false
+                            currentOnSwipeStateChange?.invoke(SwipeState(), buttonBounds)
                         }
-                    }
-
-                    longPressJob.cancel()
-                    currentOnKeyRelease?.invoke("space")
-                    if (isBubbleShowing) {
-                        isBubbleShowing = false
-                        currentOnSwipeStateChange?.invoke(SwipeState(), buttonBounds)
                     }
 
                     when {
                         swipeH != null -> currentOnKeyPress(if (swipeH == "left") "rime_left" else "rime_right")
                         swipeUpTriggered -> currentOnGestureAction?.invoke(GestureAction.TOGGLE_ASCII, "")
+                        cursorMoved -> Unit // 横滑步进已在拖动中发出
+                        cursorSwipe -> Unit // 默认布局：横向滑动交给键盘级光标手势，不点空格
                         !longPressTriggered -> currentOnKeyPress("space")
                     }
+                }
                 }
             }
             .padding(LocalKeyVisualPadding.current)
