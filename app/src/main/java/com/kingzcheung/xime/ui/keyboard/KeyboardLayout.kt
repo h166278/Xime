@@ -684,13 +684,14 @@ fun KeyboardLayout(
                                 swipeText = if (composingClearOn123) "?123" else null,
                                 swipeUpKeyLabel = if (composingClearOn123) "?123" else null,
                                 swipeUpHintTopEnd = composingClearOn123,
-                                swipeDownText = if (is46Layout && !isComposing) "撤回" else null,
+                                swipeDownText = if (is46Layout) "撤回" else null,
                                 onSwipe = if (composingClearOn123) {
                                     { onKeyPress("mode_change") }
                                 } else null,
-                                onSwipeDown = if (is46Layout && !isComposing) {
+                                onSwipeDown = if (is46Layout) {
                                     { onKeyPress("undo_composition") }
                                 } else null,
+                                swipeDownThresholdDp = if (is46Layout) 24.dp else 50.dp,
                                 onPress = { onKeyPressDown?.invoke("mode_change") },
                                 onRelease = { onKeyRelease?.invoke("mode_change") },
                                 onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
@@ -876,7 +877,9 @@ fun KeyboardLayout(
                             } else null,
                             onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
                             rimeArrowsWhenComposing = is46Layout && isComposing,
-                            onCursorMove = if (is46Layout) callbacks.onCursorMove else null,
+                            onCursorMove = if (is46Layout) {
+                                callbacks.onEditorCursorMove ?: callbacks.onCursorMove
+                            } else null,
                         )
 
                         // 中/英切换 + 回车（硬编码 + 配置驱动）
@@ -2094,13 +2097,14 @@ private fun LandscapeKeyboardContent(
                     swipeText = if (composingClearOn123) "?123" else null,
                     swipeUpKeyLabel = if (composingClearOn123) "?123" else null,
                     swipeUpHintTopEnd = composingClearOn123,
-                    swipeDownText = if (is46Layout && !isComposing) "撤回" else null,
+                    swipeDownText = if (is46Layout) "撤回" else null,
                     onSwipe = if (composingClearOn123) {
                         { onKeyPress("mode_change") }
                     } else null,
-                    onSwipeDown = if (is46Layout && !isComposing) {
+                    onSwipeDown = if (is46Layout) {
                         { onKeyPress("undo_composition") }
                     } else null,
+                    swipeDownThresholdDp = if (is46Layout) 24.dp else 50.dp,
                     onPress = { onKeyPressDown?.invoke("mode_change") },
                     onRelease = { onKeyRelease?.invoke("mode_change") },
                     onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },

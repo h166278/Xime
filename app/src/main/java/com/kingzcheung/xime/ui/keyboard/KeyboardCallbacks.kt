@@ -34,6 +34,8 @@ data class KeyboardCallbacks(
     val onPageDown: (() -> Unit)? = null,
     val onPageUp: (() -> Unit)? = null,
     val onCursorMove: ((Int) -> Unit)? = null,
+    /** 只挪输入框光标，不走 Rime 左右。46 键空格横滑用。 */
+    val onEditorCursorMove: ((Int) -> Unit)? = null,
     val onGestureAction: ((GestureAction, String) -> Unit)? = null,
     val onUpdateToolbarButtons: ((List<String>) -> Unit)? = null,
     /**

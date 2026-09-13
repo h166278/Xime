@@ -294,10 +294,15 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     needsUIUpdate = true
                 }
                 "undo_composition" -> {
-                    // 46 键空闲 123 下滑：只还原刚才清掉的编码+候选，不把整框文字贴回来。
-                    if (!hasInputState(candState)) {
-                        restoreLastCleared(pasteFieldIfNotComposition = false)
+                    // 46 键 123 下滑：还原刚才清掉的编码+候选，不把整框文字贴回来。
+                    // 有编码时先清当前组合，再用快照覆盖，避免叠码。
+                    if (hasInputState(candState) &&
+                        service.lastClearedWasComposition &&
+                        service.lastClearedText.isNotEmpty()
+                    ) {
+                        clearInputStateForKeys()
                     }
+                    restoreLastCleared(pasteFieldIfNotComposition = false)
                     needsUIUpdate = true
                 }
                 "enter" -> {

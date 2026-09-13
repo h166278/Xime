@@ -132,6 +132,7 @@ fun rememberSwipeBubbleDrawData(
 
     val isLongPressMode = swipeState.isLongPress && swipeState.longPressItems.isNotEmpty()
     val displayText = if (isLongPressMode) null
+        else if (swipeState.isSwiping) swipeState.swipeText
         else if (swipeState.isPressed) swipeState.pressedText
         else swipeState.swipeText
     if (!isLongPressMode && displayText.isNullOrEmpty()) return null

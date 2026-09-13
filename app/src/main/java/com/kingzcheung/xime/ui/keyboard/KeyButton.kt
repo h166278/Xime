@@ -412,6 +412,8 @@ fun SwipeableKeyButton(
     shadowEnabled: Boolean = true,
     shadowElevation: Dp = 1.dp,
     shadowShapeRadius: Dp = 8.dp,
+    /** 下滑触发距离。底行键默认 50dp 太高，123 可单独调低。上滑不动。 */
+    swipeDownThresholdDp: Dp = 50.dp,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     var dragOffsetY by remember { mutableStateOf(0f) }
@@ -440,7 +442,7 @@ fun SwipeableKeyButton(
     
     val density = LocalDensity.current
     val swipeUpThreshold = with(density) { (-50).dp.toPx() }
-    val swipeDownThreshold = with(density) { 50.dp.toPx() }
+    val swipeDownThreshold = with(density) { swipeDownThresholdDp.toPx() }
     val bubbleShowThresholdUp = swipeUpThreshold
     val bubbleShowThresholdDown = swipeDownThreshold
     // 水平位移超过该值视为横向手势（如键盘区滑动移动光标），不再触发点击。

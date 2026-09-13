@@ -209,41 +209,11 @@ internal fun rememberImeKeyboardCallbacks(
                         service.keyRouter.handleKeyPress(key, false)
                     }
                 } else {
-                val ic = service.currentInputConnection
-                if (ic != null && direction != 0) {
-                    if (SettingsPreferences.getInputTextLocation(service) == SettingsPreferences.INPUT_TEXT_INPUT_BOX &&
-                        service.candidateState.value.isComposing
-                    ) {
-                        // 输入框模式：移动光标前先结束 composing 并清空 RIME 组成，
-                        // 避免再次输入时 composing 区域与光标位置错乱
-                        ic.finishComposingText()
-                        service.keyRouter.postRimeJob {
-                            service.rimeEngine.clearComposition()
-                            withContext(Dispatchers.Main) {
-                                service.mainHandler.post { service.updateUI() }
-                            }
-                        }
-                    }
-                    var movedBySelection = false
-                    try {
-                        val req = android.view.inputmethod.ExtractedTextRequest()
-                        val extracted = ic.getExtractedText(req, 0)
-                        if (extracted != null && extracted.selectionStart >= 0) {
-                            val newPos = (extracted.selectionStart + direction)
-                                .coerceIn(0, extracted.text?.length ?: 0)
-                            ic.setSelection(newPos, newPos)
-                            movedBySelection = true
-                        }
-                    } catch (_: Exception) {}
-                    if (!movedBySelection) {
-                        val keyCode = if (direction < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT
-                        repeat(abs(direction)) {
-                            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
-                            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
-                        }
-                    }
+                    moveEditorCursor(service, direction)
                 }
-                }
+            },
+            onEditorCursorMove = { direction ->
+                moveEditorCursor(service, direction)
             },
             onGestureAction = { action, value ->
                 action.execute(service, value)
@@ -451,5 +421,40 @@ internal fun rememberImeKeyboardCallbacks(
                 }
             },
         )
+    }
+}
+
+/** 挪输入框光标。有编码且编码在输入框时先结束 composing，避免光标和组合区错位。 */
+private fun moveEditorCursor(service: XimeInputMethodService, direction: Int) {
+    val ic = service.currentInputConnection
+    if (ic == null || direction == 0) return
+    if (SettingsPreferences.getInputTextLocation(service) == SettingsPreferences.INPUT_TEXT_INPUT_BOX &&
+        service.candidateState.value.isComposing
+    ) {
+        ic.finishComposingText()
+        service.keyRouter.postRimeJob {
+            service.rimeEngine.clearComposition()
+            withContext(Dispatchers.Main) {
+                service.mainHandler.post { service.updateUI() }
+            }
+        }
+    }
+    var movedBySelection = false
+    try {
+        val req = android.view.inputmethod.ExtractedTextRequest()
+        val extracted = ic.getExtractedText(req, 0)
+        if (extracted != null && extracted.selectionStart >= 0) {
+            val newPos = (extracted.selectionStart + direction)
+                .coerceIn(0, extracted.text?.length ?: 0)
+            ic.setSelection(newPos, newPos)
+            movedBySelection = true
+        }
+    } catch (_: Exception) {}
+    if (!movedBySelection) {
+        val keyCode = if (direction < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT
+        repeat(abs(direction)) {
+            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+        }
     }
 }
