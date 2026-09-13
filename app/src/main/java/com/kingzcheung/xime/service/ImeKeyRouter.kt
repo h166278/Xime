@@ -286,24 +286,15 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     needsUIUpdate = true
                 }
                 "undo_clear" -> {
-                    // 下滑撤回 = 撤销清空，仅空闲态有效（输入态恢复会插错位置）。
-                    // 组合态清空：setInput 还原编码+候选；空闲清空整框：仍把记下的文字贴回。
-                    if (!hasInputState(candState)) {
-                        restoreLastCleared(pasteFieldIfNotComposition = true)
-                    }
-                    needsUIUpdate = true
+                    // 删除键下滑：有编码且快照是组合 → 先清当前组合再还原（与 123 下滑相同）；
+                    // 空闲态：组合快照 setInput，整框快照贴回文字。
+                    // 有编码但快照是整框文字：不贴，避免插错位置。
+                    // 组合还原已走 updateUI，再走内联刷新会漏写 preeditText，编码气泡丢。
+                    needsUIUpdate = !undoClearedSnapshot(candState, pasteFieldIfNotComposition = true)
                 }
                 "undo_composition" -> {
-                    // 46 键 123 下滑：还原刚才清掉的编码+候选，不把整框文字贴回来。
-                    // 有编码时先清当前组合，再用快照覆盖，避免叠码。
-                    if (hasInputState(candState) &&
-                        service.lastClearedWasComposition &&
-                        service.lastClearedText.isNotEmpty()
-                    ) {
-                        clearInputStateForKeys()
-                    }
-                    restoreLastCleared(pasteFieldIfNotComposition = false)
-                    needsUIUpdate = true
+                    // 46 键 123 下滑：只还原编码+候选，不把整框文字贴回来。
+                    needsUIUpdate = !undoClearedSnapshot(candState, pasteFieldIfNotComposition = false)
                 }
                 "enter" -> {
                     service.calculatorEngine.clear()
@@ -1315,27 +1306,59 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
     }
     
     /**
-     * 空闲态撤回上次清空。
-     * [pasteFieldIfNotComposition] 为 true 时，非组合快照把记下的文字贴回输入框（删除键下滑）；
-     * 为 false 时只还原组合态，整框快照忽略（46 键 123 下滑）。
+     * 撤回上次清空。有编码且快照是组合时先丢掉当前组合再还原，避免叠码。
+     * [pasteFieldIfNotComposition] 为 true 时，空闲态的整框快照把文字贴回（删除键）；
+     * 为 false 时整框快照忽略（46 键 123）。有编码时绝不贴整框文字。
+     *
+     * @return true = 已走 [XimeInputMethodService.updateUI]，调用方不要再走内联刷新。
      */
-    private suspend fun restoreLastCleared(pasteFieldIfNotComposition: Boolean) {
+    private suspend fun undoClearedSnapshot(
+        candState: CandidateState,
+        pasteFieldIfNotComposition: Boolean,
+    ): Boolean {
+        val composing = hasInputState(candState)
+        if (composing) {
+            if (service.lastClearedWasComposition && service.lastClearedText.isNotEmpty()) {
+                clearInputStateForKeys()
+                return restoreLastCleared(pasteFieldIfNotComposition = false)
+            }
+            return false
+        }
+        return restoreLastCleared(pasteFieldIfNotComposition = pasteFieldIfNotComposition)
+    }
+
+    /**
+     * 撤回上次清空记下的内容。
+     * [pasteFieldIfNotComposition] 为 true 时，非组合快照把记下的文字贴回输入框；
+     * 为 false 时只还原组合态。
+     *
+     * 组合还原必须走 [XimeInputMethodService.updateUI]：内联刷新不写 preeditText、
+     * 也不回写输入框 composing，候选在、编码气泡/预编辑会丢。
+     *
+     * @return true = 已还原组合并刷新 UI。
+     */
+    private suspend fun restoreLastCleared(pasteFieldIfNotComposition: Boolean): Boolean {
         val text = service.lastClearedText
-        if (text.isEmpty()) return
+        if (text.isEmpty()) return false
         val restoreComposition = service.lastClearedWasComposition
-        if (!restoreComposition && !pasteFieldIfNotComposition) return
+        if (!restoreComposition && !pasteFieldIfNotComposition) return false
         service.lastClearedText = ""
         service.lastClearedWasComposition = false
         if (restoreComposition) {
             service.rimeEngine.setInput(text)
-        } else {
+            // InputConnection 必须在主线程；插件变换在主线程会跳过，引擎候选足够还原。
             withContext(Dispatchers.Main) {
-                val ic = service.currentInputConnection
-                if (ic != null) {
-                    ic.commitText(text, 1)
-                }
+                service.updateUI()
+            }
+            return true
+        }
+        withContext(Dispatchers.Main) {
+            val ic = service.currentInputConnection
+            if (ic != null) {
+                ic.commitText(text, 1)
             }
         }
+        return false
     }
 
     internal fun pageDown() {

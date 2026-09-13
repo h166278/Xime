@@ -443,7 +443,9 @@ fun SwipeableKeyButton(
     val density = LocalDensity.current
     val swipeUpThreshold = with(density) { (-50).dp.toPx() }
     val swipeDownThreshold = with(density) { swipeDownThresholdDp.toPx() }
-    val bubbleShowThresholdUp = swipeUpThreshold
+    // 上滑动作仍 50dp；气泡提前出现，否则 123 有编码时按下气泡一直是「清空」，
+    // 要滑到动作阈值才切成 swipeText（?123），看起来像文案没改到位。
+    val bubbleShowThresholdUp = with(density) { (-8).dp.toPx() }
     val bubbleShowThresholdDown = swipeDownThreshold
     // 水平位移超过该值视为横向手势（如键盘区滑动移动光标），不再触发点击。
     // 与 KeyboardView 光标手势激活阈值（activationThresholdPx = 60dp）对齐，
@@ -623,6 +625,24 @@ fun SwipeableKeyButton(
                                 if (kotlin.math.abs(deltaX) > cancelThresholdPx || kotlin.math.abs(deltaY) > cancelThresholdPx) {
                                     swipeDetected = true
                                     longPressJob.cancel()
+                                    // 123 等带 longPressItems 的键：按下气泡是键帽文案（有编码时是「清空」）。
+                                    // 上滑气泡必须改走 swipeText（?123），不能一直卡在 pressedText。
+                                    if (kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX) * 1.1f) {
+                                        val isUp = deltaY < 0
+                                        val bubbleText = if (isUp) currentSwipeText else currentSwipeDownText
+                                        if (bubbleText != null) {
+                                            currentOnSwipeStateChange?.invoke(
+                                                SwipeState(
+                                                    isSwiping = true,
+                                                    swipeText = bubbleText,
+                                                    isSwipeDown = !isUp,
+                                                    isPressed = true,
+                                                    pressedText = bubbleText,
+                                                ),
+                                                buttonBounds
+                                            )
+                                        }
+                                    }
                                 }
                             }
                             
