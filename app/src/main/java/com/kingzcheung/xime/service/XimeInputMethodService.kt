@@ -242,6 +242,8 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
     private var pendingVoiceAction: (() -> Unit)? = null
     internal var composeViewRef: View? = null
     internal var lastClearedText: String = ""
+    /** 上次清空是组合态（编码+候选），撤回应 setInput 还原而不是当普通文字贴回。 */
+    internal var lastClearedWasComposition: Boolean = false
     /** 累积的 partial commit 段列表（多段选词场景下逐段追加，文本+拼音同源，供调频/回滚） */
     internal val t9PartialSegments = mutableListOf<T9PartialSegment>()
     /** 键盘回调引用，用于在 RIME selectCandidate 前同步通知 T9 控制器 */

@@ -672,12 +672,24 @@ fun KeyboardLayout(
                             )
                         } else {
                             // ?123 — 硬编码（长按弹出 t9/t26 图标）
+                            // 46 键有编码：点击 = 删除上滑（clear_all）；上滑 = 空闲时的点击（切数字/符号面板）
+                            val composingClearOn123 = is46Layout && isComposing
                             SwipeableKeyButton(
-                                text = "?123",
-                                onClick = { onKeyPress("mode_change") },
+                                text = if (composingClearOn123) "清空" else "?123",
+                                onClick = { onKeyPress(if (composingClearOn123) "clear_all" else "mode_change") },
                                 backgroundColor = specialKeyBackgroundColor,
                                 textColor = specialKeyTextColor,
                                 modifier = Modifier.weight(modeChangeWeight),
+                                swipeText = if (composingClearOn123) "?123" else null,
+                                swipeUpKeyLabel = if (composingClearOn123) "?123" else null,
+                                swipeUpHintTopEnd = composingClearOn123,
+                                swipeDownText = if (is46Layout && !isComposing) "撤回" else null,
+                                onSwipe = if (composingClearOn123) {
+                                    { onKeyPress("mode_change") }
+                                } else null,
+                                onSwipeDown = if (is46Layout && !isComposing) {
+                                    { onKeyPress("undo_composition") }
+                                } else null,
                                 onPress = { onKeyPressDown?.invoke("mode_change") },
                                 onRelease = { onKeyRelease?.invoke("mode_change") },
                                 onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
@@ -2070,12 +2082,23 @@ private fun LandscapeKeyboardContent(
                     shadowElevation = shadowElevation,
                     shadowShapeRadius = shadowShapeRadius,
                 )
+                val composingClearOn123 = is46Layout && isComposing
                 SwipeableKeyButton(
-                    text = "?123",
-                    onClick = { onKeyPress("mode_change") },
+                    text = if (composingClearOn123) "清空" else "?123",
+                    onClick = { onKeyPress(if (composingClearOn123) "clear_all" else "mode_change") },
                     backgroundColor = specialKeyBackgroundColor,
                     textColor = specialKeyTextColor,
                     modifier = Modifier.weight(1.2f),
+                    swipeText = if (composingClearOn123) "?123" else null,
+                    swipeUpKeyLabel = if (composingClearOn123) "?123" else null,
+                    swipeUpHintTopEnd = composingClearOn123,
+                    swipeDownText = if (is46Layout && !isComposing) "撤回" else null,
+                    onSwipe = if (composingClearOn123) {
+                        { onKeyPress("mode_change") }
+                    } else null,
+                    onSwipeDown = if (is46Layout && !isComposing) {
+                        { onKeyPress("undo_composition") }
+                    } else null,
                     onPress = { onKeyPressDown?.invoke("mode_change") },
                     onRelease = { onKeyRelease?.invoke("mode_change") },
                     onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },

@@ -231,12 +231,15 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                                 }.getOrNull()
                                 before == pendingEnglish && ic.deleteSurroundingText(pendingEnglish.length, 0)
                             }
-                            if (removed) service.lastClearedText = pendingEnglish
+                            if (removed) {
+                                service.lastClearedText = pendingEnglish
+                                service.lastClearedWasComposition = false
+                            }
                         } else {
-                            // 撤回重放用 inputText（原始键入串）：preeditText 现为带回显分隔符的
-                            // 展示串（如 ni'hao），上屏必须无分隔符版本。T9 时 inputText 为合成显示态，
-                            // 与 preeditText 同值，行为不变。
-                            service.lastClearedText = candState.inputText
+                            // 组合态撤回走 setInput：记下原始编码，下滑还原编码+候选，不当普通文字贴回。
+                            val input = candState.inputText.ifEmpty { service.rimeEngine.getInput() }
+                            service.lastClearedText = input
+                            service.lastClearedWasComposition = input.isNotEmpty()
                         }
                         clearInputStateForKeys()
                     } else {
@@ -255,6 +258,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             codeInInputBox -> inputFieldText + candState.pendingEnglishText
                             else -> inputFieldText + candState.inputText + candState.pendingEnglishText
                         }
+                        service.lastClearedWasComposition = false
                         // 清空 partial 累积，避免残留词被 buildT9DisplayState 拼进下一轮 preedit。
                         service.t9PartialSegments.clear()
                         service.rimeEngine.clearComposition()
@@ -282,21 +286,17 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     needsUIUpdate = true
                 }
                 "undo_clear" -> {
-                    // 下滑撤回 = 撤销"上滑清空"，仅空闲态有效（输入态恢复会插入错误位置），
-                    // 判定与 clear_all 共用 hasInputState()。
+                    // 下滑撤回 = 撤销清空，仅空闲态有效（输入态恢复会插错位置）。
+                    // 组合态清空：setInput 还原编码+候选；空闲清空整框：仍把记下的文字贴回。
                     if (!hasInputState(candState)) {
-                        val text = service.lastClearedText
-                        if (text.isNotEmpty()) {
-                            service.lastClearedText = ""
-                            withContext(Dispatchers.Main) {
-                                val ic = service.currentInputConnection
-                                if (ic != null) {
-                                    // newCursorPosition=1：光标停在撤回内容末尾；
-                                    // 传 text.length 会被 clamp 到整段文本末尾。
-                                    ic.commitText(text, 1)
-                                }
-                            }
-                        }
+                        restoreLastCleared(pasteFieldIfNotComposition = true)
+                    }
+                    needsUIUpdate = true
+                }
+                "undo_composition" -> {
+                    // 46 键空闲 123 下滑：只还原刚才清掉的编码+候选，不把整框文字贴回来。
+                    if (!hasInputState(candState)) {
+                        restoreLastCleared(pasteFieldIfNotComposition = false)
                     }
                     needsUIUpdate = true
                 }
@@ -1309,6 +1309,30 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         }
     }
     
+    /**
+     * 空闲态撤回上次清空。
+     * [pasteFieldIfNotComposition] 为 true 时，非组合快照把记下的文字贴回输入框（删除键下滑）；
+     * 为 false 时只还原组合态，整框快照忽略（46 键 123 下滑）。
+     */
+    private suspend fun restoreLastCleared(pasteFieldIfNotComposition: Boolean) {
+        val text = service.lastClearedText
+        if (text.isEmpty()) return
+        val restoreComposition = service.lastClearedWasComposition
+        if (!restoreComposition && !pasteFieldIfNotComposition) return
+        service.lastClearedText = ""
+        service.lastClearedWasComposition = false
+        if (restoreComposition) {
+            service.rimeEngine.setInput(text)
+        } else {
+            withContext(Dispatchers.Main) {
+                val ic = service.currentInputConnection
+                if (ic != null) {
+                    ic.commitText(text, 1)
+                }
+            }
+        }
+    }
+
     internal fun pageDown() {
         postRimeJob {
             service.rimeEngine.pageDown()
