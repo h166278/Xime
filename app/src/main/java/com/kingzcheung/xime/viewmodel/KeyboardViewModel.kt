@@ -108,6 +108,20 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
     private val _shiftMode = MutableStateFlow(ShiftMode.OFF)
     val shiftMode: StateFlow<ShiftMode> = _shiftMode.asStateFlow()
 
+    /**
+     * 46 键空闲上滑 Shift 切换：字母长按气泡默认选中大写还是小写。
+     * 与点按临时 Shift / 双击 Caps 无关。
+     */
+    private val _longPressPreferUppercase = MutableStateFlow(false)
+    val longPressPreferUppercase: StateFlow<Boolean> = _longPressPreferUppercase.asStateFlow()
+    fun toggleLongPressPreferUppercase() {
+        _longPressPreferUppercase.update { !it }
+    }
+    fun restoreShift(mode: ShiftMode) {
+        _shiftMode.value = mode
+        _isShifted.value = mode != ShiftMode.OFF
+    }
+
     private val _keyboardState = MutableStateFlow<KeyboardLayoutState>(KeyboardLayoutState.Chinese)
     val keyboardState: StateFlow<KeyboardLayoutState> = _keyboardState.asStateFlow()
 

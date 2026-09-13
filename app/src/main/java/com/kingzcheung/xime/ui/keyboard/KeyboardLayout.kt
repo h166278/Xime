@@ -124,6 +124,7 @@ fun KeyboardLayout(
 ) {
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
+    val longPressPreferUppercase by viewModel.longPressPreferUppercase.collectAsStateWithLifecycle()
 
     var visualIsShifted by remember { mutableStateOf(false) }
     LaunchedEffect(isShifted) {
@@ -356,6 +357,7 @@ fun KeyboardLayout(
                                     onGestureAction = onGestureAction,
                                     configVersion = cfgVer,
                                     swipeUpHintTopEnd = is46Layout,
+                                    longPressPreferUppercase = longPressPreferUppercase,
                                 )
                             }
                         }
@@ -400,6 +402,7 @@ fun KeyboardLayout(
                                 onGestureAction = onGestureAction,
                                 configVersion = cfgVer,
                                 swipeUpHintTopEnd = is46Layout,
+                                longPressPreferUppercase = longPressPreferUppercase,
                             )
                         }
                     }
@@ -454,6 +457,7 @@ fun KeyboardLayout(
                                 onGestureAction = onGestureAction,
                                 configVersion = cfgVer,
                                 swipeUpHintTopEnd = is46Layout,
+                                longPressPreferUppercase = longPressPreferUppercase,
                             )
                         }
                     }
@@ -488,6 +492,13 @@ fun KeyboardLayout(
                                 shadowShapeRadius = shadowShapeRadius,
                                 tabWhenComposing = is46Layout && isComposing,
                                 onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
+                                idleSwipeTogglesLongPressCase = is46Layout && !isComposing,
+                                longPressPreferUppercase = longPressPreferUppercase,
+                                logicalShiftMode = shiftMode,
+                                onIdleSwipeUp = { modeAtDown ->
+                                    viewModel.restoreShift(modeAtDown)
+                                    viewModel.toggleLongPressPreferUppercase()
+                                },
                             )
 
                                 Row(
@@ -596,6 +607,7 @@ fun KeyboardLayout(
                                         onRelease = onRelease,
                                         onLongPressSelect = onLongPressSelect,
                                         longPressItems = longPressLabels,
+                                        longPressDefaultIndex = longPressDefaultIndex(longPressLabels, longPressPreferUppercase),
                                         shadowEnabled = shadowEnabled,
                                         shadowElevation = shadowElevation,
                                         shadowShapeRadius = shadowShapeRadius,
@@ -1364,6 +1376,7 @@ fun KeyboardRowWithConfig(
     onGestureAction: ((GestureAction, String) -> Unit)? = null,
     configVersion: Int = 0,
     swipeUpHintTopEnd: Boolean = false,
+    longPressPreferUppercase: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -1468,6 +1481,7 @@ fun KeyboardRowWithConfig(
                 onRelease = onRelease,
                 onLongPressSelect = onLongPressSelect,
                 longPressItems = longPressLabels,
+                longPressDefaultIndex = longPressDefaultIndex(longPressLabels, longPressPreferUppercase),
                 fontSize = config.fontSize,
                 swipeFontSize = config.swipeFontSize,
                 shadowEnabled = config.shadowEnabled,
@@ -1491,12 +1505,19 @@ private fun ShiftCapsKeyButton(
     shadowShapeRadius: Dp = 8.dp,
     tabWhenComposing: Boolean = false,
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
+    idleSwipeTogglesLongPressCase: Boolean = false,
+    longPressPreferUppercase: Boolean = false,
+    logicalShiftMode: ShiftMode = shiftMode,
+    onIdleSwipeUp: ((ShiftMode) -> Unit)? = null,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val density = LocalDensity.current
     var buttonBounds by remember { mutableStateOf(Rect(0f, 0f, 0f, 0f)) }
     val currentOnKeyPress by rememberUpdatedState(onKeyPress)
     val currentOnSwipeStateChange by rememberUpdatedState(onSwipeStateChange)
+    val currentOnIdleSwipeUp by rememberUpdatedState(onIdleSwipeUp)
+    val currentLogicalShiftMode by rememberUpdatedState(logicalShiftMode)
+    val currentPreferUppercase by rememberUpdatedState(longPressPreferUppercase)
 
     val shadowModifier = remember(shadowEnabled, shadowElevation, shadowShapeRadius, density, backgroundColor) {
         if (shadowEnabled) {
@@ -1530,7 +1551,7 @@ private fun ShiftCapsKeyButton(
             .onGloballyPositioned { coordinates ->
                 buttonBounds = coordinates.boundsInRoot()
             }
-            .pointerInput(tabWhenComposing) {
+            .pointerInput(tabWhenComposing, idleSwipeTogglesLongPressCase) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     isPressed = true
@@ -1581,7 +1602,55 @@ private fun ShiftCapsKeyButton(
                         return@awaitEachGesture
                     }
 
+                    val modeAtDown = currentLogicalShiftMode
+                    val preferUpperAtDown = currentPreferUppercase
                     currentOnKeyPress("shift_single")
+
+                    if (idleSwipeTogglesLongPressCase) {
+                        val swipeUpThresholdPx = with(density) { 50.dp.toPx() }
+                        val bubbleShowThresholdPx = swipeUpThresholdPx * 0.3f
+                        var swipeUp = false
+                        var startY: Float? = down.position.y
+                        var isBubbleShowing = false
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: break
+                            if (startY == null) startY = change.position.y
+                            if (!change.pressed) break
+                            val dy = change.position.y - startY!!
+                            if (dy < -swipeUpThresholdPx) swipeUp = true
+                            val shouldShow = dy < -bubbleShowThresholdPx
+                            if (shouldShow != isBubbleShowing) {
+                                isBubbleShowing = shouldShow
+                                currentOnSwipeStateChange?.invoke(
+                                    if (shouldShow) SwipeState(
+                                        isSwiping = true,
+                                        swipeText = if (preferUpperAtDown) "默认小写" else "默认大写",
+                                    ) else SwipeState(),
+                                    buttonBounds
+                                )
+                            }
+                        }
+                        if (isBubbleShowing) {
+                            currentOnSwipeStateChange?.invoke(SwipeState(), buttonBounds)
+                        }
+                        if (swipeUp) {
+                            currentOnIdleSwipeUp?.invoke(modeAtDown)
+                            isPressed = false
+                            return@awaitEachGesture
+                        }
+                        val secondDown = withTimeoutOrNull(
+                            viewConfiguration.doubleTapTimeoutMillis
+                        ) {
+                            awaitFirstDown(requireUnconsumed = false)
+                        }
+                        if (secondDown != null) {
+                            currentOnKeyPress("shift_caps")
+                            waitForUpOrCancellation()
+                        }
+                        isPressed = false
+                        return@awaitEachGesture
+                    }
 
                     val firstUp = waitForUpOrCancellation()
                     if (firstUp != null) {
@@ -1653,6 +1722,7 @@ private fun LandscapeKeyboardContent(
 ) {
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
+    val longPressPreferUppercase by viewModel.longPressPreferUppercase.collectAsStateWithLifecycle()
 
     var visualIsShifted by remember { mutableStateOf(false) }
     LaunchedEffect(isShifted) {
@@ -1799,6 +1869,7 @@ private fun LandscapeKeyboardContent(
                     onCommitText = onCommitText,
                     onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
+                    longPressPreferUppercase = longPressPreferUppercase,
                 )
             }
             Box(
@@ -1827,6 +1898,7 @@ private fun LandscapeKeyboardContent(
                     onCommitText = onCommitText,
                     onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
+                    longPressPreferUppercase = longPressPreferUppercase,
                 )
             }
             Box(
@@ -1855,6 +1927,7 @@ private fun LandscapeKeyboardContent(
                     onCommitText = onCommitText,
                     onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
+                    longPressPreferUppercase = longPressPreferUppercase,
                 )
             }
             Row(
@@ -1875,6 +1948,13 @@ private fun LandscapeKeyboardContent(
                         shadowShapeRadius = shadowShapeRadius,
                     tabWhenComposing = is46Layout && isComposing,
                     onSwipeStateChange = onSwipeStateChange,
+                    idleSwipeTogglesLongPressCase = is46Layout && !isComposing,
+                    longPressPreferUppercase = longPressPreferUppercase,
+                    logicalShiftMode = shiftMode,
+                    onIdleSwipeUp = { modeAtDown ->
+                        viewModel.restoreShift(modeAtDown)
+                        viewModel.toggleLongPressPreferUppercase()
+                    },
                     )
                     val k2Gesture = KeysConfigHelper.getKeyGesture("'")
                     val k2Action = k2Gesture?.tap?.action
@@ -1994,6 +2074,7 @@ private fun LandscapeKeyboardContent(
                     onCommitText = onCommitText,
                     onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
+                    longPressPreferUppercase = longPressPreferUppercase,
                 )
             }
             Box(
@@ -2019,6 +2100,7 @@ private fun LandscapeKeyboardContent(
                     onCommitText = onCommitText,
                     onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
+                    longPressPreferUppercase = longPressPreferUppercase,
                 )
             }
             Row(
@@ -2046,6 +2128,7 @@ private fun LandscapeKeyboardContent(
                         onCommitText = onCommitText,
                         onGestureAction = onGestureAction,
                         onSwipeStateChange = onSwipeStateChange,
+                        longPressPreferUppercase = longPressPreferUppercase,
                     )
                 }
                 SwipeableIconKeyButton(
@@ -2222,6 +2305,7 @@ fun SwipeableKeyButtonLandscape(
     onRelease: (() -> Unit)? = null,
     onLongPressSelect: ((String) -> Unit)? = null,
     longPressItems: List<String>? = null,
+    longPressDefaultIndex: Int = 0,
     fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
     swipeFontSize: androidx.compose.ui.unit.TextUnit = 8.sp,
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
@@ -2248,6 +2332,7 @@ fun SwipeableKeyButtonLandscape(
     val currentOnRelease by rememberUpdatedState(onRelease)
     val currentOnLongPressSelect by rememberUpdatedState(onLongPressSelect)
     val currentLongPressItems by rememberUpdatedState(longPressItems)
+    val currentLongPressDefaultIndex by rememberUpdatedState(longPressDefaultIndex)
     val currentOnSwipeStateChange by rememberUpdatedState(onSwipeStateChange)
     val scope = rememberCoroutineScope()
     val view = LocalView.current
@@ -2291,7 +2376,7 @@ fun SwipeableKeyButtonLandscape(
         modifier = modifier
             .fillMaxHeight()
             .fillMaxWidth()
-            .pointerInput(currentText, currentLongPressItems.isNullOrEmpty(), currentOnLongPressSelect != null) {
+            .pointerInput(currentText, currentLongPressItems.isNullOrEmpty(), currentOnLongPressSelect != null, longPressDefaultIndex) {
                 if (currentLongPressItems.isNullOrEmpty() || currentOnLongPressSelect == null) {
                     detectTapGestures(
                         onPress = {
@@ -2312,7 +2397,7 @@ fun SwipeableKeyButtonLandscape(
                         val down = awaitFirstDown(requireUnconsumed = false)
                         isPressed = true
                         var localLongPressTriggered = false
-                        var selectedIdx = 0
+                        var selectedIdx = currentLongPressDefaultIndex.coerceIn(0, (currentLongPressItems?.lastIndex ?: 0))
                         val downX = down.position.x
                         val items = currentLongPressItems ?: return@awaitEachGesture
 
@@ -2328,7 +2413,7 @@ fun SwipeableKeyButtonLandscape(
                                     isPressed = true,
                                     isLongPress = true,
                                     longPressItems = items,
-                                    selectedLongPressIndex = 0
+                                    selectedLongPressIndex = selectedIdx
                                 ),
                                 buttonBounds
                             )
@@ -2359,7 +2444,8 @@ fun SwipeableKeyButtonLandscape(
                                 if (localLongPressTriggered) {
                                     val deltaX = change.position.x - downX
                                     val itemWidth = buttonBounds.width / items.size
-                                    selectedIdx = ((deltaX / itemWidth) + if (items.size > 1) 0.5f else 0f).toInt()
+                                    val base = currentLongPressDefaultIndex.coerceIn(0, items.lastIndex)
+                                    selectedIdx = (base + (deltaX / itemWidth) + if (items.size > 1) 0.5f else 0f).toInt()
                                         .coerceIn(0, items.size - 1)
 
                                     if (selectedIdx != lastReportedIdx) {
@@ -2573,6 +2659,7 @@ fun CompactKeyboardRowWithConfig(
     onGestureAction: ((GestureAction, String) -> Unit)? = null,
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
     configVersion: Int = 0,
+    longPressPreferUppercase: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -2669,6 +2756,7 @@ fun CompactKeyboardRowWithConfig(
                 onRelease = compactOnRelease,
                 onLongPressSelect = compactOnLongPressSelect,
                 longPressItems = longPressLabels,
+                longPressDefaultIndex = longPressDefaultIndex(longPressLabels, longPressPreferUppercase),
                 fontSize = config.fontSize,
                 swipeFontSize = config.swipeFontSize,
                 shadowEnabled = config.shadowEnabled,

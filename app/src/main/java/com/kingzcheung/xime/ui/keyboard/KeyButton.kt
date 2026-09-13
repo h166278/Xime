@@ -414,6 +414,8 @@ fun SwipeableKeyButton(
     shadowShapeRadius: Dp = 8.dp,
     /** 下滑触发距离。底行键默认 50dp 太高，123 可单独调低。上滑不动。 */
     swipeDownThresholdDp: Dp = 50.dp,
+    /** 长按气泡默认选中项（46 键空闲上滑 Shift 切换大小写默认）。 */
+    longPressDefaultIndex: Int = 0,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     var dragOffsetY by remember { mutableStateOf(0f) }
@@ -437,6 +439,7 @@ fun SwipeableKeyButton(
     val currentOnLongPressSelect by rememberUpdatedState(onLongPressSelect)
     val currentLongPressItems by rememberUpdatedState(longPressItems)
     val currentLongPressDrawableIds by rememberUpdatedState(longPressDrawableIds)
+    val currentLongPressDefaultIndex by rememberUpdatedState(longPressDefaultIndex)
     val scope = rememberCoroutineScope()
     val view = LocalView.current
     
@@ -556,7 +559,7 @@ fun SwipeableKeyButton(
                     }
                 )
             }
-            .pointerInput(text, currentLongPressItems.isNullOrEmpty()) {
+            .pointerInput(text, currentLongPressItems.isNullOrEmpty(), longPressDefaultIndex) {
                 if (currentLongPressItems.isNullOrEmpty()) {
                     detectTapGestures(
                         onPress = {
@@ -581,7 +584,7 @@ fun SwipeableKeyButton(
                     val down = awaitFirstDown(requireUnconsumed = false)
                     isPressed = true
                     var localLongPressTriggered = false
-                    var selectedIdx = 0
+                    var selectedIdx = currentLongPressDefaultIndex.coerceIn(0, (currentLongPressItems?.lastIndex ?: 0))
                     val downX = down.position.x
                     val items = currentLongPressItems ?: return@awaitEachGesture
                     
@@ -599,7 +602,7 @@ fun SwipeableKeyButton(
                                 isPressed = true,
                                 isLongPress = true,
                                 longPressItems = items,
-                                selectedLongPressIndex = 0,
+                                selectedLongPressIndex = selectedIdx,
                                 longPressDrawableIds = currentLongPressDrawableIds ?: emptyList()
                             ),
                             buttonBounds
@@ -649,7 +652,8 @@ fun SwipeableKeyButton(
                             if (localLongPressTriggered) {
                                 val deltaX = change.position.x - downX
                                 val itemWidth = buttonBounds.width / items.size
-                                selectedIdx = ((deltaX / itemWidth) + if (items.size > 1) 0.5f else 0f).toInt()
+                                val base = currentLongPressDefaultIndex.coerceIn(0, items.lastIndex)
+                                selectedIdx = (base + (deltaX / itemWidth) + if (items.size > 1) 0.5f else 0f).toInt()
                                     .coerceIn(0, items.size - 1)
                                 
                                 if (selectedIdx != lastReportedIdx) {
