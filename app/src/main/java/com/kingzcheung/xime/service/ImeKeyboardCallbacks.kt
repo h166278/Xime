@@ -205,11 +205,10 @@ internal fun rememberImeKeyboardCallbacks(
                 val composing = cand.isComposing || cand.inputText.isNotEmpty()
                 if (SettingsPreferences.isLayout46Enabled(service) && composing && direction != 0) {
                     val key = if (direction < 0) "rime_left" else "rime_right"
-                    repeat(kotlin.math.abs(direction)) {
+                    repeat(abs(direction)) {
                         service.keyRouter.handleKeyPress(key, false)
                     }
-                    return@onCursorMove
-                }
+                } else {
                 val ic = service.currentInputConnection
                 if (ic != null && direction != 0) {
                     if (SettingsPreferences.getInputTextLocation(service) == SettingsPreferences.INPUT_TEXT_INPUT_BOX &&
@@ -243,6 +242,7 @@ internal fun rememberImeKeyboardCallbacks(
                             ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
                         }
                     }
+                }
                 }
             },
             onGestureAction = { action, value ->
