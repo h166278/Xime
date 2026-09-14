@@ -130,6 +130,10 @@ fun KeyboardLayoutScreen(
                         isComposing = candidateState.value.isComposing ||
                             candidateState.value.inputText.isNotEmpty(),
                         hasPrevPage = candidateState.value.hasPrevPage,
+                        composingInput = candidateState.value.inputText,
+                        hasMenu = candidateState.value.candidates.isNotEmpty() ||
+                            candidateState.value.hasNextPage ||
+                            candidateState.value.hasPrevPage,
                     )
                 }
             }
@@ -162,6 +166,10 @@ fun KeyboardLayoutScreen(
                         isComposing = candidateState.value.isComposing ||
                             candidateState.value.inputText.isNotEmpty(),
                         hasPrevPage = candidateState.value.hasPrevPage,
+                        composingInput = candidateState.value.inputText,
+                        hasMenu = candidateState.value.candidates.isNotEmpty() ||
+                            candidateState.value.hasNextPage ||
+                            candidateState.value.hasPrevPage,
                     )
                 }
             }

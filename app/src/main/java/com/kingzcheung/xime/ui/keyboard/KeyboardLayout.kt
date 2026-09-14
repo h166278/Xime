@@ -122,6 +122,8 @@ fun KeyboardLayout(
     modifier: Modifier = Modifier,
     isComposing: Boolean = false,
     hasPrevPage: Boolean = false,
+    composingInput: String = "",
+    hasMenu: Boolean = false,
 ) {
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
@@ -313,6 +315,8 @@ fun KeyboardLayout(
                 is46Layout = is46Layout,
                 isComposing = isComposing,
                 hasPrevPage = hasPrevPage,
+                composingInput = composingInput,
+                hasMenu = hasMenu,
             )
         } else {
                 Column(
@@ -521,7 +525,12 @@ fun KeyboardLayout(
                                     viewModel.restoreShift(modeAtDown)
                                     viewModel.toggleLongPressPreferUppercase()
                                 },
-                                composingSwipeUpLabel = composingShiftSwipeUpBubble(hasPrevPage),
+                                composingSwipeUpLabel = composingShiftSwipeUpBubble(
+                                    hasPrevPage = hasPrevPage,
+                                    input = composingInput,
+                                    schemaId = uiState.currentSchemaId,
+                                    hasMenu = hasMenu,
+                                ),
                             )
 
                                 Row(
@@ -1605,9 +1614,43 @@ fun KeyboardRowWithConfig(
     }
 }
 
-/** 46 键有编码上滑 Shift：已翻页才是上一页，否则一码进造词缓冲。 */
-internal fun composingShiftSwipeUpBubble(hasPrevPage: Boolean): String =
-    if (hasPrevPage) "上一页" else "造词"
+private const val SHENG_MU = "bpmfdtnlgkhjqxzcsrywv"
+
+/**
+ * 46 键有编码上滑 Shift 气泡。对齐 sbsrf，对不上就空串（不上气泡）。
+ * 1. 码长 1 → 造词（lua 先吃，即使已翻页）
+ * 2. paging → 上一页
+ * 3. 象码三码 → 纯单
+ * 4. 飞天四码 sssx → 组合
+ * 5. 拼音/简拼三声母 → 组合
+ * 6. has_menu 未翻页 → 跳尾
+ */
+internal fun composingShiftSwipeUpBubble(
+    hasPrevPage: Boolean,
+    input: String = "",
+    schemaId: String = "",
+    hasMenu: Boolean = false,
+): String {
+    if (input.length == 1) return "造词"
+    if (hasPrevPage) return "上一页"
+    val id = schemaId.lowercase()
+    if (id == "sbxm" && input.length == 3) return "纯单"
+    if ((id == "sbft" || id == "sbmf") &&
+        input.length == 4 &&
+        input.take(3).all { it in SHENG_MU } &&
+        input[3].isLetter()
+    ) {
+        return "组合"
+    }
+    if ((id == "sbpy" || id == "sbjp") &&
+        input.length == 3 &&
+        input.all { it in SHENG_MU }
+    ) {
+        return "组合"
+    }
+    if (hasMenu) return "跳尾"
+    return ""
+}
 
 @Composable
 private fun ShiftCapsKeyButton(
@@ -1626,7 +1669,7 @@ private fun ShiftCapsKeyButton(
     longPressPreferUppercase: Boolean = false,
     logicalShiftMode: ShiftMode = shiftMode,
     onIdleSwipeUp: ((ShiftMode) -> Unit)? = null,
-    composingSwipeUpLabel: String = "上一页",
+    composingSwipeUpLabel: String = "",
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val density = LocalDensity.current
@@ -1695,7 +1738,7 @@ private fun ShiftCapsKeyButton(
                             }
                             if (nextSwipe != null) swipe = nextSwipe
                             val bubbleLabel = when (swipe) {
-                                "up" -> currentComposingSwipeUpLabel
+                                "up" -> currentComposingSwipeUpLabel.takeIf { it.isNotEmpty() }
                                 "down" -> "Tab"
                                 else -> null
                             }
@@ -1839,6 +1882,8 @@ private fun LandscapeKeyboardContent(
     is46Layout: Boolean = false,
     isComposing: Boolean = false,
     hasPrevPage: Boolean = false,
+    composingInput: String = "",
+    hasMenu: Boolean = false,
 ) {
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
@@ -2085,7 +2130,12 @@ private fun LandscapeKeyboardContent(
                         viewModel.restoreShift(modeAtDown)
                         viewModel.toggleLongPressPreferUppercase()
                     },
-                    composingSwipeUpLabel = composingShiftSwipeUpBubble(hasPrevPage),
+                    composingSwipeUpLabel = composingShiftSwipeUpBubble(
+                        hasPrevPage = hasPrevPage,
+                        input = composingInput,
+                        schemaId = uiState.currentSchemaId,
+                        hasMenu = hasMenu,
+                    ),
                     )
                     val k2Gesture = KeysConfigHelper.getKeyGesture("'")
                     val k2Action = k2Gesture?.tap?.action
