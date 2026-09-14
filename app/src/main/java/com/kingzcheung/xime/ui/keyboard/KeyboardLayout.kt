@@ -1722,6 +1722,9 @@ fun KeyboardRowWithConfig(
 
 private const val SHENG_MU = "bpmfdtnlgkhjqxzcsrywv"
 
+/** 空格上滑阈值，对齐普通键 50dp。原先 24dp 太矮，组合态轻滑就进造词。 */
+internal val SPACE_SWIPE_UP_THRESHOLD_DP = 50.dp
+
 /**
  * 46 键有编码上滑 Shift 气泡。对齐 sbsrf，对不上就空串（不上气泡）。
  * 1. 码长 1 → 造词（lua 先吃，即使已翻页）
@@ -3318,8 +3321,8 @@ private fun SpaceKey(
                     // 46 键空格自己管横滑光标，压掉键盘级手势避免双发
                     if (stepCursor || currentRimeArrows) suppressCursorMove.value = true
 
-                    // 上滑阈值：约为键高一半，避免误触
-                    val swipeUpThresholdPx = with(density) { 24.dp.toPx() }
+                    // 上滑阈值对齐普通键。原先 24dp 太矮，组合态空格轻滑就进造词。
+                    val swipeUpThresholdPx = with(density) { SPACE_SWIPE_UP_THRESHOLD_DP.toPx() }
                     val swipeHThresholdPx = with(density) { 50.dp.toPx() }
                     // 与 KeyboardView / KeyButton 光标手势激活阈值对齐，空格上横滑不点空格
                     val cursorCancelPx = with(density) { 60.dp.toPx() }

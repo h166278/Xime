@@ -2018,6 +2018,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         }
         calculatorEngine.clear()
         rimeEngine.clearComposition()
+        keyRouter.setSbxlmWordBuffer(false)
         t9PartialSegments.clear()
         // 输入法隐藏/结束输入：静默停止语音会话，丢弃未识别文本，避免迟到结果写入新输入框
         if (uiState.value.isVoiceMode || voiceRecordingStarted) {

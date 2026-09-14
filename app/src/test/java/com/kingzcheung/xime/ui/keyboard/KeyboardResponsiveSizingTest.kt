@@ -30,6 +30,11 @@ class KeyboardResponsiveSizingTest {
     }
 
     @Test
+    fun spaceSwipeUpMatchesOrdinaryKeyThreshold() {
+        assertEquals(50f, SPACE_SWIPE_UP_THRESHOLD_DP.value, tolerance)
+    }
+
+    @Test
     fun swipeUpHintTextSticksToCornerWhileIconKeepsGap() {
         val ltr = LayoutDirection.Ltr
         assertEquals(0.5f, swipeUpHintTextPadding.calculateTopPadding().value, tolerance)

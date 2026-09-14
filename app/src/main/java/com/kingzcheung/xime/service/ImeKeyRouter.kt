@@ -61,6 +61,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                                 try { et.setSelection(start + input.length) } catch (_: Exception) {}
                             }
                             service.rimeEngine.clearComposition()
+                            clearWordBufferIfIdle()
                             service.candidateState.value = service.candidateState.value.copy(
                                 inputText = "",
                                 preeditText = "",
@@ -83,6 +84,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         val result = service.rimeEngine.getProcessResult(true)
                         if (result.inputText.isEmpty()) {
                             service.rimeEngine.clearComposition()
+                            clearWordBufferIfIdle()
                         }
                         sendTransformedResult(result)
                     } else {
@@ -178,6 +180,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         val result = service.rimeEngine.getProcessResult(true)
                         if (result.inputText.isEmpty()) {
                             service.rimeEngine.clearComposition()
+                            clearWordBufferIfIdle()
                         }
                         sendTransformedResult(result)
                     } else {
@@ -274,6 +277,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         // 清空 partial 累积，避免残留词被 buildT9DisplayState 拼进下一轮 preedit。
                         service.t9PartialSegments.clear()
                         service.rimeEngine.clearComposition()
+                        clearWordBufferIfIdle()
                         service.candidateState.value = service.candidateState.value.copy(
                             candidates = emptyList(),
                             candidateComments = emptyList(),
@@ -312,6 +316,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         // 非缓冲走 express_editor。T9/26 键仍直出编码。
                         sendRimeKey(0xff0d, 0)
                         if (service.rimeEngine.getInput().isEmpty()) {
+                            clearWordBufferIfIdle()
                             withContext(Dispatchers.Main) { service.endComposingInputBox() }
                         }
                     } else if (candState.isComposing) {
@@ -331,6 +336,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         } else {
                             service.rimeEngine.clearComposition()
                         }
+                        clearWordBufferIfIdle()
                         withContext(Dispatchers.Main) { service.endComposingInputBox() }
                         needsUIUpdate = true
                         withContext(Dispatchers.Main) {
@@ -353,6 +359,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         }
                     } else {
                         service.rimeEngine.clearComposition()
+                        clearWordBufferIfIdle()
                         withContext(Dispatchers.Main) {
                             val imeOptions = service.currentInputEditorInfo?.imeOptions ?: 0
                             val action = imeOptions and EditorInfo.IME_MASK_ACTION
@@ -920,6 +927,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 val result = service.rimeEngine.getProcessResult(true)
                 if (result.inputText.isEmpty()) {
                     service.rimeEngine.clearComposition()
+                    // 造词缓冲跟编码不是一回事：删空码必须关，否则空闲下一键仍进造词。
+                    clearWordBufferIfIdle()
                     // T9 部分提交：剩余编码删完后，已上屏/ composing 的部分候选词无法用
                     // RIME 退格删除，会一直卡在候选栏。这里撤销最近一次部分提交：
                     // 清空 composing 区域（或删除上屏文本）并从累积列表移除。
@@ -955,6 +964,15 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
 
             // 4. 无候选也无编码：直接回删已上屏文本
             else -> {
+                // 编码已空但造词缓冲还开着：只关缓冲，不回删已上屏字。
+                if (planIdleDelete(
+                        isBuffered = service.rimeEngine.getOption("is_buffered"),
+                        tempBuffered = service.rimeEngine.getOption("temp_buffered"),
+                    ) == IdleDeleteAction.CLEAR_WORD_BUFFER
+                ) {
+                    clearWordBufferIfIdle()
+                    return
+                }
                 service.predictionManager.deleteLastChar()
 
                 withContext(Dispatchers.Main) {
@@ -1215,8 +1233,11 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
     /**
      * 声笔造词缓冲。对齐 lua ascii_composer：开 = is_buffered + temp_buffered；
      * 关 = 两者都关，popping 会把 _auto_commit 拉回来，随后空格才能真正上屏。
+     *
+     * 缓冲跟编码不是一回事：删空码 / 清输入态 / 会话结束都不会自动关。
+     * 关漏了，空码时键盘已空闲，下一键仍进造词。
      */
-    private fun setSbxlmWordBuffer(enabled: Boolean) {
+    internal fun setSbxlmWordBuffer(enabled: Boolean) {
         if (enabled) {
             if (!service.rimeEngine.getOption("is_buffered")) {
                 service.rimeEngine.setOption("is_buffered", true)
@@ -1226,6 +1247,11 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             service.rimeEngine.setOption("temp_buffered", false)
             service.rimeEngine.setOption("is_buffered", false)
         }
+    }
+
+    /** 编码已空时关掉造词缓冲。option 关是幂等的，不必先 get。 */
+    private fun clearWordBufferIfIdle() {
+        setSbxlmWordBuffer(false)
     }
 
     /**
@@ -1240,6 +1266,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         updateCalculatorCandidates()
         service.t9PartialSegments.clear()
         service.rimeEngine.clearComposition()
+        clearWordBufferIfIdle()
         service.candidateState.value = service.candidateState.value.copy(
             candidates = emptyList(),
             candidateComments = emptyList(),
@@ -1497,6 +1524,22 @@ internal fun planUndoCleared(
         keepCurrentComposition = composing,
     )
 }
+
+internal enum class IdleDeleteAction {
+    CLEAR_WORD_BUFFER,
+    DELETE_SCREEN,
+}
+
+/**
+ * 空码退格：造词缓冲还开着就只关缓冲，不回删已上屏字。
+ * 缓冲跟编码不是一回事，删空码后键盘看起来空闲，option 可能还挂着。
+ */
+internal fun planIdleDelete(
+    isBuffered: Boolean,
+    tempBuffered: Boolean,
+): IdleDeleteAction =
+    if (isBuffered || tempBuffered) IdleDeleteAction.CLEAR_WORD_BUFFER
+    else IdleDeleteAction.DELETE_SCREEN
 
 internal const val RIME_UPPER_PREFIX = "rime_upper:"
 
