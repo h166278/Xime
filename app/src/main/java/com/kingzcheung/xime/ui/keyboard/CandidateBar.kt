@@ -420,7 +420,7 @@ fun CandidateBar(
             ) {
                 itemsIndexed(displayCandidates, key = { index, _ -> index }) { index, candidate ->
                     if (stackedComments && index > 0) {
-                        CandidateCellDivider(color = visuals.dividerColor)
+                        CandidateCellDivider(color = stackedDividerColor(visuals))
                     }
                     CandidateItem(
                         text = candidate,
@@ -455,7 +455,7 @@ fun CandidateBar(
                 if (displayCandidates.isNotEmpty() && displayAssociation.isNotEmpty()) {
                     item(key = "divider") {
                         if (stackedComments) {
-                            CandidateCellDivider(color = visuals.dividerColor)
+                            CandidateCellDivider(color = stackedDividerColor(visuals))
                         } else {
                             Box(
                                 modifier = Modifier
@@ -471,7 +471,7 @@ fun CandidateBar(
                 itemsIndexed(displayAssociation, key = { index, _ -> "assoc-$index" }) { index, candidate ->
                     val assocState = state as? CandidateBarState.AssociationOnly
                     if (stackedComments && (index > 0 || displayCandidates.isNotEmpty())) {
-                        CandidateCellDivider(color = visuals.dividerColor)
+                        CandidateCellDivider(color = stackedDividerColor(visuals))
                     }
                     CandidateItem(
                         text = candidate,
@@ -642,14 +642,19 @@ fun CandidateBar(
     }
 }
 
+/** 叠字格间竖线跟主题强调色，浅/深用不同透明度，换主题能看出颜色且分格清晰。 */
+private fun stackedDividerColor(visuals: CandidateBarVisuals): Color {
+    return visuals.accentColor.copy(alpha = if (visuals.isDarkTheme) 0.58f else 0.48f)
+}
+
 @Composable
 private fun CandidateCellDivider(color: Color) {
     Box(
         modifier = Modifier
             .fillMaxHeight()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 6.dp)
             .width(1.dp)
-            .background(color.copy(alpha = 0.55f))
+            .background(color)
     )
 }
 
