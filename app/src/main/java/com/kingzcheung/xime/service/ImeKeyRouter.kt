@@ -285,16 +285,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     }
                     needsUIUpdate = true
                 }
-                "undo_clear" -> {
-                    // 删除键下滑：有编码且快照是组合 → 先清当前组合再还原（与 123 下滑相同）；
-                    // 空闲态：组合快照 setInput，整框快照贴回文字。
-                    // 有编码但快照是整框文字：不贴，避免插错位置。
-                    // 组合还原已走 updateUI，再走内联刷新会漏写 preeditText，编码气泡丢。
-                    needsUIUpdate = !undoClearedSnapshot(candState, pasteFieldIfNotComposition = true)
-                }
-                "undo_composition" -> {
-                    // 46 键 123 下滑：只还原编码+候选，不把整框文字贴回来。
-                    needsUIUpdate = !undoClearedSnapshot(candState, pasteFieldIfNotComposition = false)
+                "undo_clear", "undo_composition" -> {
+                    // 删除键 / 123 下滑同一套：有编码先丢掉当前码，再按快照还原。
+                    // 组合 setInput，整框只插入不删已上屏字。组合还原已走 updateUI。
+                    needsUIUpdate = !undoClearedSnapshot(candState)
                 }
                 "enter" -> {
                     service.calculatorEngine.clear()
@@ -1306,42 +1300,34 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
     }
     
     /**
-     * 撤回上次清空。有编码且快照是组合时先丢掉当前组合再还原，避免叠码。
-     * [pasteFieldIfNotComposition] 为 true 时，空闲态的整框快照把文字贴回（删除键）；
-     * 为 false 时整框快照忽略（46 键 123）。有编码时绝不贴整框文字。
+     * 撤回上次清空。删除键 / 123、组合/整框快照同一闸：
+     * 有编码先丢掉当前码，再还原快照。组合 setInput，整框只插入不删已上屏字。
      *
      * @return true = 已走 [XimeInputMethodService.updateUI]，调用方不要再走内联刷新。
      */
-    private suspend fun undoClearedSnapshot(
-        candState: CandidateState,
-        pasteFieldIfNotComposition: Boolean,
-    ): Boolean {
-        val composing = hasInputState(candState)
-        if (composing) {
-            if (service.lastClearedWasComposition && service.lastClearedText.isNotEmpty()) {
-                clearInputStateForKeys()
-                return restoreLastCleared(pasteFieldIfNotComposition = false)
-            }
-            return false
-        }
-        return restoreLastCleared(pasteFieldIfNotComposition = pasteFieldIfNotComposition)
+    private suspend fun undoClearedSnapshot(candState: CandidateState): Boolean {
+        val plan = planUndoCleared(
+            composing = hasInputState(candState),
+            snapshotText = service.lastClearedText,
+            snapshotIsComposition = service.lastClearedWasComposition,
+        )
+        if (plan.action == UndoClearedAction.NOOP) return false
+        if (plan.clearCurrentFirst) clearInputStateForKeys()
+        return restoreLastCleared()
     }
 
     /**
-     * 撤回上次清空记下的内容。
-     * [pasteFieldIfNotComposition] 为 true 时，非组合快照把记下的文字贴回输入框；
-     * 为 false 时只还原组合态。
+     * 撤回上次清空记下的内容。组合快照 setInput，整框快照贴回输入框。
      *
      * 组合还原必须走 [XimeInputMethodService.updateUI]：内联刷新不写 preeditText、
      * 也不回写输入框 composing，候选在、编码气泡/预编辑会丢。
      *
      * @return true = 已还原组合并刷新 UI。
      */
-    private suspend fun restoreLastCleared(pasteFieldIfNotComposition: Boolean): Boolean {
+    private suspend fun restoreLastCleared(): Boolean {
         val text = service.lastClearedText
         if (text.isEmpty()) return false
         val restoreComposition = service.lastClearedWasComposition
-        if (!restoreComposition && !pasteFieldIfNotComposition) return false
         service.lastClearedText = ""
         service.lastClearedWasComposition = false
         if (restoreComposition) {
@@ -1353,10 +1339,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             return true
         }
         withContext(Dispatchers.Main) {
-            val ic = service.currentInputConnection
-            if (ic != null) {
-                ic.commitText(text, 1)
-            }
+            // 只插入快照，绝不 deleteSurroundingText。空闲清空仍会删字，撤回这条路不删。
+            service.currentInputConnection?.commitText(text, 1)
         }
         return false
     }
@@ -1379,6 +1363,37 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         }
     }
 
+}
+
+internal enum class UndoClearedAction {
+    NOOP,
+    RESTORE_COMPOSITION,
+    PASTE_FIELD,
+}
+
+internal data class UndoClearedPlan(
+    val action: UndoClearedAction,
+    val clearCurrentFirst: Boolean,
+)
+
+/**
+ * 删除键 / 123、组合/整框快照同一闸：有快照就还原。
+ * 有编码先丢掉当前码，避免叠在还原内容上。组合 setInput，整框只插入不删已上屏字。
+ */
+internal fun planUndoCleared(
+    composing: Boolean,
+    snapshotText: String,
+    snapshotIsComposition: Boolean,
+): UndoClearedPlan {
+    if (snapshotText.isEmpty()) {
+        return UndoClearedPlan(UndoClearedAction.NOOP, clearCurrentFirst = false)
+    }
+    val action = if (snapshotIsComposition) {
+        UndoClearedAction.RESTORE_COMPOSITION
+    } else {
+        UndoClearedAction.PASTE_FIELD
+    }
+    return UndoClearedPlan(action, clearCurrentFirst = composing)
 }
 
 /**
