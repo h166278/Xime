@@ -36,6 +36,6 @@ class KeyboardResponsiveSizingTest {
         assertEquals(1f, swipeUpHintTextPadding.calculateEndPadding(ltr).value, tolerance)
         assertEquals(3f, swipeUpHintIconPadding.calculateTopPadding().value, tolerance)
         assertEquals(4f, swipeUpHintIconPadding.calculateEndPadding(ltr).value, tolerance)
-        assertEquals(false, swipeUpHintTextStyle.platformStyle?.includeFontPadding)
+        assertEquals(false, swipeUpHintTextStyle.platformStyle?.paragraphStyle?.includeFontPadding)
     }
 }
