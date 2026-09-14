@@ -108,7 +108,7 @@ object SettingsPreferences {
     private const val KEY_CANDIDATE_TEXT_SIZE = "candidate_text_size"
     const val INPUT_TEXT_INPUT_BOX = "input_box"
     const val INPUT_TEXT_CANDIDATE_BAR = "candidate_bar"
-    const val DEFAULT_PAGE_SIZE = 20 // 手机候选栏每页候选词数；schema 里的 page_size 来自 PC 版（5），太短，默认用 20
+    const val DEFAULT_PAGE_SIZE = 20 // 手机候选栏每页候选词数；无选重布局的方案 PC 默认 5 太短。飞系/象码等带 alternative_select_keys 的方案不覆盖，沿用方案自己的 page_size。
 
     fun isCompactModeEnabled(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_COMPACT_MODE, true)

@@ -17,6 +17,8 @@ import org.junit.Test
  *
  * 每页候选数的最终生效在 JNI 层 setPageSize 直接注入引擎
  * （rime_jni.cc，配置缓存 + 会话幂等刷新），不依赖本文件内容。
+ * 带 alternative_select_keys / select_comment_pattern 的方案不覆盖，见
+ * [RimeConfigHelper.schemaKeepsOwnPageSize]。
  */
 class DefaultCustomYamlTest {
 
@@ -129,5 +131,31 @@ class DefaultCustomYamlTest {
         val result = SchemaManager.replaceSchemaListBlock(patched, listOf("pinyin_simp"))
         assertEquals(20, extractPageSize(result))
         assertTrue(result.contains("  - schema: pinyin_simp"))
+    }
+
+    // ---- schemaKeepsOwnPageSize（选重布局不覆盖 page_size）----
+
+    @Test
+    fun `飞系alternative_select_keys跳过覆盖`() {
+        assertTrue(RimeConfigHelper.schemaKeepsOwnPageSize("_aeuio", null))
+    }
+
+    @Test
+    fun `象码飞天_23789跳过覆盖`() {
+        assertTrue(RimeConfigHelper.schemaKeepsOwnPageSize("_23789", null))
+    }
+
+    @Test
+    fun `只有select_comment_pattern也跳过`() {
+        assertTrue(
+            RimeConfigHelper.schemaKeepsOwnPageSize(null, "^[a-z]{4,}|[a-z]{3}[0-9][aeuio]{1,}$")
+        )
+    }
+
+    @Test
+    fun `拼音五笔两项皆空继续覆盖`() {
+        assertFalse(RimeConfigHelper.schemaKeepsOwnPageSize(null, null))
+        assertFalse(RimeConfigHelper.schemaKeepsOwnPageSize("", ""))
+        assertFalse(RimeConfigHelper.schemaKeepsOwnPageSize("   ", "\t"))
     }
 }

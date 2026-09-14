@@ -342,10 +342,24 @@ object RimeConfigHelper {
     }
 
     /**
+     * 方案是否把 page_size 当选重布局的一部分。
+     * [alternativeSelectKeys] / [selectCommentPattern] 任一非空白即跳过 app 的
+     * page_size 覆盖（飞系 `_aeuio`、象码/飞天 `_23789`）。拼音/五笔两项皆空，继续覆盖。
+     * 与 JNI `schemaKeepsOwnPageSize` 同一条规则。
+     */
+    internal fun schemaKeepsOwnPageSize(
+        alternativeSelectKeys: String?,
+        selectCommentPattern: String?,
+    ): Boolean {
+        return !alternativeSelectKeys.isNullOrBlank() || !selectCommentPattern.isNullOrBlank()
+    }
+
+    /**
      * default.custom.yaml 的基线对齐（纯函数）：把 page_size 强制对齐为 app 当前
      * 设置值。注意这只是磁盘配置基线——方案自带的 menu/page_size（内置与第三方
      * 方案多为 PC 遗留默认 5，不适配手机）经 librime MergeTree 语义压过 default
      * 层，运行时的实际生效靠 JNI 层 setPageSize 直接注入（rime_jni.cc）。
+     * 带选重布局的方案（见 [schemaKeepsOwnPageSize]）JNI 不会覆盖。
      * 无需变化时返回 null。
      */
     internal fun patchDefaultCustomContent(text: String, pageSize: Int): String? {

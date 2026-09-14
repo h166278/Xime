@@ -273,9 +273,18 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
 
     internal fun applyPageSizeSetting(schemaId: String) {
         val userPageSize = SettingsPreferences.getPageSize(service)
-        if (userPageSize > 0) {
-            service.rimeEngine.setPageSize(schemaId, userPageSize)
+        if (userPageSize <= 0) return
+        // 选重布局方案（飞系/象码等）page_size 是一页几个选重键，不能盖成手机默认 20。
+        // JNI applyPageSizeOverride 是会话重建时的同一道闸；这里早退少一次 native。
+        if (RimeConfigHelper.schemaKeepsOwnPageSize(
+                service.rimeEngine.getSchemaString(schemaId, "menu/alternative_select_keys"),
+                service.rimeEngine.getSchemaString(schemaId, "menu/select_comment_pattern"),
+            )
+        ) {
+            Log.i(XimeInputMethodService.TAG, "applyPageSizeSetting: skip $schemaId (select-key layout)")
+            return
         }
+        service.rimeEngine.setPageSize(schemaId, userPageSize)
     }
 
     internal fun switchSchema(schemaId: String) {
