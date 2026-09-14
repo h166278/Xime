@@ -916,7 +916,7 @@ fun CommentLayoutCard(
                                         .padding(horizontal = 8.dp)
                                         .width(1.dp)
                                         .height(28.dp)
-                                        .background(primary.copy(alpha = 0.48f))
+                                        .background(primary)
                                 )
                                 StackedPreviewCell(
                                     text = "力学",
