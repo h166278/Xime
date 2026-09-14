@@ -39,8 +39,14 @@ import androidx.compose.material.icons.twotone.Apps
 import androidx.compose.material.icons.twotone.KeyboardAlt
 import androidx.compose.material.icons.twotone.KeyboardCapslock
 import androidx.compose.material.icons.twotone.Language
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -98,7 +104,6 @@ import com.kingzcheung.xime.viewmodel.KeyboardViewModel
 import com.kingzcheung.xime.viewmodel.ShiftMode
 import com.kingzcheung.xime.keyboard.OverlayRoute
 import com.kingzcheung.xime.ui.theme.KeyboardThemes
-import com.kingzcheung.xime.ui.settings.LayoutSelectionDialog
 import com.kingzcheung.xime.ui.theme.keyboardBackground
 
 import androidx.compose.material.icons.twotone.KeyboardControlKey
@@ -1216,21 +1221,107 @@ fun KeyboardLayout(
                 )
             }
         }
+
+        if (showLayoutDialog) {
+            LayoutSelectionSheet(
+                current = SettingsPreferences.getKeyboardLayout(context),
+                themeId = uiState.themeId,
+                isDark = uiState.isDarkTheme,
+                onDismiss = { showLayoutDialog = false },
+                onConfirm = { selected ->
+                    SettingsPreferences.setKeyboardLayout(context, selected)
+                    KeysConfigHelper.loadConfig(context)
+                    is46Layout = SettingsPreferences.isLayout46Enabled(context)
+                    showLayoutDialog = false
+                },
+            )
+        }
     }
 
-    if (showLayoutDialog) {
-        LayoutSelectionDialog(
-            current = SettingsPreferences.getKeyboardLayout(context),
-            onDismiss = { showLayoutDialog = false },
-            onConfirm = { selected ->
-                SettingsPreferences.setKeyboardLayout(context, selected)
-                KeysConfigHelper.loadConfig(context)
-                is46Layout = SettingsPreferences.isLayout46Enabled(context)
-                showLayoutDialog = false
-            },
-        )
     }
+}
 
+/** IME 窗口内的布局选择。配色跟设置里 AlertDialog 同一套，不用键帽黑白。 */
+@Composable
+private fun LayoutSelectionSheet(
+    current: String,
+    themeId: String,
+    isDark: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var selected by remember(current) { mutableStateOf(current) }
+    val options = listOf(
+        SettingsPreferences.KEYBOARD_LAYOUT_DEFAULT to "默认",
+        SettingsPreferences.KEYBOARD_LAYOUT_46 to "46键",
+    )
+    val scheme = MaterialTheme.colorScheme
+    val surface = scheme.surfaceContainerHigh
+    val onSurface = scheme.onSurface
+    val accent = KeyboardThemes.getAccentColor(themeId, isDark)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = if (isDark) 0.55f else 0.4f))
+            .clickable { onDismiss() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 28.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(surface)
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                ) {}
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp)
+                .fillMaxWidth(),
+        ) {
+            Text(
+                text = "布局选择",
+                color = onSurface,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            options.forEach { (value, label) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = selected == value,
+                            role = Role.RadioButton,
+                            onClick = { selected = value },
+                        )
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(
+                        selected = selected == value,
+                        onClick = { selected = value },
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = accent,
+                            unselectedColor = onSurface.copy(alpha = 0.6f),
+                        ),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = label,
+                        color = onSurface,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = { onConfirm(selected) }) {
+                    Text(text = "确认", color = accent, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
     }
 }
 

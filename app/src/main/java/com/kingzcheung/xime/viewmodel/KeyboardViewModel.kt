@@ -531,17 +531,20 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    /** Level 3: 在覆盖页面内回退 */
+    /** Level 3: 在覆盖页面内回退；栈空则关掉 overlay 回到背后键盘。 */
     fun popOverlay() {
         val current = _page.value
-        if (current is KeyboardPage.Overlay && current.backStack.isNotEmpty()) {
+        if (current !is KeyboardPage.Overlay) return
+        if (current.backStack.isNotEmpty()) {
             val prev = current.backStack.last()
             _page.value = current.copy(
                 route = prev,
                 backStack = current.backStack.dropLast(1)
             )
-            _syncViewState()
+        } else {
+            _page.value = current.behind
         }
+        _syncViewState()
     }
 
     /** Level 3: 关闭覆盖页面，回到背后页面 */
