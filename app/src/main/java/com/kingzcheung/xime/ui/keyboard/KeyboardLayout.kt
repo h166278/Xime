@@ -703,6 +703,7 @@ fun KeyboardLayout(
                         } else {
                             // ?123 — 硬编码（长按弹出 t9/t26 图标）
                             // 46 键有编码：点击 = 删除上滑（clear_all）；上滑 = 空闲时的点击（切数字/符号面板）
+                            // 46 键空闲：上滑清空 / 下滑撤回，档位跟删除键一样；中间档松手 = 点 123。
                             val composingClearOn123 = is46Layout && isComposing
                             val idle123Swipe = is46Layout && !isComposing
                             SwipeableKeyButton(
@@ -723,13 +724,18 @@ fun KeyboardLayout(
                                     is46Layout -> "撤回"
                                     else -> null
                                 },
-                                onSwipe = if (is46Layout) {
+                                onSwipe = if (idle123Swipe) {
+                                    { onKeyPress("clear_all") }
+                                } else if (is46Layout) {
                                     { onKeyPress("mode_change") }
                                 } else null,
-                                onSwipeDown = if (is46Layout) {
+                                onSwipeDown = if (idle123Swipe) {
+                                    { onKeyPress("undo_clear") }
+                                } else if (is46Layout) {
                                     { onKeyPress("undo_composition") }
                                 } else null,
-                                swipeDownThresholdDp = if (idle123Swipe) 50.dp else if (is46Layout) 24.dp else 50.dp,
+                                swipeUpThresholdDp = if (idle123Swipe) 32.dp else 50.dp,
+                                swipeDownThresholdDp = if (idle123Swipe) 32.dp else if (is46Layout) 24.dp else 50.dp,
                                 commitSwipeOnRelease = idle123Swipe,
                                 onPress = { onKeyPressDown?.invoke("mode_change") },
                                 onRelease = { onKeyRelease?.invoke("mode_change") },
@@ -2242,13 +2248,18 @@ private fun LandscapeKeyboardContent(
                         is46Layout -> "撤回"
                         else -> null
                     },
-                    onSwipe = if (is46Layout) {
+                    onSwipe = if (idle123Swipe) {
+                        { onKeyPress("clear_all") }
+                    } else if (is46Layout) {
                         { onKeyPress("mode_change") }
                     } else null,
-                    onSwipeDown = if (is46Layout) {
+                    onSwipeDown = if (idle123Swipe) {
+                        { onKeyPress("undo_clear") }
+                    } else if (is46Layout) {
                         { onKeyPress("undo_composition") }
                     } else null,
-                    swipeDownThresholdDp = if (idle123Swipe) 50.dp else if (is46Layout) 24.dp else 50.dp,
+                    swipeUpThresholdDp = if (idle123Swipe) 32.dp else 50.dp,
+                    swipeDownThresholdDp = if (idle123Swipe) 32.dp else if (is46Layout) 24.dp else 50.dp,
                     commitSwipeOnRelease = idle123Swipe,
                     onPress = { onKeyPressDown?.invoke("mode_change") },
                     onRelease = { onKeyRelease?.invoke("mode_change") },

@@ -88,17 +88,19 @@ internal fun adaptiveBubbleScale(contentScale: Float): Float =
 internal fun adaptiveHintOffsetDp(contentScale: Float): Float =
     (14f + (contentScale - 1f) * 25f).coerceIn(14f, 24f)
 
-/** 删除键同款：上/下滑阈值只在对应半平面更新，反向时旗标保留。 */
+/**
+ * 删除键同款档位：只看当前半平面有没有过阈值。
+ * 上滑过线再滑回中间 → 卸武装，松手当点击；继续反向过线 → 对面档。
+ */
 internal data class ArmedFlags(val up: Boolean = false, val down: Boolean = false)
 
 internal fun updateArmedFlags(
-    current: ArmedFlags,
     deltaY: Float,
     upThreshold: Float,
     downThreshold: Float,
 ): ArmedFlags = ArmedFlags(
-    up = if (deltaY < 0f) deltaY < upThreshold else current.up,
-    down = if (deltaY > 0f) deltaY > downThreshold else current.down,
+    up = deltaY < 0f && deltaY < upThreshold,
+    down = deltaY > 0f && deltaY > downThreshold,
 )
 
 data class SwipeState(
@@ -425,7 +427,9 @@ fun SwipeableKeyButton(
     shadowEnabled: Boolean = true,
     shadowElevation: Dp = 1.dp,
     shadowShapeRadius: Dp = 8.dp,
-    /** 下滑触发距离。底行键默认 50dp 太高，123 可单独调低。上滑不动。 */
+    /** 上滑触发距离。底行 123 可单独调低。默认跟删除键一样 50dp。 */
+    swipeUpThresholdDp: Dp = 50.dp,
+    /** 下滑触发距离。底行键默认 50dp 太高，123 可单独调低。 */
     swipeDownThresholdDp: Dp = 50.dp,
     /** 长按气泡默认选中项（46 键空闲上滑 Shift 切换大小写默认）。 */
     longPressDefaultIndex: Int = 0,
@@ -433,7 +437,7 @@ fun SwipeableKeyButton(
     mnemonicHint: FeiKeyHint? = null,
     /**
      * 为真时上/下滑到阈值只武装，松手才触发（删除键同款）。
-     * 上/下滑旗标跨方向保留；松手优先走上滑。气泡不印到键帽。
+     * 只看当前半平面；滑回中间卸武装，松手当点击。松手优先走上滑。
      */
     commitSwipeOnRelease: Boolean = false,
 ) {
@@ -466,7 +470,7 @@ fun SwipeableKeyButton(
     val view = LocalView.current
     
     val density = LocalDensity.current
-    val swipeUpThreshold = with(density) { (-50).dp.toPx() }
+    val swipeUpThreshold = with(density) { (-swipeUpThresholdDp).toPx() }
     val swipeDownThreshold = with(density) { swipeDownThresholdDp.toPx() }
     // 上滑动作仍 50dp；气泡提前出现，否则 123 有编码时按下气泡一直是「清空」，
     // 要滑到动作阈值才切成 swipeText（?123），看起来像文案没改到位。
@@ -560,38 +564,45 @@ fun SwipeableKeyButton(
                         if (currentCommitSwipeOnRelease) {
                             if (vertical) {
                                 armedFlags = updateArmedFlags(
-                                    armedFlags, dragOffsetY, swipeUpThreshold, swipeDownThreshold,
+                                    dragOffsetY, swipeUpThreshold, swipeDownThreshold,
                                 )
-                            }
-                            if (dragOffsetY < 0 && vertical) {
-                                val showUp = dragOffsetY < swipeUpThreshold && currentSwipeText != null
-                                if (showUp != isSwiping) {
-                                    isSwiping = showUp
-                                    isSwipeDown = false
-                                    currentOnSwipeStateChange?.invoke(
-                                        SwipeState(
-                                            isSwiping = showUp,
-                                            swipeText = currentSwipeText,
-                                            isSwipeDown = false,
-                                            isDanger = showUp,
-                                        ),
-                                        buttonBounds,
-                                    )
-                                }
-                            } else if (dragOffsetY > 0 && vertical) {
-                                val showDown = dragOffsetY > swipeDownThreshold && currentSwipeDownText != null
-                                if (showDown != isSwipeDown) {
-                                    isSwipeDown = showDown
-                                    isSwiping = false
-                                    currentOnSwipeStateChange?.invoke(
-                                        SwipeState(
-                                            isSwiping = showDown,
-                                            swipeText = currentSwipeDownText,
-                                            isSwipeDown = true,
-                                            isDanger = showDown,
-                                        ),
-                                        buttonBounds,
-                                    )
+                                val showUp = armedFlags.up && currentSwipeText != null
+                                val showDown = armedFlags.down && currentSwipeDownText != null
+                                when {
+                                    showUp && (!isSwiping || isSwipeDown) -> {
+                                        isSwiping = true
+                                        isSwipeDown = false
+                                        currentOnSwipeStateChange?.invoke(
+                                            SwipeState(
+                                                isSwiping = true,
+                                                swipeText = currentSwipeText,
+                                                isSwipeDown = false,
+                                                isDanger = true,
+                                            ),
+                                            buttonBounds,
+                                        )
+                                    }
+                                    showDown && !isSwipeDown -> {
+                                        isSwipeDown = true
+                                        isSwiping = false
+                                        currentOnSwipeStateChange?.invoke(
+                                            SwipeState(
+                                                isSwiping = true,
+                                                swipeText = currentSwipeDownText,
+                                                isSwipeDown = true,
+                                                isDanger = true,
+                                            ),
+                                            buttonBounds,
+                                        )
+                                    }
+                                    !showUp && !showDown && (isSwiping || isSwipeDown) -> {
+                                        isSwiping = false
+                                        isSwipeDown = false
+                                        currentOnSwipeStateChange?.invoke(
+                                            SwipeState(isPressed = true, pressedText = currentText),
+                                            buttonBounds,
+                                        )
+                                    }
                                 }
                             }
                         } else if (dragOffsetY < 0) {
@@ -701,27 +712,48 @@ fun SwipeableKeyButton(
                                     // 上滑气泡必须改走 swipeText，不能一直卡在 pressedText。
                                     if (kotlin.math.abs(deltaY) > kotlin.math.abs(deltaX) * 1.1f) {
                                         val goingDown = deltaY > 0
-                                        val bubbleText = if (currentCommitSwipeOnRelease) {
-                                            when {
-                                                !goingDown && deltaY < swipeUpThreshold -> currentSwipeText
-                                                goingDown && deltaY > swipeDownThreshold -> currentSwipeDownText
-                                                else -> null
-                                            }
-                                        } else {
-                                            if (goingDown) currentSwipeDownText else currentSwipeText
-                                        }
-                                        if (bubbleText != null) {
+                                        if (currentCommitSwipeOnRelease) {
+                                            val showUp = !goingDown && deltaY < swipeUpThreshold
+                                            val showDown = goingDown && deltaY > swipeDownThreshold
                                             currentOnSwipeStateChange?.invoke(
-                                                SwipeState(
-                                                    isSwiping = true,
-                                                    swipeText = bubbleText,
-                                                    isSwipeDown = goingDown,
-                                                    isPressed = true,
-                                                    pressedText = bubbleText,
-                                                    isDanger = currentCommitSwipeOnRelease,
-                                                ),
-                                                buttonBounds
+                                                when {
+                                                    showUp -> SwipeState(
+                                                        isSwiping = true,
+                                                        swipeText = currentSwipeText,
+                                                        isSwipeDown = false,
+                                                        isPressed = true,
+                                                        pressedText = currentSwipeText,
+                                                        isDanger = true,
+                                                    )
+                                                    showDown -> SwipeState(
+                                                        isSwiping = true,
+                                                        swipeText = currentSwipeDownText,
+                                                        isSwipeDown = true,
+                                                        isPressed = true,
+                                                        pressedText = currentSwipeDownText,
+                                                        isDanger = true,
+                                                    )
+                                                    else -> SwipeState(
+                                                        isPressed = true,
+                                                        pressedText = currentText,
+                                                    )
+                                                },
+                                                buttonBounds,
                                             )
+                                        } else {
+                                            val bubbleText = if (goingDown) currentSwipeDownText else currentSwipeText
+                                            if (bubbleText != null) {
+                                                currentOnSwipeStateChange?.invoke(
+                                                    SwipeState(
+                                                        isSwiping = true,
+                                                        swipeText = bubbleText,
+                                                        isSwipeDown = goingDown,
+                                                        isPressed = true,
+                                                        pressedText = bubbleText,
+                                                    ),
+                                                    buttonBounds
+                                                )
+                                            }
                                         }
                                     }
                                 }
