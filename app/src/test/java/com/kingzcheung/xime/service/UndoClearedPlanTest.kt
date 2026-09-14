@@ -36,9 +36,10 @@ class UndoClearedPlanTest {
     }
 
     @Test
-    fun `有编码贴整框也先丢掉当前码`() {
+    fun `有编码贴整框保住当前码和候选`() {
         val plan = planUndoCleared(composing = true, snapshotText = "你好", snapshotIsComposition = false)
         assertEquals(UndoClearedAction.PASTE_FIELD, plan.action)
-        assertTrue(plan.clearCurrentFirst)
+        assertFalse(plan.clearCurrentFirst)
+        assertTrue(plan.keepCurrentComposition)
     }
 }

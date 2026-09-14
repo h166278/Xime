@@ -286,8 +286,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     needsUIUpdate = true
                 }
                 "undo_clear", "undo_composition" -> {
-                    // 删除键 / 123 下滑同一套：有编码先丢掉当前码，再按快照还原。
-                    // 组合 setInput，整框只插入不删已上屏字。组合还原已走 updateUI。
+                    // 删除键 / 123 下滑同一套。组合快照：有编码先丢掉当前码再 setInput。
+                    // 整框快照：只插入，不删已上屏字，当前编码/候选栏不动。
                     needsUIUpdate = !undoClearedSnapshot(candState)
                 }
                 "enter" -> {
@@ -1300,8 +1300,9 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
     }
     
     /**
-     * 撤回上次清空。删除键 / 123、组合/整框快照同一闸：
-     * 有编码先丢掉当前码，再还原快照。组合 setInput，整框只插入不删已上屏字。
+     * 撤回上次清空。删除键 / 123 同一套。
+     * 组合快照：有编码先丢掉当前码再 setInput。
+     * 整框快照：只插入不删已上屏字；有编码时引擎/候选栏/sk 原样留下。
      *
      * @return true = 已走 [XimeInputMethodService.updateUI]，调用方不要再走内联刷新。
      */
@@ -1313,7 +1314,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         )
         if (plan.action == UndoClearedAction.NOOP) return false
         if (plan.clearCurrentFirst) clearInputStateForKeys()
-        return restoreLastCleared()
+        return restoreLastCleared(
+            keepCurrentComposition = plan.keepCurrentComposition,
+            composingDisplay = candState.preeditText.ifEmpty { candState.inputText },
+        )
     }
 
     /**
@@ -1324,7 +1328,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
      *
      * @return true = 已还原组合并刷新 UI。
      */
-    private suspend fun restoreLastCleared(): Boolean {
+    private suspend fun restoreLastCleared(
+        keepCurrentComposition: Boolean,
+        composingDisplay: String = "",
+    ): Boolean {
         val text = service.lastClearedText
         if (text.isEmpty()) return false
         val restoreComposition = service.lastClearedWasComposition
@@ -1339,10 +1346,28 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             return true
         }
         withContext(Dispatchers.Main) {
+            val ic = service.currentInputConnection ?: return@withContext
             // 只插入快照，绝不 deleteSurroundingText。空闲清空仍会删字，撤回这条路不删。
-            service.currentInputConnection?.commitText(text, 1)
+            // 有编码时不碰 Rime、不 updateUI：候选栏/首选/sk 原样留下。
+            if (keepCurrentComposition) {
+                val codeInInputBox = SettingsPreferences.getInputTextLocation(service) ==
+                    SettingsPreferences.INPUT_TEXT_INPUT_BOX
+                if (codeInInputBox) service.endComposingInputBox()
+                ic.commitText(text, 1)
+                if (codeInInputBox && composingDisplay.isNotEmpty()) {
+                    service.markInputBoxComposing()
+                    ic.beginBatchEdit()
+                    try {
+                        ic.setComposingText(composingDisplay, 1)
+                    } finally {
+                        ic.endBatchEdit()
+                    }
+                }
+            } else {
+                ic.commitText(text, 1)
+            }
         }
-        return false
+        return keepCurrentComposition
     }
 
     internal fun pageDown() {
@@ -1374,11 +1399,12 @@ internal enum class UndoClearedAction {
 internal data class UndoClearedPlan(
     val action: UndoClearedAction,
     val clearCurrentFirst: Boolean,
+    val keepCurrentComposition: Boolean = false,
 )
 
 /**
- * 删除键 / 123、组合/整框快照同一闸：有快照就还原。
- * 有编码先丢掉当前码，避免叠在还原内容上。组合 setInput，整框只插入不删已上屏字。
+ * 删除键 / 123 下滑共用。组合快照：有编码先丢掉当前码再 setInput。
+ * 整框快照：只插入不删已上屏字；有编码时不清码，候选栏/首选/sk 留下。
  */
 internal fun planUndoCleared(
     composing: Boolean,
@@ -1388,12 +1414,17 @@ internal fun planUndoCleared(
     if (snapshotText.isEmpty()) {
         return UndoClearedPlan(UndoClearedAction.NOOP, clearCurrentFirst = false)
     }
-    val action = if (snapshotIsComposition) {
-        UndoClearedAction.RESTORE_COMPOSITION
-    } else {
-        UndoClearedAction.PASTE_FIELD
+    if (snapshotIsComposition) {
+        return UndoClearedPlan(
+            UndoClearedAction.RESTORE_COMPOSITION,
+            clearCurrentFirst = composing,
+        )
     }
-    return UndoClearedPlan(action, clearCurrentFirst = composing)
+    return UndoClearedPlan(
+        UndoClearedAction.PASTE_FIELD,
+        clearCurrentFirst = false,
+        keepCurrentComposition = composing,
+    )
 }
 
 /**
