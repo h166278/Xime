@@ -1283,6 +1283,7 @@ fun ConfigDrivenSymbolKey(
             } else {
                 onKeyPress(tapValue)
             }
+            Unit
         }
     }
 
@@ -1509,7 +1510,7 @@ fun KeyboardRowWithConfig(
                 KeysConfigHelper.getKeyDisplayLabel(key, isAsciiMode)
             }
 
-            val onClick = remember(key, commitValue, onKeyPress, overlayFace, onCommitText, onConsumeEnglishPunct) {
+            val onClick: () -> Unit = remember(key, commitValue, onKeyPress, overlayFace, onCommitText, onConsumeEnglishPunct) {
                 {
                     if (overlayFace != null) {
                         (onCommitText ?: onKeyPress)(overlayFace.tapValue)
@@ -1517,6 +1518,7 @@ fun KeyboardRowWithConfig(
                     } else {
                         onKeyPress(commitValue)
                     }
+                    Unit
                 }
             }
             val onPress: (() -> Unit)? = remember(key, onKeyPressDown) { { onKeyPressDown?.invoke(key); Unit } }
@@ -1571,6 +1573,7 @@ fun KeyboardRowWithConfig(
                         { _: String ->
                             (onCommitText ?: onKeyPress)(overlayFace.swipeValue)
                             onConsumeEnglishPunct?.invoke()
+                            Unit
                         }
                     }
                 } else {
