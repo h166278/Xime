@@ -78,7 +78,7 @@ object AppInfo {
         LicenseItem(
             name = "曦码",
             license = "GPL-3.0",
-            url = "https://github.com/ximeiorg/Xime"
+            url = "https://github.com/h166278/Xime"
         ),
         LicenseItem(
             name = "librime",
@@ -226,7 +226,7 @@ fun AboutContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { uriHandler.openUri("https://github.com/ximeiorg/Xime/releases") },
+                                .clickable { uriHandler.openUri("https://github.com/h166278/Xime/releases") },
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -268,7 +268,7 @@ fun AboutContent(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { uriHandler.openUri("https://github.com/kingzcheung") },
+                                .clickable { uriHandler.openUri("https://github.com/h166278") },
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -279,12 +279,12 @@ fun AboutContent(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Kor1 (kingzcheung)",
+                                    text = "h166278",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Text(
-                                    text = "github.com/kingzcheung",
+                                    text = "github.com/h166278",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -306,7 +306,7 @@ fun AboutContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            uriHandler.openUri("https://github.com/ximeiorg/Xime")
+                            uriHandler.openUri("https://github.com/h166278/Xime")
                         },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
@@ -329,7 +329,7 @@ fun AboutContent(
                                 fontWeight = FontWeight.Medium
                             )
                             Text(
-                                text = "github.com/ximeiorg/Xime",
+                                text = "github.com/h166278/Xime",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
