@@ -439,6 +439,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 "shift_tab" -> {
                     if (hasInputState(candState)) sendRimeKey(0xff09, 0x1)
                 }
+                "shift_space" -> {
+                    // 声笔手动组合上屏/造词：方案 key_binder 吃 Shift+space
+                    if (hasInputState(candState)) sendRimeKey(0x20, 0x1)
+                }
                 "shift_enter" -> {
                     if (hasInputState(candState)) sendRimeKey(0xff0d, 0x1)
                 }

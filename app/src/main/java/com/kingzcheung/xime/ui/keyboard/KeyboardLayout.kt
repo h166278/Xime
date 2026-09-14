@@ -914,9 +914,13 @@ fun KeyboardLayout(
                             onKeyRelease = onKeyRelease,
                             onVoiceModeChange = onVoiceModeChange,
                             onGestureAction = onGestureAction,
-                            // 46 键：上滑切中/英带气泡提示（中/英两种模式都要）
+                            // 46 键：有编码上滑 = Shift+space 造词；空闲仍切中/英
                             swipeUpLabel = if (is46Layout) {
-                                if (isAsciiMode) "中文" else "English"
+                                when {
+                                    isComposing -> "造词"
+                                    isAsciiMode -> "中文"
+                                    else -> "English"
+                                }
                             } else null,
                             onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
                             rimeArrowsWhenComposing = is46Layout && isComposing,
@@ -3116,6 +3120,7 @@ private fun SpaceKey(
 
                     when {
                         swipeH != null -> currentOnKeyPress(if (swipeH == "left") "rime_left" else "rime_right")
+                        swipeUpTriggered && currentRimeArrows -> currentOnKeyPress("shift_space")
                         swipeUpTriggered -> currentOnGestureAction?.invoke(GestureAction.TOGGLE_ASCII, "")
                         cursorMoved -> Unit // 横滑步进已在拖动中发出
                         cursorSwipe -> Unit // 默认布局：横向滑动交给键盘级光标手势，不点空格

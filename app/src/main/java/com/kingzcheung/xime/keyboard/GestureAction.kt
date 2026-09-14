@@ -149,7 +149,7 @@ enum class GestureAction(val value: String) {
     /**
      * 把按键送给 Rime（X11 keysym），不直接上屏。
      * 由 UI 层转成 onKeyPress，[ActionExecutor] 层 no-op。
-     * value：tab / shift_tab / shift_enter / ctrl_enter / rime_left / rime_right / 单字符如 `\`。
+     * value：tab / shift_tab / shift_space / shift_enter / ctrl_enter / rime_left / rime_right / 单字符如 `\`。
      */
     PROCESS_RIME_KEY("process_rime_key") {
         override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }

@@ -158,4 +158,102 @@ class DefaultCustomYamlTest {
         assertFalse(RimeConfigHelper.schemaKeepsOwnPageSize("", ""))
         assertFalse(RimeConfigHelper.schemaKeepsOwnPageSize("   ", "\t"))
     }
+
+    // ---- patchShiftTabBindings（根层 Shift+Tab 对齐声笔）----
+
+    private val oldShiftTab = """
+        patch:
+          key_binder:
+            bindings:
+              - { when: has_menu, accept: minus, send: Page_Up }
+              -
+              # 上下翻页 tab
+              - { when: has_menu, accept: Shift+Tab, send: Page_Up }
+              - { when: has_menu, accept: Tab, send: Page_Down }
+              - { when: composing, accept: Control+p, send: Up }
+    """.trimIndent()
+
+    @Test
+    fun `旧has_menu_ShiftTab改成paging上一页加跳尾`() {
+        val patched = RimeConfigHelper.patchShiftTabBindings(oldShiftTab)!!
+        assertTrue(patched.contains("when: paging, accept: Shift+Tab, send: Page_Up"))
+        assertTrue(patched.contains("when: has_menu, accept: Shift+Tab, send_sequence:"))
+        assertTrue(patched.contains("when: has_menu, accept: Tab, send: Page_Down"))
+        assertFalse(
+            "旧的 has_menu+Page_Up 必须去掉",
+            patched.lines().any {
+                val t = it.trimStart()
+                t.startsWith("-") && t.contains("has_menu") && t.contains("Shift+Tab") &&
+                    t.contains("Page_Up") && !t.contains("send_sequence")
+            }
+        )
+        assertFalse("孤立短横线去掉", patched.lines().any { it.trim() == "-" })
+        assertTrue("emacs 绑定保留", patched.contains("Control+p"))
+        val downs = Regex("\\{Page_Down\\}").findAll(patched).count()
+        assertEquals("跳尾 31 次 Page_Down × 两条（Tab 与 ISO）", 62, downs)
+    }
+
+    @Test
+    fun `已是声笔形态不再修补`() {
+        val already = """
+            patch:
+              key_binder:
+                bindings:
+                  - { when: has_menu, accept: Tab, send: Page_Down }
+                  - { when: paging, accept: Shift+Tab, send: Page_Up }
+                  - { when: has_menu, accept: Shift+Tab, send_sequence: "{Page_Down}{Page_Down}" }
+        """.trimIndent()
+        assertNull(RimeConfigHelper.patchShiftTabBindings(already))
+    }
+
+    @Test
+    fun `没有ShiftTab绑定不动`() {
+        assertNull(RimeConfigHelper.patchShiftTabBindings(builtinTemplate))
+    }
+
+    // ---- ascii_composer / 分号引号选重 对齐 sbsrf ----
+
+    private val oldAsciiComposer = """
+        patch:
+          ascii_composer:
+            good_old_caps_lock: true
+            switch_key:
+              Caps_Lock: commit_code
+              Shift_L: commit_code
+              Shift_R: commit_code
+              Control_L: noop
+              Control_R: noop
+          key_binder:
+            bindings:
+              - { when: has_menu, accept: semicolon, send: 2 }
+              - { when: has_menu, accept: apostrophe, send: 3 }
+              - { when: has_menu, accept: minus, send: Page_Up }
+    """.trimIndent()
+
+    @Test
+    fun `ascii_composer改成inline_ascii和Caps清码`() {
+        val patched = RimeConfigHelper.patchAsciiComposerToSbsrf(oldAsciiComposer)!!
+        assertTrue(patched.contains("Shift_L: inline_ascii"))
+        assertTrue(patched.contains("Shift_R: inline_ascii"))
+        assertTrue(patched.contains("Control_L: commit_code"))
+        assertTrue(patched.contains("Caps_Lock: clear"))
+        assertTrue(patched.contains("Eisu_toggle: clear"))
+        assertFalse(patched.contains("Shift_L: commit_code"))
+        assertFalse(patched.contains("Caps_Lock: commit_code"))
+        assertNull("已是目标不再改", RimeConfigHelper.patchAsciiComposerToSbsrf(patched))
+    }
+
+    @Test
+    fun `去掉分号引号选重保留其它绑定`() {
+        val patched = RimeConfigHelper.patchRemoveSelectKeys(oldAsciiComposer)!!
+        assertFalse(patched.contains("accept: semicolon"))
+        assertFalse(patched.contains("accept: apostrophe"))
+        assertTrue(patched.contains("accept: minus"))
+        assertNull(RimeConfigHelper.patchRemoveSelectKeys(patched))
+    }
+
+    @Test
+    fun `没有ascii_composer不动`() {
+        assertNull(RimeConfigHelper.patchAsciiComposerToSbsrf(builtinTemplate))
+    }
 }
