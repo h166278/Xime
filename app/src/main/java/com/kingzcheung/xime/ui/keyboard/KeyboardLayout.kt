@@ -127,6 +127,7 @@ fun KeyboardLayout(
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
     val longPressPreferUppercase by viewModel.longPressPreferUppercase.collectAsStateWithLifecycle()
     val mnemonicHintsEnabled by viewModel.mnemonicHintsEnabled.collectAsStateWithLifecycle()
+    val englishPunctOverlay by viewModel.englishPunctOverlay.collectAsStateWithLifecycle()
 
     var visualIsShifted by remember { mutableStateOf(false) }
     LaunchedEffect(isShifted) {
@@ -366,6 +367,9 @@ fun KeyboardLayout(
                                     longPressPreferUppercase = longPressPreferUppercase,
                                     is46Layout = is46Layout,
                                     mnemonicHintsEnabled = mnemonicHintsEnabled,
+                                    englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                                 )
                             }
                         }
@@ -413,6 +417,9 @@ fun KeyboardLayout(
                                 longPressPreferUppercase = longPressPreferUppercase,
                                 is46Layout = is46Layout,
                                 mnemonicHintsEnabled = mnemonicHintsEnabled,
+                                englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                                onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                                onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                             )
                         }
                     }
@@ -470,6 +477,9 @@ fun KeyboardLayout(
                                 longPressPreferUppercase = longPressPreferUppercase,
                                 is46Layout = is46Layout,
                                 mnemonicHintsEnabled = mnemonicHintsEnabled,
+                                englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                                onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                                onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                             )
                         }
                     }
@@ -584,7 +594,7 @@ fun KeyboardLayout(
                                         }
                                     } else null
                                     val onSwipeStateChange = remember(key) { { state: SwipeState, bounds: Rect -> processSwipeState(state, bounds) } }
-                                    val onLongPressSelect: ((String) -> Unit)? = remember(key, longPressGestureMap, onGestureAction, onCommitText, onKeyPress) { { selectedLabel: String ->
+                                    val onLongPressSelect: ((String) -> Unit)? = remember(key, longPressGestureMap, onGestureAction, onCommitText, onKeyPress, is46Layout) { { selectedLabel: String ->
                                         val gesture = longPressGestureMap?.get(selectedLabel)
                                         if (gesture != null && gesture.action != GestureAction.COMMIT) {
                                             onGestureAction?.invoke(
@@ -592,6 +602,9 @@ fun KeyboardLayout(
                                                 gesture.value.ifEmpty { selectedLabel })
                                         } else {
                                             (onCommitText ?: onKeyPress)(selectedLabel)
+                                            if (is46Layout && selectedLabel.any { it.isLetter() }) {
+                                                viewModel.armEnglishPunctOverlay()
+                                            }
                                         }
                                         Unit
                                     } }
@@ -757,6 +770,8 @@ fun KeyboardLayout(
                                 ConfigDrivenSymbolKey(
                                     keyId = "/",
                                     isAsciiMode = isAsciiMode,
+                                    englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
+                                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
                                     modifier = Modifier.weight(symbolKeyWeight),
@@ -778,6 +793,8 @@ fun KeyboardLayout(
                                 ConfigDrivenSymbolKey(
                                     keyId = ",",
                                     isAsciiMode = isAsciiMode,
+                                    englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
+                                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
                                     modifier = Modifier.weight(symbolKeyWeight),
@@ -1063,6 +1080,8 @@ fun KeyboardLayout(
                                 ConfigDrivenSymbolKey(
                                     keyId = ".",
                                     isAsciiMode = isAsciiMode,
+                                    englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
+                                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
                                     modifier = Modifier.weight(symbolKeyWeight),
@@ -1084,6 +1103,8 @@ fun KeyboardLayout(
                                 ConfigDrivenSymbolKey(
                                     keyId = "quote46",
                                     isAsciiMode = isAsciiMode,
+                                    englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
+                                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
                                     modifier = Modifier.weight(symbolKeyWeight),
@@ -1198,19 +1219,28 @@ fun ConfigDrivenSymbolKey(
     swipeUpHintsEnabled: Boolean = true,
     swipeDownHintsEnabled: Boolean = true,
     swipeUpHintTopEnd: Boolean = false,
+    englishPunctOverlay: Boolean = false,
+    onConsumeEnglishPunct: (() -> Unit)? = null,
 ) {
     val gesture = KeysConfigHelper.getKeyGesture(keyId, isAsciiMode)
+    val overlayFace = if (englishPunctOverlay) englishPunctOverlayFace(keyId) else null
 
     val tapAction = gesture?.tap?.action
-    val tapValue = gesture?.tap?.value?.takeIf { it.isNotEmpty() }
+    val tapValue = overlayFace?.tapValue
+        ?: gesture?.tap?.value?.takeIf { it.isNotEmpty() }
         ?: gesture?.tap?.label?.takeIf { it.isNotEmpty() }
         ?: fallbackTap
-    val tapLabel = gesture?.tap?.label?.takeIf { it.isNotEmpty() } ?: fallbackTapLabel
+    val tapLabel = overlayFace?.tapLabel
+        ?: gesture?.tap?.label?.takeIf { it.isNotEmpty() }
+        ?: fallbackTapLabel
 
     val swipeUpRaw = gesture?.swipeUp
-    val swipeUpLabel = swipeUpRaw?.label?.takeIf { it.isNotEmpty() }
+    val swipeUpLabel = overlayFace?.swipeLabel
+        ?: swipeUpRaw?.label?.takeIf { it.isNotEmpty() }
         ?: swipeUpRaw?.value?.takeIf { it.isNotEmpty() }
-    val swipeUpValue = swipeUpRaw?.value?.takeIf { it.isNotEmpty() } ?: swipeUpLabel
+    val swipeUpValue = overlayFace?.swipeValue
+        ?: swipeUpRaw?.value?.takeIf { it.isNotEmpty() }
+        ?: swipeUpLabel
     val swipeUpAction = swipeUpRaw?.action
     val swipeUpDisplay = swipeUpRaw?.display ?: DisplayMode.BOTH
 
@@ -1243,9 +1273,12 @@ fun ConfigDrivenSymbolKey(
         longPressConfig?.values?.associateBy { it.label }
     } else null
 
-    val onClick: () -> Unit = remember(tapAction, tapValue, onKeyPress, onGestureAction) {
+    val onClick: () -> Unit = remember(tapAction, tapValue, onKeyPress, onGestureAction, overlayFace, onCommitText, onConsumeEnglishPunct) {
         {
-            if (tapAction != null && tapAction != GestureAction.COMMIT) {
+            if (overlayFace != null) {
+                (onCommitText ?: onKeyPress)(overlayFace.tapValue)
+                onConsumeEnglishPunct?.invoke()
+            } else if (tapAction != null && tapAction != GestureAction.COMMIT) {
                 onGestureAction?.invoke(tapAction, tapValue)
             } else {
                 onKeyPress(tapValue)
@@ -1253,12 +1286,15 @@ fun ConfigDrivenSymbolKey(
         }
     }
 
-    val onSwipeUp: ((String) -> Unit)? = if (swipeUpValue != null && swipeUpAction != GestureAction.NONE) {
+    val onSwipeUp: ((String) -> Unit)? = if (swipeUpValue != null && (overlayFace != null || swipeUpAction != GestureAction.NONE)) {
         val upValue: String = swipeUpValue
         val upAction: GestureAction? = swipeUpAction
-        remember(upAction, upValue, onKeyPress, onGestureAction, onCommitText) {
+        remember(upAction, upValue, onKeyPress, onGestureAction, onCommitText, overlayFace, onConsumeEnglishPunct) {
             { _: String ->
-                if (upAction != null && upAction != GestureAction.COMMIT) {
+                if (overlayFace != null) {
+                    (onCommitText ?: onKeyPress)(overlayFace.swipeValue)
+                    onConsumeEnglishPunct?.invoke()
+                } else if (upAction != null && upAction != GestureAction.COMMIT) {
                     onGestureAction?.invoke(upAction, upValue)
                 } else {
                     (onCommitText ?: onKeyPress)(upValue)
@@ -1417,6 +1453,9 @@ fun KeyboardRowWithConfig(
     longPressPreferUppercase: Boolean = false,
     is46Layout: Boolean = false,
     mnemonicHintsEnabled: Boolean = false,
+    englishPunctOverlay: Boolean = false,
+    onConsumeEnglishPunct: (() -> Unit)? = null,
+    onArmEnglishPunct: (() -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
@@ -1424,14 +1463,17 @@ fun KeyboardRowWithConfig(
     ) {
         keys.forEach { key ->
             val mnemonicHint = letterMnemonicHint(key, is46Layout, mnemonicHintsEnabled)
-            val rawSwipeUpLabel = KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
+            val overlayFace = if (englishPunctOverlay) englishPunctOverlayFace(key) else null
+            val rawSwipeUpLabel = overlayFace?.swipeLabel
+                ?: KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
             val swipeUpText = if (swipeUpHintsEnabled) rawSwipeUpLabel else null
             val swipeUpAction = KeysConfigHelper.getSwipeUpAction(key, isAsciiMode)
             val swipeUpDisplay = KeysConfigHelper.getSwipeUpDisplay(key, isAsciiMode)
             val swipeUpKeyLabel =
                 if (mnemonicHint != null) null
                 else if (swipeUpDisplay != DisplayMode.BUBBLE && swipeUpHintsEnabled) swipeUpText else null
-            val swipeUpCommitValue = KeysConfigHelper.getSwipeUpCommitValue(key, isAsciiMode)
+            val swipeUpCommitValue = overlayFace?.swipeValue
+                ?: KeysConfigHelper.getSwipeUpCommitValue(key, isAsciiMode)
             val swipeDownRaw = KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeDown
             val yamlDownLabel = swipeDownRaw?.label?.takeIf { it.isNotEmpty() }
             val swipeDownLabel = letterSwipeDownLabel(key, is46Layout, yamlDownLabel)
@@ -1461,13 +1503,22 @@ fun KeyboardRowWithConfig(
             } else {
                 rawCommitValue
             }
-            val displayText = if (isAsciiMode) {
+            val displayText = overlayFace?.tapLabel ?: if (isAsciiMode) {
                 commitValue
             } else {
                 KeysConfigHelper.getKeyDisplayLabel(key, isAsciiMode)
             }
 
-            val onClick = remember(key, commitValue, onKeyPress) { { onKeyPress(commitValue) } }
+            val onClick = remember(key, commitValue, onKeyPress, overlayFace, onCommitText, onConsumeEnglishPunct) {
+                {
+                    if (overlayFace != null) {
+                        (onCommitText ?: onKeyPress)(overlayFace.tapValue)
+                        onConsumeEnglishPunct?.invoke()
+                    } else {
+                        onKeyPress(commitValue)
+                    }
+                }
+            }
             val onPress: (() -> Unit)? = remember(key, onKeyPressDown) { { onKeyPressDown?.invoke(key); Unit } }
             val onRelease: (() -> Unit)? = remember(key, onKeyRelease) { { onKeyRelease?.invoke(key); Unit } }
             val onSwipeDown: ((String) -> Unit)? = if (swipeDownAction != null && swipeDownHintsEnabled && swipeDownLabel != null) {
@@ -1485,7 +1536,7 @@ fun KeyboardRowWithConfig(
                     }
                 }
             } else null
-            val onLongPressSelect: ((String) -> Unit)? = remember(key, longPressGestureMap, onGestureAction, onCommitText, onKeyPress) { { selectedLabel: String ->
+            val onLongPressSelect: ((String) -> Unit)? = remember(key, longPressGestureMap, onGestureAction, onCommitText, onKeyPress, is46Layout, onArmEnglishPunct) { { selectedLabel: String ->
                 val gesture = longPressGestureMap?.get(selectedLabel)
                 if (gesture != null && gesture.action != GestureAction.COMMIT) {
                     onGestureAction?.invoke(
@@ -1493,6 +1544,9 @@ fun KeyboardRowWithConfig(
                         gesture.value.ifEmpty { selectedLabel })
                 } else {
                     (onCommitText ?: onKeyPress)(selectedLabel)
+                    if (is46Layout && selectedLabel.any { it.isLetter() }) {
+                        onArmEnglishPunct?.invoke()
+                    }
                 }
                 Unit
             } }
@@ -1512,15 +1566,24 @@ fun KeyboardRowWithConfig(
                 swipeUpHintTopEnd = swipeUpHintTopEnd,
                 swipeUpHintIcon = if (mnemonicHint != null) null else rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
                 mnemonicHint = mnemonicHint,
-                onSwipe = remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
-                    swipeUpClick(
-                        swipeUpAction,
-                        KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
-                        rawSwipeUpLabel,
-                        onKeyPress,
-                        onGestureAction,
-                        onCommitText,
-                    )
+                onSwipe = if (overlayFace != null) {
+                    remember(overlayFace, onCommitText, onKeyPress, onConsumeEnglishPunct) {
+                        { _: String ->
+                            (onCommitText ?: onKeyPress)(overlayFace.swipeValue)
+                            onConsumeEnglishPunct?.invoke()
+                        }
+                    }
+                } else {
+                    remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
+                        swipeUpClick(
+                            swipeUpAction,
+                            KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
+                            rawSwipeUpLabel,
+                            onKeyPress,
+                            onGestureAction,
+                            onCommitText,
+                        )
+                    }
                 },
                 onSwipeDown = onSwipeDown,
                 onSwipeStateChange = onSwipeStateChange,

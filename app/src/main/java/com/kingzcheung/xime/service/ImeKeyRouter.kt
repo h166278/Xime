@@ -9,6 +9,7 @@ import com.kingzcheung.xime.rime.resolveRimeCandidateIndex
 import com.kingzcheung.xime.settings.SettingsPreferences
 import com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState
 import com.kingzcheung.xime.ui.keyboard.isT9Schema
+import com.kingzcheung.xime.ui.keyboard.shouldArmEnglishPunctOverlay
 import com.kingzcheung.xime.util.FileLogger
 import com.kingzcheung.xime.viewmodel.ShiftMode
 import kotlinx.coroutines.CoroutineScope
@@ -659,10 +660,12 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                                         withContext(Dispatchers.Main) {
                                             service.commitText(committed)
                                         }
+                                        maybeArmEnglishPunctOverlay(committed)
                                         sendTransformedResult(result) { if (service.calculatorEngine.isActive()) updateCalculatorCandidates() }
                                     } else {
                                         if (committed.isNotEmpty()) {
                                             withContext(Dispatchers.Main) { service.commitText(committed) }
+                                            maybeArmEnglishPunctOverlay(committed)
                                         }
                                         sendTransformedResult(result) { if (service.calculatorEngine.isActive()) updateCalculatorCandidates() }
                                     }
@@ -967,8 +970,22 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         if (result.processed) {
             if (result.committedText.isNotEmpty()) {
                 withContext(Dispatchers.Main) { service.commitText(result.committedText) }
+                maybeArmEnglishPunctOverlay(result.committedText)
             }
             sendTransformedResult(result)
+        }
+    }
+
+    private fun maybeArmEnglishPunctOverlay(committed: String) {
+        if (shouldArmEnglishPunctOverlay(
+                layout46 = SettingsPreferences.isLayout46Enabled(service),
+                committed = committed,
+                englishKeyboard = service.keyboardViewModel.keyboardState.value is KeyboardLayoutState.English,
+                asciiMode = service.uiState.value.isAsciiMode,
+                composing = service.candidateState.value.isComposing,
+            )
+        ) {
+            service.keyboardViewModel.armEnglishPunctOverlay()
         }
     }
 

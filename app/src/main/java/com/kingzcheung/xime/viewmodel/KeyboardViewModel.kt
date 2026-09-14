@@ -132,6 +132,19 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
         _mnemonicHintsEnabled.update { !it }
     }
 
+    /**
+     * 46 键中文盘：拉丁字母上屏后，五个符号键改英文符号。
+     * 点按/上滑其中任一键后关掉。会话重置清掉。
+     */
+    private val _englishPunctOverlay = MutableStateFlow(false)
+    val englishPunctOverlay: StateFlow<Boolean> = _englishPunctOverlay.asStateFlow()
+    fun armEnglishPunctOverlay() {
+        _englishPunctOverlay.value = true
+    }
+    fun consumeEnglishPunctOverlay() {
+        _englishPunctOverlay.value = false
+    }
+
     private val _keyboardState = MutableStateFlow<KeyboardLayoutState>(KeyboardLayoutState.Chinese)
     val keyboardState: StateFlow<KeyboardLayoutState> = _keyboardState.asStateFlow()
 
@@ -543,6 +556,7 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
     fun resetKeyboard(isAsciiMode: Boolean, schemaId: String = "") {
         _isShifted.value = false
         _shiftMode.value = ShiftMode.OFF
+        _englishPunctOverlay.value = false
         _keyboardState.value = initialKeyboardLayoutState(isAsciiMode, schemaId)
         if (_page.value !is KeyboardPage.Main) {
             _page.value = KeyboardPage.Main(MainType.FULL)
