@@ -20,6 +20,14 @@ class ComposingShiftSwipeUpBubbleTest {
     }
 
     @Test
+    fun `点A反查不当造词`() {
+        assertEquals("跳尾", composingShiftSwipeUpBubble(hasPrevPage = false, input = "a", hasMenu = true))
+        assertEquals("上一页", composingShiftSwipeUpBubble(hasPrevPage = true, input = "a", hasMenu = true))
+        assertEquals("跳尾", composingShiftSwipeUpBubble(hasPrevPage = false, input = "an", hasMenu = true))
+        assertEquals("", composingShiftSwipeUpBubble(hasPrevPage = false, input = "a", hasMenu = false))
+    }
+
+    @Test
     fun `象码三码是纯单`() {
         assertEquals("纯单", composingShiftSwipeUpBubble(hasPrevPage = false, input = "qwe", schemaId = "sbxm"))
     }

@@ -537,12 +537,16 @@ fun KeyboardLayout(
                                     viewModel.restoreShift(modeAtDown)
                                     viewModel.toggleLongPressPreferUppercase()
                                 },
+                                onIdleSwipeCancel = { modeAtDown ->
+                                    viewModel.restoreShift(modeAtDown)
+                                },
                                 composingSwipeUpLabel = composingShiftSwipeUpBubble(
                                     hasPrevPage = hasPrevPage,
                                     input = composingInput,
                                     schemaId = uiState.currentSchemaId,
                                     hasMenu = hasMenu,
                                 ),
+                                composingInput = composingInput,
                             )
 
                                 Row(
@@ -1725,9 +1729,13 @@ private const val SHENG_MU = "bpmfdtnlgkhjqxzcsrywv"
 /** 空格上滑阈值，对齐普通键 50dp。原先 24dp 太矮，组合态轻滑就进造词。 */
 internal val SPACE_SWIPE_UP_THRESHOLD_DP = 50.dp
 
+/** 声笔点 A 进拼音反查（prefix a）。单码 a 不当造词。 */
+internal fun isReverseLookupInput(input: String): Boolean =
+    input.isNotEmpty() && input[0] == 'a'
+
 /**
  * 46 键有编码上滑 Shift 气泡。对齐 sbsrf，对不上就空串（不上气泡）。
- * 1. 码长 1 → 造词（lua 先吃，即使已翻页）
+ * 1. 码长 1 且非反查 → 造词（lua 先吃，即使已翻页）
  * 2. paging → 上一页
  * 3. 象码三码 → 纯单
  * 4. 飞天四码 sssx → 组合
@@ -1740,7 +1748,7 @@ internal fun composingShiftSwipeUpBubble(
     schemaId: String = "",
     hasMenu: Boolean = false,
 ): String {
-    if (input.length == 1) return "造词"
+    if (input.length == 1 && !isReverseLookupInput(input)) return "造词"
     if (hasPrevPage) return "上一页"
     val id = schemaId.lowercase()
     if (id == "sbxm" && input.length == 3) return "纯单"
@@ -1779,6 +1787,52 @@ internal fun composingLetterSwipeUpKey(key: String): String =
 
 internal fun composingLetterSwipeUpLabel(key: String): String = key.uppercase()
 
+/** 组合态 Shift 上滑：造词和反查走三档；上一页/组合/跳尾/纯单仍即时触发。 */
+internal fun isComposingShiftWordCreate(label: String): Boolean = label == "造词"
+
+internal fun isComposingShiftThreeZone(label: String, input: String): Boolean =
+    isComposingShiftWordCreate(label) || isReverseLookupInput(input)
+
+/** 造词滑回点 Shift；反查滑回下一页。 */
+internal fun composingShiftThreeZoneTapLabel(input: String): String =
+    if (isReverseLookupInput(input)) "下一页" else "点 Shift"
+
+internal enum class ShiftSwipeZone { TAP, ACTION, CANCEL, DOWN }
+
+/** 上滑过动作线 → 再往上取消 → 滑回动作线以下变点 Shift。直接下滑无操作。 */
+internal val SHIFT_SWIPE_ACTION_DP = 50.dp
+internal val SHIFT_SWIPE_CANCEL_DP = 90.dp
+
+internal fun resolveShiftSwipeZone(
+    upPx: Float,
+    actionPx: Float,
+    cancelPx: Float,
+): ShiftSwipeZone = when {
+    upPx >= cancelPx -> ShiftSwipeZone.CANCEL
+    upPx >= actionPx -> ShiftSwipeZone.ACTION
+    upPx <= -actionPx -> ShiftSwipeZone.DOWN
+    else -> ShiftSwipeZone.TAP
+}
+
+/** 上滑过线再向下越过起点，仍算点 Shift，不当直接下滑。 */
+internal fun settleShiftSwipeZone(
+    zone: ShiftSwipeZone,
+    reachedAction: Boolean,
+): ShiftSwipeZone =
+    if (zone == ShiftSwipeZone.DOWN && reachedAction) ShiftSwipeZone.TAP else zone
+
+internal fun shiftSwipeZoneBubble(
+    zone: ShiftSwipeZone,
+    actionLabel: String,
+    reachedAction: Boolean,
+    tapLabel: String = "点 Shift",
+): String? = when (zone) {
+    ShiftSwipeZone.CANCEL -> "取消"
+    ShiftSwipeZone.ACTION -> actionLabel.takeIf { it.isNotEmpty() }
+    ShiftSwipeZone.TAP -> if (reachedAction) tapLabel else null
+    ShiftSwipeZone.DOWN -> null
+}
+
 @Composable
 private fun ShiftCapsKeyButton(
     shiftMode: ShiftMode,
@@ -1796,7 +1850,9 @@ private fun ShiftCapsKeyButton(
     longPressPreferUppercase: Boolean = false,
     logicalShiftMode: ShiftMode = shiftMode,
     onIdleSwipeUp: ((ShiftMode) -> Unit)? = null,
+    onIdleSwipeCancel: ((ShiftMode) -> Unit)? = null,
     composingSwipeUpLabel: String = "",
+    composingInput: String = "",
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val density = LocalDensity.current
@@ -1804,9 +1860,11 @@ private fun ShiftCapsKeyButton(
     val currentOnKeyPress by rememberUpdatedState(onKeyPress)
     val currentOnSwipeStateChange by rememberUpdatedState(onSwipeStateChange)
     val currentOnIdleSwipeUp by rememberUpdatedState(onIdleSwipeUp)
+    val currentOnIdleSwipeCancel by rememberUpdatedState(onIdleSwipeCancel)
     val currentLogicalShiftMode by rememberUpdatedState(logicalShiftMode)
     val currentPreferUppercase by rememberUpdatedState(longPressPreferUppercase)
     val currentComposingSwipeUpLabel by rememberUpdatedState(composingSwipeUpLabel)
+    val currentComposingInput by rememberUpdatedState(composingInput)
 
     val shadowModifier = remember(shadowEnabled, shadowElevation, shadowShapeRadius, density, backgroundColor) {
         if (shadowEnabled) {
@@ -1847,45 +1905,80 @@ private fun ShiftCapsKeyButton(
                     onKeyPressDown?.invoke("shift")
 
                     if (tabWhenComposing) {
-                        val swipeUpThresholdPx = with(density) { 50.dp.toPx() }
-                        val bubbleShowThresholdPx = swipeUpThresholdPx * 0.3f
+                        val actionPx = with(density) { SHIFT_SWIPE_ACTION_DP.toPx() }
+                        val cancelPx = with(density) { SHIFT_SWIPE_CANCEL_DP.toPx() }
+                        val stickyThresholdPx = with(density) { 50.dp.toPx() }
+                        val bubbleShowThresholdPx = stickyThresholdPx * 0.3f
+                        val threeZone = isComposingShiftThreeZone(
+                            currentComposingSwipeUpLabel, currentComposingInput,
+                        )
+                        val tapLabel = composingShiftThreeZoneTapLabel(currentComposingInput)
                         var swipe: String? = null
                         var startY: Float? = down.position.y
-                        var isBubbleShowing = false
+                        var lastBubble: String? = null
+                        var zone = ShiftSwipeZone.TAP
+                        var reachedAction = false
                         while (true) {
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull() ?: break
                             if (startY == null) startY = change.position.y
                             if (!change.pressed) break
                             val dy = change.position.y - startY!!
-                            val nextSwipe = when {
-                                dy < -swipeUpThresholdPx -> "up"
-                                dy > swipeUpThresholdPx -> "down"
-                                else -> null
-                            }
-                            if (nextSwipe != null) swipe = nextSwipe
-                            val bubbleLabel = when (swipe) {
-                                "up" -> currentComposingSwipeUpLabel.takeIf { it.isNotEmpty() }
-                                "down" -> "Tab"
-                                else -> null
-                            }
-                            val shouldShow = abs(dy) > bubbleShowThresholdPx && bubbleLabel != null
-                            if (shouldShow != isBubbleShowing) {
-                                isBubbleShowing = shouldShow
-                                currentOnSwipeStateChange?.invoke(
-                                    if (shouldShow) SwipeState(isSwiping = true, swipeText = bubbleLabel)
-                                    else SwipeState(),
-                                    buttonBounds
+                            if (threeZone) {
+                                val up = -dy
+                                val raw = resolveShiftSwipeZone(up, actionPx, cancelPx)
+                                if (raw == ShiftSwipeZone.ACTION || raw == ShiftSwipeZone.CANCEL) {
+                                    reachedAction = true
+                                }
+                                zone = settleShiftSwipeZone(raw, reachedAction)
+                                val bubble = shiftSwipeZoneBubble(
+                                    zone, currentComposingSwipeUpLabel, reachedAction, tapLabel,
                                 )
+                                if (bubble != lastBubble) {
+                                    lastBubble = bubble
+                                    currentOnSwipeStateChange?.invoke(
+                                        if (bubble != null) SwipeState(isSwiping = true, swipeText = bubble)
+                                        else SwipeState(),
+                                        buttonBounds,
+                                    )
+                                }
+                            } else {
+                                val nextSwipe = when {
+                                    dy < -stickyThresholdPx -> "up"
+                                    dy > stickyThresholdPx -> "down"
+                                    else -> null
+                                }
+                                if (nextSwipe != null) swipe = nextSwipe
+                                val bubbleLabel = when (swipe) {
+                                    "up" -> currentComposingSwipeUpLabel.takeIf { it.isNotEmpty() }
+                                    else -> null
+                                }
+                                val shouldShow = abs(dy) > bubbleShowThresholdPx && bubbleLabel != null
+                                if ((if (shouldShow) bubbleLabel else null) != lastBubble) {
+                                    lastBubble = if (shouldShow) bubbleLabel else null
+                                    currentOnSwipeStateChange?.invoke(
+                                        if (shouldShow) SwipeState(isSwiping = true, swipeText = bubbleLabel)
+                                        else SwipeState(),
+                                        buttonBounds,
+                                    )
+                                }
                             }
                         }
-                        if (isBubbleShowing) {
+                        if (lastBubble != null) {
                             currentOnSwipeStateChange?.invoke(SwipeState(), buttonBounds)
                         }
-                        when (swipe) {
-                            "up" -> currentOnKeyPress("shift_tab")
-                            "down" -> currentOnKeyPress("tab")
-                            else -> currentOnKeyPress("tab")
+                        if (threeZone) {
+                            when (zone) {
+                                ShiftSwipeZone.ACTION -> currentOnKeyPress("shift_tab")
+                                ShiftSwipeZone.TAP -> currentOnKeyPress("tab")
+                                ShiftSwipeZone.CANCEL, ShiftSwipeZone.DOWN -> Unit
+                            }
+                        } else {
+                            when (swipe) {
+                                "up" -> currentOnKeyPress("shift_tab")
+                                "down" -> Unit
+                                else -> currentOnKeyPress("tab")
+                            }
                         }
                         isPressed = false
                         return@awaitEachGesture
@@ -1896,37 +1989,55 @@ private fun ShiftCapsKeyButton(
                     currentOnKeyPress("shift_single")
 
                     if (idleSwipeTogglesLongPressCase) {
-                        val swipeUpThresholdPx = with(density) { 50.dp.toPx() }
-                        val bubbleShowThresholdPx = swipeUpThresholdPx * 0.3f
-                        var swipeUp = false
+                        val actionPx = with(density) { SHIFT_SWIPE_ACTION_DP.toPx() }
+                        val cancelPx = with(density) { SHIFT_SWIPE_CANCEL_DP.toPx() }
+                        val actionLabel = if (preferUpperAtDown) "默认小写" else "默认大写"
                         var startY: Float? = down.position.y
-                        var isBubbleShowing = false
+                        var lastBubble: String? = null
+                        var zone = ShiftSwipeZone.TAP
+                        var reachedAction = false
                         while (true) {
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull() ?: break
                             if (startY == null) startY = change.position.y
                             if (!change.pressed) break
                             val dy = change.position.y - startY!!
-                            if (dy < -swipeUpThresholdPx) swipeUp = true
-                            val shouldShow = dy < -bubbleShowThresholdPx
-                            if (shouldShow != isBubbleShowing) {
-                                isBubbleShowing = shouldShow
+                            val up = -dy
+                            val raw = resolveShiftSwipeZone(up, actionPx, cancelPx)
+                            if (raw == ShiftSwipeZone.ACTION || raw == ShiftSwipeZone.CANCEL) {
+                                reachedAction = true
+                            }
+                            zone = settleShiftSwipeZone(raw, reachedAction)
+                            val bubble = shiftSwipeZoneBubble(zone, actionLabel, reachedAction)
+                            if (bubble != lastBubble) {
+                                lastBubble = bubble
                                 currentOnSwipeStateChange?.invoke(
-                                    if (shouldShow) SwipeState(
-                                        isSwiping = true,
-                                        swipeText = if (preferUpperAtDown) "默认小写" else "默认大写",
-                                    ) else SwipeState(),
-                                    buttonBounds
+                                    if (bubble != null) SwipeState(isSwiping = true, swipeText = bubble)
+                                    else SwipeState(),
+                                    buttonBounds,
                                 )
                             }
                         }
-                        if (isBubbleShowing) {
+                        if (lastBubble != null) {
                             currentOnSwipeStateChange?.invoke(SwipeState(), buttonBounds)
                         }
-                        if (swipeUp) {
-                            currentOnIdleSwipeUp?.invoke(modeAtDown)
-                            isPressed = false
-                            return@awaitEachGesture
+                        when (zone) {
+                            ShiftSwipeZone.ACTION -> {
+                                currentOnIdleSwipeUp?.invoke(modeAtDown)
+                                isPressed = false
+                                return@awaitEachGesture
+                            }
+                            ShiftSwipeZone.CANCEL, ShiftSwipeZone.DOWN -> {
+                                currentOnIdleSwipeCancel?.invoke(modeAtDown)
+                                isPressed = false
+                                return@awaitEachGesture
+                            }
+                            ShiftSwipeZone.TAP -> {
+                                if (reachedAction) {
+                                    isPressed = false
+                                    return@awaitEachGesture
+                                }
+                            }
                         }
                         val secondDown = withTimeoutOrNull(
                             viewConfiguration.doubleTapTimeoutMillis
@@ -2265,12 +2376,16 @@ private fun LandscapeKeyboardContent(
                         viewModel.restoreShift(modeAtDown)
                         viewModel.toggleLongPressPreferUppercase()
                     },
+                    onIdleSwipeCancel = { modeAtDown ->
+                        viewModel.restoreShift(modeAtDown)
+                    },
                     composingSwipeUpLabel = composingShiftSwipeUpBubble(
                         hasPrevPage = hasPrevPage,
                         input = composingInput,
                         schemaId = uiState.currentSchemaId,
                         hasMenu = hasMenu,
                     ),
+                    composingInput = composingInput,
                     )
                     val k2Gesture = KeysConfigHelper.getKeyGesture("'")
                     val k2Action = k2Gesture?.tap?.action
