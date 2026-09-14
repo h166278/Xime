@@ -440,6 +440,10 @@ fun SwipeableKeyButton(
      * 只看当前半平面；滑回中间卸武装，松手当点击。松手优先走上滑。
      */
     commitSwipeOnRelease: Boolean = false,
+    /**
+     * 按下气泡也走危险色。46 键有编码 123 点按「清空」跟空闲上滑清空同色。
+     */
+    pressBubbleDanger: Boolean = false,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     var dragOffsetY by remember { mutableStateOf(0f) }
@@ -466,6 +470,7 @@ fun SwipeableKeyButton(
     val currentLongPressDrawableIds by rememberUpdatedState(longPressDrawableIds)
     val currentLongPressDefaultIndex by rememberUpdatedState(longPressDefaultIndex)
     val currentCommitSwipeOnRelease by rememberUpdatedState(commitSwipeOnRelease)
+    val currentPressBubbleDanger by rememberUpdatedState(pressBubbleDanger)
     val scope = rememberCoroutineScope()
     val view = LocalView.current
     
@@ -626,7 +631,15 @@ fun SwipeableKeyButton(
                                 if (shouldShowBubble != isSwipeDown) {
                                     isSwipeDown = shouldShowBubble
                                     isSwiping = shouldShowBubble
-                                    currentOnSwipeStateChange?.invoke(SwipeState(shouldShowBubble, currentSwipeDownText, true, emptyList(), false, null), buttonBounds)
+                                    currentOnSwipeStateChange?.invoke(
+                                        SwipeState(
+                                            isSwiping = shouldShowBubble,
+                                            swipeText = currentSwipeDownText,
+                                            isSwipeDown = true,
+                                            isDanger = currentPressBubbleDanger,
+                                        ),
+                                        buttonBounds,
+                                    )
                                 }
                                 val swipeDownTextValue = currentSwipeDownText
                                 val onSwipeDownValue = currentOnSwipeDown
@@ -644,7 +657,14 @@ fun SwipeableKeyButton(
                     detectTapGestures(
                         onPress = {
                             isPressed = true
-                            currentOnSwipeStateChange?.invoke(SwipeState(isPressed = true, pressedText = currentText), buttonBounds)
+                            currentOnSwipeStateChange?.invoke(
+                                SwipeState(
+                                    isPressed = true,
+                                    pressedText = currentText,
+                                    isDanger = currentPressBubbleDanger,
+                                ),
+                                buttonBounds,
+                            )
                             currentOnPress?.invoke()
                             val released = tryAwaitRelease()
                             if (released || !dragActivated) {
@@ -669,7 +689,12 @@ fun SwipeableKeyButton(
                     val items = currentLongPressItems ?: return@awaitEachGesture
                     
                     currentOnSwipeStateChange?.invoke(
-                        SwipeState(isPressed = true, pressedText = currentText), buttonBounds
+                        SwipeState(
+                            isPressed = true,
+                            pressedText = currentText,
+                            isDanger = currentPressBubbleDanger,
+                        ),
+                        buttonBounds,
                     )
                     currentOnPress?.invoke()
                     
@@ -736,6 +761,7 @@ fun SwipeableKeyButton(
                                                     else -> SwipeState(
                                                         isPressed = true,
                                                         pressedText = currentText,
+                                                        isDanger = currentPressBubbleDanger,
                                                     )
                                                 },
                                                 buttonBounds,
@@ -750,6 +776,7 @@ fun SwipeableKeyButton(
                                                         isSwipeDown = goingDown,
                                                         isPressed = true,
                                                         pressedText = bubbleText,
+                                                        isDanger = goingDown && currentPressBubbleDanger,
                                                     ),
                                                     buttonBounds
                                                 )

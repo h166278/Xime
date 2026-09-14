@@ -720,8 +720,7 @@ fun KeyboardLayout(
                                 swipeUpKeyLabel = if (composingClearOn123) "?123" else null,
                                 swipeUpHintTopEnd = composingClearOn123,
                                 swipeDownText = when {
-                                    idle123Swipe -> "下滑撤回"
-                                    is46Layout -> "撤回"
+                                    is46Layout -> "下滑撤回"
                                     else -> null
                                 },
                                 onSwipe = if (idle123Swipe) {
@@ -729,14 +728,13 @@ fun KeyboardLayout(
                                 } else if (is46Layout) {
                                     { onKeyPress("mode_change") }
                                 } else null,
-                                onSwipeDown = if (idle123Swipe) {
+                                onSwipeDown = if (is46Layout) {
                                     { onKeyPress("undo_clear") }
-                                } else if (is46Layout) {
-                                    { onKeyPress("undo_composition") }
                                 } else null,
                                 swipeUpThresholdDp = if (idle123Swipe) 32.dp else 50.dp,
                                 swipeDownThresholdDp = if (idle123Swipe) 32.dp else if (is46Layout) 24.dp else 50.dp,
                                 commitSwipeOnRelease = idle123Swipe,
+                                pressBubbleDanger = composingClearOn123,
                                 onPress = { onKeyPressDown?.invoke("mode_change") },
                                 onRelease = { onKeyRelease?.invoke("mode_change") },
                                 onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
@@ -2244,8 +2242,7 @@ private fun LandscapeKeyboardContent(
                     swipeUpKeyLabel = if (composingClearOn123) "?123" else null,
                     swipeUpHintTopEnd = composingClearOn123,
                     swipeDownText = when {
-                        idle123Swipe -> "下滑撤回"
-                        is46Layout -> "撤回"
+                        is46Layout -> "下滑撤回"
                         else -> null
                     },
                     onSwipe = if (idle123Swipe) {
@@ -2253,14 +2250,13 @@ private fun LandscapeKeyboardContent(
                     } else if (is46Layout) {
                         { onKeyPress("mode_change") }
                     } else null,
-                    onSwipeDown = if (idle123Swipe) {
+                    onSwipeDown = if (is46Layout) {
                         { onKeyPress("undo_clear") }
-                    } else if (is46Layout) {
-                        { onKeyPress("undo_composition") }
                     } else null,
                     swipeUpThresholdDp = if (idle123Swipe) 32.dp else 50.dp,
                     swipeDownThresholdDp = if (idle123Swipe) 32.dp else if (is46Layout) 24.dp else 50.dp,
                     commitSwipeOnRelease = idle123Swipe,
+                    pressBubbleDanger = composingClearOn123,
                     onPress = { onKeyPressDown?.invoke("mode_change") },
                     onRelease = { onKeyRelease?.invoke("mode_change") },
                     onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
