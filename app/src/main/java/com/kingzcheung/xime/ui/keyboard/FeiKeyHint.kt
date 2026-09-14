@@ -64,7 +64,7 @@ data class FeiKeyHint(
             "j" to FeiKeyHint("就", rows = listOf("几己巾斤", "见見臼角", "金钅釒纟")),
             "k" to FeiKeyHint("可", rows = listOf("口囗匚", "凵冂")),
             "l" to FeiKeyHint("了", rows = listOf("力立龙龍", "里鹿耒刂", "忄廴辶灬", "卤鹵")),
-            "z" to FeiKeyHint("在", rows = listOf("子舟自走", "豸隹足⻊", "爪爫丬", "爿長镸罒巛", "乙")),
+            "z" to FeiKeyHint("在", rows = listOf("子舟自走", "豸隹足⻊", "爪爫丬爿", "長镸罒巛", "乙")),
             "x" to FeiKeyHint("下", rows = listOf("夕小心", "穴血覀", "辛彐糸", "⺍⺌")),
             "c" to FeiKeyHint("出", rows = listOf("厂寸车車", "虫赤辰彳", "齿齒艹卝", "屮")),
             "v" to FeiKeyHint("而", rows = listOf("二儿耳聿", "羽鱼魚雨", "日曰月", "阝卩")),
