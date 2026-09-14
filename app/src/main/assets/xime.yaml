@@ -439,14 +439,14 @@ keyboard:
       p: { tap: "p", swipe_up: "0", swipe_down: { label: "之辶冖宀廴礻", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["p", "P"] } }
 
       # ── 数字行（设置「数字行」开关打开时显示在 QWERTY 上方）──
-      "1": { tap: "1", swipe_up: "!" }
-      "2": { tap: "2", swipe_up: "@" }
-      "3": { tap: "3", swipe_up: "#" }
-      "4": { tap: "4", swipe_up: "$" }
-      "5": { tap: "5", swipe_up: "%" }
-      "6": { tap: "6", swipe_up: "^" }
-      "7": { tap: "7", swipe_up: "&" }
-      "8": { tap: "8", swipe_up: "*" }
+      "1": { tap: "1", swipe_up: "!", long_press: { display: "bubble", values: ["½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
+      "2": { tap: "2", swipe_up: "@", long_press: { display: "bubble", values: ["⅔", "⅖"] } }
+      "3": { tap: "3", swipe_up: "#", long_press: { display: "bubble", values: ["¾", "⅗", "⅜"] } }
+      "4": { tap: "4", swipe_up: "$", long_press: { display: "bubble", values: ["⅘"] } }
+      "5": { tap: "5", swipe_up: "%", long_press: { display: "bubble", values: ["⅚", "⅝"] } }
+      "6": { tap: "6", swipe_up: "^", long_press: { display: "bubble", values: ["⅚"] } }
+      "7": { tap: "7", swipe_up: "&", long_press: { display: "bubble", values: ["⅞"] } }
+      "8": { tap: "8", swipe_up: "*", long_press: { display: "bubble", values: ["⅛", "⅜", "⅝", "⅞"] } }
       "9": { tap: "9", swipe_up: "(" }
       "0": { tap: "0", swipe_up: ")" }
 
@@ -545,14 +545,14 @@ keyboard:
       p: { tap: "p", swipe_up: "0", long_press: { display: "bubble", values: ["p", "P"] } }
 
       # ── 数字行（设置「数字行」开关打开时显示在 QWERTY 上方）──
-      "1": { tap: "1", swipe_up: "!" }
-      "2": { tap: "2", swipe_up: "@" }
-      "3": { tap: "3", swipe_up: "#" }
-      "4": { tap: "4", swipe_up: "$" }
-      "5": { tap: "5", swipe_up: "%" }
-      "6": { tap: "6", swipe_up: "^" }
-      "7": { tap: "7", swipe_up: "&" }
-      "8": { tap: "8", swipe_up: "*" }
+      "1": { tap: "1", swipe_up: "!", long_press: { display: "bubble", values: ["½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
+      "2": { tap: "2", swipe_up: "@", long_press: { display: "bubble", values: ["⅔", "⅖"] } }
+      "3": { tap: "3", swipe_up: "#", long_press: { display: "bubble", values: ["¾", "⅗", "⅜"] } }
+      "4": { tap: "4", swipe_up: "$", long_press: { display: "bubble", values: ["⅘"] } }
+      "5": { tap: "5", swipe_up: "%", long_press: { display: "bubble", values: ["⅚", "⅝"] } }
+      "6": { tap: "6", swipe_up: "^", long_press: { display: "bubble", values: ["⅚"] } }
+      "7": { tap: "7", swipe_up: "&", long_press: { display: "bubble", values: ["⅞"] } }
+      "8": { tap: "8", swipe_up: "*", long_press: { display: "bubble", values: ["⅛", "⅜", "⅝", "⅞"] } }
       "9": { tap: "9", swipe_up: "(" }
       "0": { tap: "0", swipe_up: ")" }
 
