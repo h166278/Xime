@@ -654,7 +654,7 @@ fun KeyboardLayout(
                                         onSwipe = if (composingLetterSwipe) {
                                             remember(key, onKeyPress) {
                                                 val upperKey = composingLetterSwipeUpKey(key)
-                                                { _: String -> onKeyPress(upperKey); Unit }
+                                                return@remember { _: String -> onKeyPress(upperKey); Unit }
                                             }
                                         } else {
                                             remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
@@ -1689,7 +1689,7 @@ fun KeyboardRowWithConfig(
                 } else if (composingLetterSwipe) {
                     remember(key, onKeyPress) {
                         val upperKey = composingLetterSwipeUpKey(key)
-                        { _: String -> onKeyPress(upperKey); Unit }
+                        return@remember { _: String -> onKeyPress(upperKey); Unit }
                     }
                 } else {
                     remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
@@ -3130,7 +3130,7 @@ fun CompactKeyboardRowWithConfig(
                 onSwipe = if (composingLetterSwipe) {
                     remember(key, onKeyPress) {
                         val upperKey = composingLetterSwipeUpKey(key)
-                        { _: String -> onKeyPress(upperKey); Unit }
+                        return@remember { _: String -> onKeyPress(upperKey); Unit }
                     }
                 } else {
                     remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
