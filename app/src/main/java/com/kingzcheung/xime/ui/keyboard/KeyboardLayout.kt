@@ -2772,10 +2772,11 @@ fun SwipeableKeyButtonLandscape(
                 fontWeight = FontWeight.Normal,
                 textAlign = TextAlign.End,
                 maxLines = 1,
-                lineHeight = (8f * hintScale).sp,
+                lineHeight = effectiveSwipeFontSize.sp,
+                style = swipeUpHintTextStyle,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 2.dp, end = 4.dp)
+                    .padding(swipeUpHintTextPadding)
             )
         }
         if (mnemonicHint == null && swipeDownKeyLabel != null) {

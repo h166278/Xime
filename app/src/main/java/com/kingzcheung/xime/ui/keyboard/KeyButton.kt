@@ -43,9 +43,12 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -87,6 +90,13 @@ internal fun adaptiveBubbleScale(contentScale: Float): Float =
 /** 主字符放大时同步拉开上下提示，手机尺寸下保持原来的 14dp 间距。 */
 internal fun adaptiveHintOffsetDp(contentScale: Float): Float =
     (14f + (contentScale - 1f) * 25f).coerceIn(14f, 24f)
+
+/** 46 键右上角文字 hint 贴角；ZXCVB 图标仍走 [swipeUpHintIconPadding]。 */
+internal val swipeUpHintTextPadding = PaddingValues(top = 0.5.dp, end = 1.dp)
+internal val swipeUpHintIconPadding = PaddingValues(top = 3.dp, end = 4.dp)
+internal val swipeUpHintTextStyle = TextStyle(
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+)
 
 /**
  * 删除键同款档位：只看当前半平面有没有过阈值。
@@ -969,7 +979,7 @@ fun SwipeableKeyButton(
                     modifier = Modifier
                         .align(if (swipeUpHintTopEnd) Alignment.TopEnd else Alignment.TopCenter)
                         .then(
-                            if (swipeUpHintTopEnd) Modifier.padding(top = 3.dp, end = 4.dp)
+                            if (swipeUpHintTopEnd) Modifier.padding(swipeUpHintIconPadding)
                             else Modifier.offset(y = -hintOffset)
                         )
                         .size((effectiveSwipeFontSize.value + 3f).dp)
@@ -983,10 +993,12 @@ fun SwipeableKeyButton(
                     fontWeight = FontWeight.Medium,
                     textAlign = if (swipeUpHintTopEnd) TextAlign.End else TextAlign.Center,
                     maxLines = 1,
+                    lineHeight = if (swipeUpHintTopEnd) effectiveSwipeFontSize else TextUnit.Unspecified,
+                    style = if (swipeUpHintTopEnd) swipeUpHintTextStyle else TextStyle.Default,
                     modifier = if (swipeUpHintTopEnd) {
                         Modifier
                             .align(Alignment.TopEnd)
-                            .padding(top = 3.dp, end = 4.dp)
+                            .padding(swipeUpHintTextPadding)
                     } else {
                         Modifier.offset(y = -hintOffset)
                     },

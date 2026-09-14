@@ -1,5 +1,7 @@
 package com.kingzcheung.xime.ui.keyboard
 
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.ui.unit.LayoutDirection
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -25,5 +27,15 @@ class KeyboardResponsiveSizingTest {
     fun smallerKeysAreNotShrunkAndLargeKeysAreClamped() {
         assertEquals(1f, adaptiveKeyContentScale(keyHeightDp = 20f), tolerance)
         assertEquals(1.5f, adaptiveKeyContentScale(keyHeightDp = 120f), tolerance)
+    }
+
+    @Test
+    fun swipeUpHintTextSticksToCornerWhileIconKeepsGap() {
+        val ltr = LayoutDirection.Ltr
+        assertEquals(0.5f, swipeUpHintTextPadding.calculateTopPadding().value, tolerance)
+        assertEquals(1f, swipeUpHintTextPadding.calculateEndPadding(ltr).value, tolerance)
+        assertEquals(3f, swipeUpHintIconPadding.calculateTopPadding().value, tolerance)
+        assertEquals(4f, swipeUpHintIconPadding.calculateEndPadding(ltr).value, tolerance)
+        assertEquals(false, swipeUpHintTextStyle.platformStyle?.includeFontPadding)
     }
 }
