@@ -1,15 +1,12 @@
 package com.kingzcheung.xime.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
-import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.semantics.Role
 import com.kingzcheung.xime.ui.theme.KeyboardThemes
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +14,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -472,10 +475,8 @@ fun LayoutDisplaySettingsContent(
     }
 }
 /**
- * 布局选择弹窗：标题「布局选择」+ 单选列表 + 右下「确认」。
- *
- * 弹窗背景、选项文字沿用 MaterialTheme（随深浅模式走），
- * 选中圆点与「确认」文字取「主题与定制」当前选中配色的强调色。
+ * 布局选择：surface 卡片 + 点行即关。设置页 Dialog、IME 遮罩共用。
+ * 选中圆点取当前键盘主题强调色。
  */
 @Composable
 fun LayoutSelectionDialog(
@@ -484,65 +485,93 @@ fun LayoutSelectionDialog(
     onConfirm: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    var selected by remember(current) { mutableStateOf(current) }
-
     val themeId = SettingsPreferences.getKeyboardTheme(context)
     val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val accent = KeyboardThemes.getAccentColor(themeId, isDark)
-    val onSurface = MaterialTheme.colorScheme.onSurface
+    Dialog(onDismissRequest = onDismiss) {
+        LayoutSelectionCard(
+            current = current,
+            accent = accent,
+            onSelect = onConfirm,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
 
+@Composable
+fun LayoutSelectionCard(
+    current: String,
+    accent: Color,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val scheme = MaterialTheme.colorScheme
     val options = listOf(
         SettingsPreferences.KEYBOARD_LAYOUT_DEFAULT to "默认",
         SettingsPreferences.KEYBOARD_LAYOUT_46 to "46键",
     )
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(scheme.surface)
+            .border(1.dp, scheme.outlineVariant, shape)
+            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp),
+    ) {
+        Text(
+            text = "布局选择",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = scheme.onSurface,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        options.forEach { (value, label) ->
+            val selected = current == value
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .clickable { onSelect(value) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LayoutRadioDot(
+                    selected = selected,
+                    accent = accent,
+                    unselected = scheme.onSurface.copy(alpha = 0.45f),
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = scheme.onSurface,
+                )
+            }
+        }
+    }
+}
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        title = {
-            Text(
-                text = "布局选择",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = onSurface,
+@Composable
+private fun LayoutRadioDot(
+    selected: Boolean,
+    accent: Color,
+    unselected: Color,
+) {
+    Box(
+        modifier = Modifier.size(20.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .border(2.dp, if (selected) accent else unselected, CircleShape),
+        )
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(accent),
             )
-        },
-        text = {
-            Column {
-                options.forEach { (value, label) ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = selected == value,
-                                role = Role.RadioButton,
-                                onClick = { selected = value },
-                            )
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = selected == value,
-                            onClick = { selected = value },
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = accent,
-                                unselectedColor = onSurface.copy(alpha = 0.6f),
-                            ),
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = onSurface,
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(selected) }) {
-                Text(text = "确认", color = accent, fontWeight = FontWeight.Medium)
-            }
-        },
-    )
+        }
+    }
 }

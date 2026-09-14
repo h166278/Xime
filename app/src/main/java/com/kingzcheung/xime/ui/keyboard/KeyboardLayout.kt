@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -39,14 +40,9 @@ import androidx.compose.material.icons.twotone.Apps
 import androidx.compose.material.icons.twotone.KeyboardAlt
 import androidx.compose.material.icons.twotone.KeyboardCapslock
 import androidx.compose.material.icons.twotone.Language
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -105,6 +101,7 @@ import com.kingzcheung.xime.viewmodel.ShiftMode
 import com.kingzcheung.xime.keyboard.OverlayRoute
 import com.kingzcheung.xime.ui.theme.KeyboardThemes
 import com.kingzcheung.xime.ui.theme.keyboardBackground
+import com.kingzcheung.xime.ui.settings.LayoutSelectionCard
 
 import androidx.compose.material.icons.twotone.KeyboardControlKey
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -772,6 +769,7 @@ fun KeyboardLayout(
                                 swipeDownThresholdDp = if (idle123Swipe) 32.dp else if (is46Layout) 24.dp else 50.dp,
                                 commitSwipeOnRelease = idle123Swipe,
                                 pressBubbleDanger = composingClearOn123,
+                                swipeBubbleDanger = idle123Swipe,
                                 onPress = { onKeyPressDown?.invoke("mode_change") },
                                 onRelease = { onKeyRelease?.invoke("mode_change") },
                                 onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
@@ -1228,7 +1226,7 @@ fun KeyboardLayout(
                 themeId = uiState.themeId,
                 isDark = uiState.isDarkTheme,
                 onDismiss = { showLayoutDialog = false },
-                onConfirm = { selected ->
+                onSelect = { selected ->
                     SettingsPreferences.setKeyboardLayout(context, selected)
                     KeysConfigHelper.loadConfig(context)
                     is46Layout = SettingsPreferences.isLayout46Enabled(context)
@@ -1241,23 +1239,15 @@ fun KeyboardLayout(
     }
 }
 
-/** IME 窗口内的布局选择。配色跟设置里 AlertDialog 同一套，不用键帽黑白。 */
+/** IME 窗口内的布局选择。卡片跟设置页同一套，遮罩点空白关闭。 */
 @Composable
 private fun LayoutSelectionSheet(
     current: String,
     themeId: String,
     isDark: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onSelect: (String) -> Unit,
 ) {
-    var selected by remember(current) { mutableStateOf(current) }
-    val options = listOf(
-        SettingsPreferences.KEYBOARD_LAYOUT_DEFAULT to "默认",
-        SettingsPreferences.KEYBOARD_LAYOUT_46 to "46键",
-    )
-    val scheme = MaterialTheme.colorScheme
-    val surface = scheme.surfaceContainerHigh
-    val onSurface = scheme.onSurface
     val accent = KeyboardThemes.getAccentColor(themeId, isDark)
     Box(
         modifier = Modifier
@@ -1266,62 +1256,18 @@ private fun LayoutSelectionSheet(
             .clickable { onDismiss() },
         contentAlignment = Alignment.Center,
     ) {
-        Column(
+        LayoutSelectionCard(
+            current = current,
+            accent = accent,
+            onSelect = onSelect,
             modifier = Modifier
                 .padding(horizontal = 28.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(surface)
+                .fillMaxWidth()
                 .clickable(
                     indication = null,
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                ) {}
-                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp)
-                .fillMaxWidth(),
-        ) {
-            Text(
-                text = "布局选择",
-                color = onSurface,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            options.forEach { (value, label) ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = selected == value,
-                            role = Role.RadioButton,
-                            onClick = { selected = value },
-                        )
-                        .padding(vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(
-                        selected = selected == value,
-                        onClick = { selected = value },
-                        colors = RadioButtonDefaults.colors(
-                            selectedColor = accent,
-                            unselectedColor = onSurface.copy(alpha = 0.6f),
-                        ),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = label,
-                        color = onSurface,
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(onClick = { onConfirm(selected) }) {
-                    Text(text = "确认", color = accent, fontWeight = FontWeight.Medium)
-                }
-            }
-        }
+                    interactionSource = remember { MutableInteractionSource() },
+                ) {},
+        )
     }
 }
 
@@ -2523,6 +2469,7 @@ private fun LandscapeKeyboardContent(
                     swipeDownThresholdDp = if (idle123Swipe) 32.dp else if (is46Layout) 24.dp else 50.dp,
                     commitSwipeOnRelease = idle123Swipe,
                     pressBubbleDanger = composingClearOn123,
+                    swipeBubbleDanger = idle123Swipe,
                     onPress = { onKeyPressDown?.invoke("mode_change") },
                     onRelease = { onKeyRelease?.invoke("mode_change") },
                     onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
