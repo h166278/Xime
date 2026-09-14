@@ -293,9 +293,17 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 "enter" -> {
                     service.calculatorEngine.clear()
                     updateCalculatorCandidates()
-                    if (candState.isComposing) {
-                        // T9 模式提交完整预编辑（含 partial commit 累积），非 T9 模式用 RIME input。
-                        val isT9 = isT9Schema(state.currentSchemaId)
+                    val isT9 = isT9Schema(state.currentSchemaId)
+                    val is46 = SettingsPreferences.isLayout46Enabled(service)
+                    if (is46 && !isT9 && hasInputState(candState)) {
+                        // 仅 46 键：Return 交给 Rime。缓冲态 lua 会 context:commit()；
+                        // 非缓冲走 express_editor。T9/26 键仍直出编码。
+                        sendRimeKey(0xff0d, 0)
+                        if (service.rimeEngine.getInput().isEmpty()) {
+                            withContext(Dispatchers.Main) { service.endComposingInputBox() }
+                        }
+                    } else if (candState.isComposing) {
+                        // T9 / 26 键：提交完整预编辑（T9 含 partial 累积），不把 Return 给引擎。
                         val input = if (isT9 && candState.preeditText.isNotEmpty()) {
                             candState.preeditText
                         } else {
@@ -305,7 +313,6 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             withContext(Dispatchers.Main) { service.commitText(input) }
                         }
                         if (isT9) {
-                            // 同步清空，避免异步 postRimeJob 延迟导致后续 backspace 拿到旧状态。
                             service.t9PartialSegments.clear()
                             service.rimeEngine.setInput("")
                             service.rimeEngine.clearComposition()
@@ -314,6 +321,24 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         }
                         withContext(Dispatchers.Main) { service.endComposingInputBox() }
                         needsUIUpdate = true
+                        withContext(Dispatchers.Main) {
+                            service.candidateState.value = service.candidateState.value.copy(
+                                inputText = "",
+                                preeditText = "",
+                                pendingEnglishText = "",
+                                candidates = emptyList(),
+                                candidateComments = emptyList(),
+                                associationCandidates = emptyList(),
+                                isComposing = false
+                            )
+                            if (isT9) {
+                                service.uiState.value = service.uiState.value.copy(
+                                    t9ResetSignal = service.uiState.value.t9ResetSignal + 1,
+                                    t9RightCandidateSelectedCount = 0,
+                                    t9SelectedCandidatePinyin = ""
+                                )
+                            }
+                        }
                     } else {
                         service.rimeEngine.clearComposition()
                         withContext(Dispatchers.Main) {
@@ -330,23 +355,14 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                                     service.currentInputConnection?.performEditorAction(action)
                                 else -> service.sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
                             }
-                        }
-                    }
-                    withContext(Dispatchers.Main) {
-                        service.candidateState.value = service.candidateState.value.copy(
-                            inputText = "",
-                            preeditText = "",
-                            pendingEnglishText = "",
-                            candidates = emptyList(),
-                            candidateComments = emptyList(),
-                            associationCandidates = emptyList(),
-                            isComposing = false
-                        )
-                        if (isT9Schema(state.currentSchemaId)) {
-                            service.uiState.value = service.uiState.value.copy(
-                                t9ResetSignal = service.uiState.value.t9ResetSignal + 1,
-                                t9RightCandidateSelectedCount = 0,
-                                t9SelectedCandidatePinyin = ""
+                            service.candidateState.value = service.candidateState.value.copy(
+                                inputText = "",
+                                preeditText = "",
+                                pendingEnglishText = "",
+                                candidates = emptyList(),
+                                candidateComments = emptyList(),
+                                associationCandidates = emptyList(),
+                                isComposing = false
                             )
                         }
                     }
@@ -365,6 +381,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         }
                     } else if (candState.isComposing) {
                         if (SettingsPreferences.isLayout46Enabled(service)) {
+                            // 点空格关掉造词缓冲，让首选真正上屏；上滑 shift_space 才进缓冲。
+                            setSbxlmWordBuffer(false)
                             sendRimeKey(0x20, 0)
                         } else if (candState.candidates.isNotEmpty()) {
                             selectCandidateAsync(0)
@@ -440,8 +458,13 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     if (hasInputState(candState)) sendRimeKey(0xff09, 0x1)
                 }
                 "shift_space" -> {
-                    // 声笔手动组合上屏/造词：方案 key_binder 吃 Shift+space
-                    if (hasInputState(candState)) sendRimeKey(0x20, 0x1)
+                    // 46 键有编码上滑空格：先进造词缓冲，再发 Shift+space（三/四码手动组合仍走方案）。
+                    if (hasInputState(candState)) {
+                        if (SettingsPreferences.isLayout46Enabled(service)) {
+                            setSbxlmWordBuffer(true)
+                        }
+                        sendRimeKey(0x20, 0x1)
+                    }
                 }
                 "shift_enter" -> {
                     if (hasInputState(candState)) sendRimeKey(0xff0d, 0x1)
@@ -1160,6 +1183,22 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             candState.preeditText.isNotEmpty() ||
             candState.pendingEnglishText.isNotEmpty() ||
             service.t9PartialSegments.isNotEmpty()
+
+    /**
+     * 声笔造词缓冲。对齐 lua ascii_composer：开 = is_buffered + temp_buffered；
+     * 关 = 两者都关，popping 会把 _auto_commit 拉回来，随后空格才能真正上屏。
+     */
+    private fun setSbxlmWordBuffer(enabled: Boolean) {
+        if (enabled) {
+            if (!service.rimeEngine.getOption("is_buffered")) {
+                service.rimeEngine.setOption("is_buffered", true)
+            }
+            service.rimeEngine.setOption("temp_buffered", true)
+        } else {
+            service.rimeEngine.setOption("temp_buffered", false)
+            service.rimeEngine.setOption("is_buffered", false)
+        }
+    }
 
     /**
      * 清空输入态（预编辑/候选/联想/partial 累积/计算器），不动已上屏文本。

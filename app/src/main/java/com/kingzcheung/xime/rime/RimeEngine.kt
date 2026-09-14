@@ -429,12 +429,16 @@ class RimeEngine {
 
     fun setOption(option: String, value: Boolean) {
         if (!nativeHasSession()) return
-        nativeSetOption(option, value)
+        tryLocked(Unit) {
+            nativeSetOption(option, value)
+        }
     }
 
     fun getOption(option: String): Boolean {
         if (!nativeHasSession()) return false
-        return nativeGetOption(option)
+        return tryLocked(false) {
+            nativeGetOption(option)
+        }
     }
 
     fun setPageSize(schemaId: String, pageSize: Int) {

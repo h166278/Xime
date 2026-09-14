@@ -121,6 +121,7 @@ fun KeyboardLayout(
     isAsciiMode: Boolean,
     modifier: Modifier = Modifier,
     isComposing: Boolean = false,
+    hasPrevPage: Boolean = false,
 ) {
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
@@ -310,6 +311,7 @@ fun KeyboardLayout(
                 onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
                 is46Layout = is46Layout,
                 isComposing = isComposing,
+                hasPrevPage = hasPrevPage,
             )
         } else {
                 Column(
@@ -509,6 +511,7 @@ fun KeyboardLayout(
                                     viewModel.restoreShift(modeAtDown)
                                     viewModel.toggleLongPressPreferUppercase()
                                 },
+                                composingSwipeUpLabel = composingShiftSwipeUpBubble(hasPrevPage),
                             )
 
                                 Row(
@@ -914,7 +917,7 @@ fun KeyboardLayout(
                             onKeyRelease = onKeyRelease,
                             onVoiceModeChange = onVoiceModeChange,
                             onGestureAction = onGestureAction,
-                            // 46 键：有编码上滑 = Shift+space 造词；空闲仍切中/英
+                            // 46 键：有编码上滑 = 进造词缓冲 + Shift+space；空闲仍切中/英
                             swipeUpLabel = if (is46Layout) {
                                 when {
                                     isComposing -> "造词"
@@ -1536,6 +1539,10 @@ fun KeyboardRowWithConfig(
     }
 }
 
+/** 46 键有编码上滑 Shift：已翻页才是上一页，否则一码进造词缓冲。 */
+internal fun composingShiftSwipeUpBubble(hasPrevPage: Boolean): String =
+    if (hasPrevPage) "上一页" else "造词"
+
 @Composable
 private fun ShiftCapsKeyButton(
     shiftMode: ShiftMode,
@@ -1553,6 +1560,7 @@ private fun ShiftCapsKeyButton(
     longPressPreferUppercase: Boolean = false,
     logicalShiftMode: ShiftMode = shiftMode,
     onIdleSwipeUp: ((ShiftMode) -> Unit)? = null,
+    composingSwipeUpLabel: String = "上一页",
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val density = LocalDensity.current
@@ -1562,6 +1570,7 @@ private fun ShiftCapsKeyButton(
     val currentOnIdleSwipeUp by rememberUpdatedState(onIdleSwipeUp)
     val currentLogicalShiftMode by rememberUpdatedState(logicalShiftMode)
     val currentPreferUppercase by rememberUpdatedState(longPressPreferUppercase)
+    val currentComposingSwipeUpLabel by rememberUpdatedState(composingSwipeUpLabel)
 
     val shadowModifier = remember(shadowEnabled, shadowElevation, shadowShapeRadius, density, backgroundColor) {
         if (shadowEnabled) {
@@ -1620,7 +1629,7 @@ private fun ShiftCapsKeyButton(
                             }
                             if (nextSwipe != null) swipe = nextSwipe
                             val bubbleLabel = when (swipe) {
-                                "up" -> "上一页"
+                                "up" -> currentComposingSwipeUpLabel
                                 "down" -> "Tab"
                                 else -> null
                             }
@@ -1763,6 +1772,7 @@ private fun LandscapeKeyboardContent(
     onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
     is46Layout: Boolean = false,
     isComposing: Boolean = false,
+    hasPrevPage: Boolean = false,
 ) {
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
@@ -2009,6 +2019,7 @@ private fun LandscapeKeyboardContent(
                         viewModel.restoreShift(modeAtDown)
                         viewModel.toggleLongPressPreferUppercase()
                     },
+                    composingSwipeUpLabel = composingShiftSwipeUpBubble(hasPrevPage),
                     )
                     val k2Gesture = KeysConfigHelper.getKeyGesture("'")
                     val k2Action = k2Gesture?.tap?.action
