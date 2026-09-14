@@ -59,6 +59,7 @@ import com.kingzcheung.xime.settings.DisplayMode
 import com.kingzcheung.xime.settings.ButtonLayout
 import com.kingzcheung.xime.settings.KeysConfigHelper
 import com.kingzcheung.xime.keyboard.GestureAction
+import com.kingzcheung.xime.service.RIME_UPPER_PREFIX
 
 /** 半角 → 全角标点映射，中文模式下键帽显示用。提交仍走半角由 Rime 处理。 */
 import androidx.compose.ui.Modifier
@@ -433,6 +434,7 @@ fun KeyboardLayout(
                                 englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
                                 onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                                 onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
+                                isComposing = isComposing,
                             )
                         }
                     }
@@ -493,6 +495,7 @@ fun KeyboardLayout(
                                 englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
                                 onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                                 onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
+                                isComposing = isComposing,
                             )
                         }
                     }
@@ -550,13 +553,19 @@ fun KeyboardLayout(
                                 val bottomKeys = keyRows.getOrElse(2) { listOf("z", "x", "c", "v", "b", "n", "m") }
                                 bottomKeys.forEach { key ->
                                     val mnemonicHint = letterMnemonicHint(key, is46Layout, mnemonicHintsEnabled)
-                                    val rawSwipeUpLabel = KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
+                                    val composingLetterSwipe =
+                                        shouldComposingLetterSwipeUp(isComposing, isAsciiMode, key)
+                                    val composingSwipeLabel =
+                                        if (composingLetterSwipe) composingLetterSwipeUpLabel(key) else null
+                                    val rawSwipeUpLabel = composingSwipeLabel
+                                        ?: KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
                                     val swipeUpText =
-                                        if (swipeUpHintsEnabled) rawSwipeUpLabel else null
+                                        if (swipeUpHintsEnabled || composingLetterSwipe) rawSwipeUpLabel else null
                                     val swipeUpAction = KeysConfigHelper.getSwipeUpAction(key, isAsciiMode)
                                     val swipeUpDisplay = KeysConfigHelper.getSwipeUpDisplay(key, isAsciiMode)
                                     val swipeUpKeyLabel =
                                         if (mnemonicHint != null) null
+                                        else if (composingLetterSwipe) composingSwipeLabel
                                         else if (swipeUpDisplay != DisplayMode.BUBBLE && swipeUpHintsEnabled) swipeUpText else null
                                     val swipeUpCommitValue = KeysConfigHelper.getSwipeUpCommitValue(key, isAsciiMode)
                                     val swipeDownRaw =
@@ -640,17 +649,24 @@ fun KeyboardLayout(
                                         swipeDownKeyLabel = if (mnemonicHint != null) null
                                         else if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH)) yamlDownLabel else null,
                                         swipeUpHintTopEnd = is46Layout,
-                                        swipeUpHintIcon = if (mnemonicHint != null) null else rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
+                                        swipeUpHintIcon = if (mnemonicHint != null || composingLetterSwipe) null else rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
                                         mnemonicHint = mnemonicHint,
-                                        onSwipe = remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
-                                            swipeUpClick(
-                                                swipeUpAction,
-                                                KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
-                                                rawSwipeUpLabel,
-                                                onKeyPress,
-                                                onGestureAction,
-                                                onCommitText,
-                                            )
+                                        onSwipe = if (composingLetterSwipe) {
+                                            remember(key, onKeyPress) {
+                                                val upperKey = composingLetterSwipeUpKey(key)
+                                                { _: String -> onKeyPress(upperKey); Unit }
+                                            }
+                                        } else {
+                                            remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
+                                                swipeUpClick(
+                                                    swipeUpAction,
+                                                    KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
+                                                    rawSwipeUpLabel,
+                                                    onKeyPress,
+                                                    onGestureAction,
+                                                    onCommitText,
+                                                )
+                                            }
                                         },
                                         onSwipeDown = onSwipeDown,
                                         onSwipeStateChange = onSwipeStateChange,
@@ -1545,6 +1561,7 @@ fun KeyboardRowWithConfig(
     englishPunctOverlay: Boolean = false,
     onConsumeEnglishPunct: (() -> Unit)? = null,
     onArmEnglishPunct: (() -> Unit)? = null,
+    isComposing: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -1553,13 +1570,18 @@ fun KeyboardRowWithConfig(
         keys.forEach { key ->
             val mnemonicHint = letterMnemonicHint(key, is46Layout, mnemonicHintsEnabled)
             val overlayFace = if (englishPunctOverlay) englishPunctOverlayFace(key) else null
+            val composingLetterSwipe = overlayFace == null &&
+                shouldComposingLetterSwipeUp(isComposing, isAsciiMode, key)
+            val composingSwipeLabel = if (composingLetterSwipe) composingLetterSwipeUpLabel(key) else null
             val rawSwipeUpLabel = overlayFace?.swipeLabel
+                ?: composingSwipeLabel
                 ?: KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
-            val swipeUpText = if (swipeUpHintsEnabled) rawSwipeUpLabel else null
+            val swipeUpText = if (swipeUpHintsEnabled || composingLetterSwipe) rawSwipeUpLabel else null
             val swipeUpAction = KeysConfigHelper.getSwipeUpAction(key, isAsciiMode)
             val swipeUpDisplay = KeysConfigHelper.getSwipeUpDisplay(key, isAsciiMode)
             val swipeUpKeyLabel =
                 if (mnemonicHint != null) null
+                else if (composingLetterSwipe) composingSwipeLabel
                 else if (swipeUpDisplay != DisplayMode.BUBBLE && swipeUpHintsEnabled) swipeUpText else null
             val swipeUpCommitValue = overlayFace?.swipeValue
                 ?: KeysConfigHelper.getSwipeUpCommitValue(key, isAsciiMode)
@@ -1654,7 +1676,7 @@ fun KeyboardRowWithConfig(
                 swipeDownKeyLabel = if (mnemonicHint != null) null
                 else if ((swipeDownDisplay == DisplayMode.KEY || swipeDownDisplay == DisplayMode.BOTH) && swipeDownHintsEnabled) yamlDownLabel else null,
                 swipeUpHintTopEnd = swipeUpHintTopEnd,
-                swipeUpHintIcon = if (mnemonicHint != null) null else rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
+                swipeUpHintIcon = if (mnemonicHint != null || composingLetterSwipe) null else rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
                 mnemonicHint = mnemonicHint,
                 onSwipe = if (overlayFace != null) {
                     remember(overlayFace, onCommitText, onKeyPress, onConsumeEnglishPunct) {
@@ -1663,6 +1685,11 @@ fun KeyboardRowWithConfig(
                             onConsumeEnglishPunct?.invoke()
                             Unit
                         }
+                    }
+                } else if (composingLetterSwipe) {
+                    remember(key, onKeyPress) {
+                        val upperKey = composingLetterSwipeUpKey(key)
+                        { _: String -> onKeyPress(upperKey); Unit }
                     }
                 } else {
                     remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
@@ -1730,6 +1757,24 @@ internal fun composingShiftSwipeUpBubble(
     if (hasMenu) return "跳尾"
     return ""
 }
+
+internal fun isLetterKey(key: String): Boolean {
+    if (key.length != 1) return false
+    val c = key[0]
+    return c in 'a'..'z' || c in 'A'..'Z'
+}
+
+/** 中文组合态字母上滑改发大写进 Rime；空闲/英文仍走符号。 */
+internal fun shouldComposingLetterSwipeUp(
+    isComposing: Boolean,
+    isAsciiMode: Boolean,
+    key: String,
+): Boolean = isComposing && !isAsciiMode && isLetterKey(key)
+
+internal fun composingLetterSwipeUpKey(key: String): String =
+    "$RIME_UPPER_PREFIX${key.uppercase()}"
+
+internal fun composingLetterSwipeUpLabel(key: String): String = key.uppercase()
 
 @Composable
 private fun ShiftCapsKeyButton(
@@ -2112,6 +2157,7 @@ private fun LandscapeKeyboardContent(
                         shadowShapeRadius = shadowShapeRadius,
                     ),
                     isShifted = visualIsShifted,
+                    isAsciiMode = isAsciiMode,
                     onKeyPressDown = onKeyPressDown,
                     onKeyRelease = onKeyRelease,
                     swipeDownHintsEnabled = swipeDownHintsEnabled,
@@ -2122,6 +2168,7 @@ private fun LandscapeKeyboardContent(
                     longPressPreferUppercase = longPressPreferUppercase,
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
+                    isComposing = isComposing,
                 )
             }
             Box(
@@ -2143,6 +2190,7 @@ private fun LandscapeKeyboardContent(
                         shadowShapeRadius = shadowShapeRadius,
                     ),
                     isShifted = visualIsShifted,
+                    isAsciiMode = isAsciiMode,
                     onKeyPressDown = onKeyPressDown,
                     onKeyRelease = onKeyRelease,
                     swipeDownHintsEnabled = swipeDownHintsEnabled,
@@ -2153,6 +2201,7 @@ private fun LandscapeKeyboardContent(
                     longPressPreferUppercase = longPressPreferUppercase,
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
+                    isComposing = isComposing,
                 )
             }
             Box(
@@ -2174,6 +2223,7 @@ private fun LandscapeKeyboardContent(
                         shadowShapeRadius = shadowShapeRadius,
                     ),
                     isShifted = visualIsShifted,
+                    isAsciiMode = isAsciiMode,
                     onKeyPressDown = onKeyPressDown,
                     onKeyRelease = onKeyRelease,
                     swipeDownHintsEnabled = swipeDownHintsEnabled,
@@ -2184,6 +2234,7 @@ private fun LandscapeKeyboardContent(
                     longPressPreferUppercase = longPressPreferUppercase,
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
+                    isComposing = isComposing,
                 )
             }
             Row(
@@ -2329,6 +2380,7 @@ private fun LandscapeKeyboardContent(
                         shadowShapeRadius = shadowShapeRadius,
                     ),
                     isShifted = visualIsShifted,
+                    isAsciiMode = isAsciiMode,
                     onKeyPressDown = onKeyPressDown,
                     onKeyRelease = onKeyRelease,
                     swipeDownHintsEnabled = swipeDownHintsEnabled,
@@ -2339,6 +2391,7 @@ private fun LandscapeKeyboardContent(
                     longPressPreferUppercase = longPressPreferUppercase,
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
+                    isComposing = isComposing,
                 )
             }
             Box(
@@ -2357,6 +2410,7 @@ private fun LandscapeKeyboardContent(
                         swipeFontSize = landscapeSwipeFontSize,
                     ),
                     isShifted = visualIsShifted,
+                    isAsciiMode = isAsciiMode,
                     onKeyPressDown = onKeyPressDown,
                     onKeyRelease = onKeyRelease,
                     swipeDownHintsEnabled = swipeDownHintsEnabled,
@@ -2367,6 +2421,7 @@ private fun LandscapeKeyboardContent(
                     longPressPreferUppercase = longPressPreferUppercase,
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
+                    isComposing = isComposing,
                 )
             }
             Row(
@@ -2387,6 +2442,7 @@ private fun LandscapeKeyboardContent(
                             swipeFontSize = landscapeSwipeFontSize,
                         ),
                         isShifted = visualIsShifted,
+                        isAsciiMode = isAsciiMode,
                         onKeyPressDown = onKeyPressDown,
                         onKeyRelease = onKeyRelease,
                         swipeDownHintsEnabled = swipeDownHintsEnabled,
@@ -2397,6 +2453,7 @@ private fun LandscapeKeyboardContent(
                         longPressPreferUppercase = longPressPreferUppercase,
                         is46Layout = is46Layout,
                         mnemonicHintsEnabled = mnemonicHintsEnabled,
+                        isComposing = isComposing,
                     )
                 }
                 SwipeableIconKeyButton(
@@ -2976,6 +3033,7 @@ fun CompactKeyboardRowWithConfig(
     longPressPreferUppercase: Boolean = false,
     is46Layout: Boolean = false,
     mnemonicHintsEnabled: Boolean = false,
+    isComposing: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -2983,12 +3041,18 @@ fun CompactKeyboardRowWithConfig(
     ) {
         keys.forEach { key ->
             val mnemonicHint = letterMnemonicHint(key, is46Layout, mnemonicHintsEnabled)
-            val rawSwipeUpLabel = KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
-            val swipeUpText = if (swipeUpHintsEnabled) rawSwipeUpLabel else null
+            val composingLetterSwipe =
+                shouldComposingLetterSwipeUp(isComposing, isAsciiMode, key)
+            val composingSwipeLabel =
+                if (composingLetterSwipe) composingLetterSwipeUpLabel(key) else null
+            val rawSwipeUpLabel = composingSwipeLabel
+                ?: KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
+            val swipeUpText = if (swipeUpHintsEnabled || composingLetterSwipe) rawSwipeUpLabel else null
             val swipeUpAction = KeysConfigHelper.getSwipeUpAction(key, isAsciiMode)
             val swipeUpDisplay = KeysConfigHelper.getSwipeUpDisplay(key, isAsciiMode)
             val swipeUpKeyLabel =
                 if (mnemonicHint != null) null
+                else if (composingLetterSwipe) composingSwipeLabel
                 else if (swipeUpDisplay != DisplayMode.BUBBLE && swipeUpHintsEnabled) swipeUpText else null
             val swipeUpCommitValue = KeysConfigHelper.getSwipeUpCommitValue(key, isAsciiMode)
             val swipeDownRaw = KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeDown
@@ -3063,15 +3127,22 @@ fun CompactKeyboardRowWithConfig(
                 swipeUpKeyLabel = swipeUpKeyLabel,
                 swipeDownKeyLabel = swipeDownKeyLabel,
                 mnemonicHint = mnemonicHint,
-                onSwipe = remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
-                    swipeUpClick(
-                        swipeUpAction,
-                        KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
-                        rawSwipeUpLabel,
-                        onKeyPress,
-                        onGestureAction,
-                        onCommitText,
-                    )
+                onSwipe = if (composingLetterSwipe) {
+                    remember(key, onKeyPress) {
+                        val upperKey = composingLetterSwipeUpKey(key)
+                        { _: String -> onKeyPress(upperKey); Unit }
+                    }
+                } else {
+                    remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
+                        swipeUpClick(
+                            swipeUpAction,
+                            KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
+                            rawSwipeUpLabel,
+                            onKeyPress,
+                            onGestureAction,
+                            onCommitText,
+                        )
+                    }
                 },
                 onSwipeDown = compactOnSwipeDown,
                 onSwipeStateChange = onSwipeStateChange,

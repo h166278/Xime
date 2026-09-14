@@ -207,6 +207,17 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             var needsUIUpdate = false
             var pendingResult: com.kingzcheung.xime.rime.RimeProcessResult? = null
             var committedText: String? = null
+
+            // 组合态字母上滑：按字面 A-Z 进引擎。禁止 lowercase、禁止 SHIFT mask、
+            // 禁止 isShiftedChinese 清码硬提交。空闲/英文直接丢弃，避免误进 auto_inline。
+            val rimeUpperCode = resolveRimeUpperKeyCode(key)
+            if (rimeUpperCode != null) {
+                val composing = candState.isComposing || candState.inputText.isNotEmpty()
+                if (!state.isAsciiMode && composing) {
+                    sendRimeKey(rimeUpperCode, 0)
+                }
+                return@launch
+            }
             
             when (key) {
                 "clear_composition" -> {
@@ -1485,6 +1496,20 @@ internal fun planUndoCleared(
         clearCurrentFirst = false,
         keepCurrentComposition = composing,
     )
+}
+
+internal const val RIME_UPPER_PREFIX = "rime_upper:"
+
+/**
+ * 解析组合态字母上滑通道。`rime_upper:B` → 0x42。非法串返回 null。
+ */
+internal fun resolveRimeUpperKeyCode(key: String): Int? {
+    if (!key.startsWith(RIME_UPPER_PREFIX)) return null
+    val letter = key.substring(RIME_UPPER_PREFIX.length)
+    if (letter.length != 1) return null
+    val c = letter[0]
+    if (c !in 'A'..'Z' && c !in 'a'..'z') return null
+    return c.uppercaseChar().code
 }
 
 /**

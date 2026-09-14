@@ -64,6 +64,7 @@ import com.kingzcheung.xime.keyboard.ToolbarButtonItem
 import com.kingzcheung.xime.keyboard.resolveToolbarButtonItem
 import com.kingzcheung.xime.rime.T9InputController
 import com.kingzcheung.xime.service.CandidateState
+import com.kingzcheung.xime.service.RIME_UPPER_PREFIX
 import com.kingzcheung.xime.settings.KeysConfigHelper
 import com.kingzcheung.xime.settings.SettingsPreferences
 import com.kingzcheung.xime.ui.menubar.ClipboardView
@@ -616,7 +617,13 @@ fun KeyboardView(
                                 }
                                 "emoji" -> viewModel.showOverlay(OverlayRoute.Emoji)
                                 else -> {
-                                    callbacks.onKeyPress(key, isShifted)
+                                    // 组合态字母上滑走 rime_upper:B，不带 SHIFT，避免清码硬提交。
+                                    val shifted = if (key.startsWith(RIME_UPPER_PREFIX)) {
+                                        false
+                                    } else {
+                                        isShifted
+                                    }
+                                    callbacks.onKeyPress(key, shifted)
                                     viewModel.onCharacterTyped()
                                 }
                             }
