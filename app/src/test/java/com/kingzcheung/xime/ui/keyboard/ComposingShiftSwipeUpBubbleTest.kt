@@ -9,7 +9,7 @@ class ComposingShiftSwipeUpBubbleTest {
     fun `已翻页是上一页`() {
         assertEquals("上一页", composingShiftSwipeUpBubble(hasPrevPage = true, input = "awo", hasMenu = true))
         assertEquals("上一页", composingShiftSwipeUpBubble(hasPrevPage = true, input = "qwe", schemaId = "sbxm"))
-        assertEquals("上一页", composingShiftSwipeUpBubble(hasPrevPage = true, input = "qwer", schemaId = "sbft"))
+        assertEquals("上一页", composingShiftSwipeUpBubble(hasPrevPage = true, input = "qwrt", schemaId = "sbft"))
     }
 
     @Test
@@ -28,11 +28,11 @@ class ComposingShiftSwipeUpBubbleTest {
     fun `飞天四码是组合`() {
         assertEquals(
             "组合",
-            composingShiftSwipeUpBubble(hasPrevPage = false, input = "qwer", schemaId = "sbft"),
+            composingShiftSwipeUpBubble(hasPrevPage = false, input = "qwrt", schemaId = "sbft"),
         )
         assertEquals(
             "组合",
-            composingShiftSwipeUpBubble(hasPrevPage = false, input = "qwex", schemaId = "sbmf"),
+            composingShiftSwipeUpBubble(hasPrevPage = false, input = "qwrx", schemaId = "sbmf"),
         )
     }
 
