@@ -35,7 +35,10 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.twotone.EmojiEmotions
+import androidx.compose.material.icons.twotone.Apps
+import androidx.compose.material.icons.twotone.KeyboardAlt
 import androidx.compose.material.icons.twotone.KeyboardCapslock
+import androidx.compose.material.icons.twotone.Language
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -95,6 +98,7 @@ import com.kingzcheung.xime.viewmodel.KeyboardViewModel
 import com.kingzcheung.xime.viewmodel.ShiftMode
 import com.kingzcheung.xime.keyboard.OverlayRoute
 import com.kingzcheung.xime.ui.theme.KeyboardThemes
+import com.kingzcheung.xime.ui.settings.LayoutSelectionDialog
 import com.kingzcheung.xime.ui.theme.keyboardBackground
 
 import androidx.compose.material.icons.twotone.KeyboardControlKey
@@ -179,6 +183,7 @@ fun KeyboardLayout(
                     "emoji" -> OverlayRoute.Emoji
                     "symbol" -> OverlayRoute.Symbol
                     "clipboard" -> OverlayRoute.Clipboard(0)
+                    "schema" -> OverlayRoute.SchemaList
                     else -> null
                 }
                 overlayRoute?.let { viewModel.showOverlay(it) }
@@ -250,6 +255,7 @@ fun KeyboardLayout(
 
     val swipeBubble = rememberSwipeBubbleController()
     var keyboardBounds by remember { mutableStateOf(Rect(0f, 0f, 0f, 0f)) }
+    var showLayoutDialog by remember { mutableStateOf(false) }
 
     // 监听手势配置版本号，部署后强制刷新键帽显示
     val cfgVer by KeysConfigHelper.configVersion.collectAsState()
@@ -317,6 +323,7 @@ fun KeyboardLayout(
                 hasPrevPage = hasPrevPage,
                 composingInput = composingInput,
                 hasMenu = hasMenu,
+                onShowLayoutDialog = { showLayoutDialog = true },
             )
         } else {
                 Column(
@@ -1134,16 +1141,38 @@ fun KeyboardLayout(
                                 )
                             }
 
-                            // 回车 — 46 键有编码时上滑 Control+Enter 全大写
+                            // 回车 — 46 键有编码上滑全大写；空闲上滑切方案 / 长按布局 / 下滑选输入法
                             if (is46Layout) {
+                                val idleEnter = !isComposing
+                                val enterHintIcons = listOf(
+                                    rememberVectorPainter(Icons.TwoTone.KeyboardAlt),
+                                    rememberVectorPainter(Icons.TwoTone.Apps),
+                                    rememberVectorPainter(Icons.TwoTone.Language),
+                                )
                                 SwipeableKeyButton(
                                     text = enterKeyText,
                                     onClick = { onKeyPress("enter") },
                                     backgroundColor = specialKeyBackgroundColor,
                                     textColor = specialKeyTextColor,
                                     modifier = Modifier.weight(enterKeyWeight),
-                                    swipeText = if (isComposing) "全大写" else null,
-                                    onSwipe = if (isComposing) { { onKeyPress("ctrl_enter") } } else null,
+                                    swipeText = if (idleEnter) "切换方案" else "全大写",
+                                    swipeDownText = if (idleEnter) "选择输入法" else null,
+                                    onSwipe = if (idleEnter) {
+                                        { viewModel.showOverlay(OverlayRoute.SchemaList) }
+                                    } else {
+                                        { onKeyPress("ctrl_enter") }
+                                    },
+                                    onSwipeDown = if (idleEnter) {
+                                        { onGestureAction(GestureAction.COMMAND, "show_ime_picker") }
+                                    } else null,
+                                    onLongPressSelect = if (idleEnter) {
+                                        { showLayoutDialog = true }
+                                    } else null,
+                                    longPressItems = if (idleEnter) listOf("布局选择") else null,
+                                    swipeUpThresholdDp = if (idleEnter) 32.dp else 50.dp,
+                                    swipeDownThresholdDp = if (idleEnter) 24.dp else 50.dp,
+                                    commitSwipeOnRelease = idleEnter,
+                                    leftHintIcons = if (idleEnter) enterHintIcons else null,
                                     onPress = { onKeyPressDown?.invoke("enter") },
                                     onRelease = { onKeyRelease?.invoke("enter") },
                                     onSwipeStateChange = { state, bounds -> processSwipeState(state, bounds) },
@@ -1187,6 +1216,19 @@ fun KeyboardLayout(
                 )
             }
         }
+    }
+
+    if (showLayoutDialog) {
+        LayoutSelectionDialog(
+            current = SettingsPreferences.getKeyboardLayout(context),
+            onDismiss = { showLayoutDialog = false },
+            onConfirm = { selected ->
+                SettingsPreferences.setKeyboardLayout(context, selected)
+                KeysConfigHelper.loadConfig(context)
+                is46Layout = SettingsPreferences.isLayout46Enabled(context)
+                showLayoutDialog = false
+            },
+        )
     }
 
     }
@@ -1884,6 +1926,7 @@ private fun LandscapeKeyboardContent(
     hasPrevPage: Boolean = false,
     composingInput: String = "",
     hasMenu: Boolean = false,
+    onShowLayoutDialog: () -> Unit = {},
 ) {
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
@@ -1946,6 +1989,7 @@ private fun LandscapeKeyboardContent(
                     "emoji" -> OverlayRoute.Emoji
                     "symbol" -> OverlayRoute.Symbol
                     "clipboard" -> OverlayRoute.Clipboard(0)
+                    "schema" -> OverlayRoute.SchemaList
                     else -> null
                 }
                 overlayRoute?.let { viewModel.showOverlay(it) }
@@ -2450,14 +2494,36 @@ private fun LandscapeKeyboardContent(
                     )
                 }
                 if (is46Layout) {
-                    SwipeableKeyButtonLandscape(
+                    val idleEnter = !isComposing
+                    val enterHintIcons = listOf(
+                        rememberVectorPainter(Icons.TwoTone.KeyboardAlt),
+                        rememberVectorPainter(Icons.TwoTone.Apps),
+                        rememberVectorPainter(Icons.TwoTone.Language),
+                    )
+                    SwipeableKeyButton(
                         text = enterKeyText,
                         onClick = { onKeyPress("enter") },
                         backgroundColor = specialKeyBackgroundColor,
                         textColor = specialKeyTextColor,
                         modifier = Modifier.weight(1.2f),
-                        swipeText = if (isComposing) "全大写" else null,
-                        onSwipe = if (isComposing) { { onKeyPress("ctrl_enter") } } else null,
+                        swipeText = if (idleEnter) "切换方案" else "全大写",
+                        swipeDownText = if (idleEnter) "选择输入法" else null,
+                        onSwipe = if (idleEnter) {
+                            { viewModel.showOverlay(OverlayRoute.SchemaList) }
+                        } else {
+                            { onKeyPress("ctrl_enter") }
+                        },
+                        onSwipeDown = if (idleEnter) {
+                            { onGestureAction(GestureAction.COMMAND, "show_ime_picker") }
+                        } else null,
+                        onLongPressSelect = if (idleEnter) {
+                            { onShowLayoutDialog() }
+                        } else null,
+                        longPressItems = if (idleEnter) listOf("布局选择") else null,
+                        swipeUpThresholdDp = if (idleEnter) 32.dp else 50.dp,
+                        swipeDownThresholdDp = if (idleEnter) 24.dp else 50.dp,
+                        commitSwipeOnRelease = idleEnter,
+                        leftHintIcons = if (idleEnter) enterHintIcons else null,
                         onPress = { onKeyPressDown?.invoke("enter") },
                         onRelease = { onKeyRelease?.invoke("enter") },
                         onSwipeStateChange = onSwipeStateChange,

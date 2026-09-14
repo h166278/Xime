@@ -454,6 +454,8 @@ fun SwipeableKeyButton(
      * 按下气泡也走危险色。46 键有编码 123 点按「清空」跟空闲上滑清空同色。
      */
     pressBubbleDanger: Boolean = false,
+    /** 键帽左侧上/中/下三个 hint 图标。空则不画。 */
+    leftHintIcons: List<Painter>? = null,
 ) {
     var isPressed by remember { mutableStateOf(false) }
     var dragOffsetY by remember { mutableStateOf(0f) }
@@ -592,7 +594,7 @@ fun SwipeableKeyButton(
                                                 isSwiping = true,
                                                 swipeText = currentSwipeText,
                                                 isSwipeDown = false,
-                                                isDanger = true,
+                                                isDanger = currentPressBubbleDanger,
                                             ),
                                             buttonBounds,
                                         )
@@ -605,7 +607,7 @@ fun SwipeableKeyButton(
                                                 isSwiping = true,
                                                 swipeText = currentSwipeDownText,
                                                 isSwipeDown = true,
-                                                isDanger = true,
+                                                isDanger = currentPressBubbleDanger,
                                             ),
                                             buttonBounds,
                                         )
@@ -1034,6 +1036,38 @@ fun SwipeableKeyButton(
                         .padding(top = 6.dp, end = 6.dp)
                 )
             }
+        }
+        if (!leftHintIcons.isNullOrEmpty()) {
+            LeftHintIconsColumn(
+                icons = leftHintIcons,
+                tint = textColor.copy(alpha = 0.55f),
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxHeight()
+                    .padding(start = 3.dp, top = 4.dp, bottom = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LeftHintIconsColumn(
+    icons: List<Painter>,
+    tint: Color,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        icons.take(3).forEach { painter ->
+            Icon(
+                painter = painter,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(11.dp),
+            )
         }
     }
 }
