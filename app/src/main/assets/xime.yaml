@@ -490,17 +490,18 @@ keyboard:
   # 下滑气泡在 46 键由代码换成飞系字根；N 上滑切助记键帽。
   qwerty_46:
     keys:
-      # ── 数字行长按：气泡仅英符+原分数；松手英符走 Rime punctuator 出变体候选 ──
-      "1": { long_press: { display: "bubble", values: [{ label: "!", action: "process_rime_key", value: "!" }, "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
-      "2": { long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
-      "3": { long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
-      "4": { long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
-      "5": { long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
-      "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
-      "7": { long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
-      "8": { long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
-      "9": { long_press: { display: "bubble", values: [{ label: "(", action: "process_rime_key", value: "(" }] } }
-      "0": { long_press: { display: "bubble", values: [{ label: ")", action: "process_rime_key", value: ")" }] } }
+      # ── 数字行：中文上滑半角直上屏；长按英符走 Rime+分数。
+      # 1/9/0 例外：上滑中文标点，长按半角直上屏（! ( ) 走 Rime 会被 punctuator 直接交成全角）。
+      "1": { swipe_up: "！", long_press: { display: "bubble", values: ["!", "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
+      "2": { swipe_up: "@", long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
+      "3": { swipe_up: "#", long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
+      "4": { swipe_up: "$", long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
+      "5": { swipe_up: "%", long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
+      "6": { swipe_up: "^", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+      "7": { swipe_up: "&", long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
+      "8": { swipe_up: "*", long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
+      "9": { swipe_up: "（", long_press: { display: "bubble", values: ["("] } }
+      "0": { swipe_up: "）", long_press: { display: "bubble", values: [")"] } }
       # ── 字母：空闲上滑直上屏中文符号；长按气泡英符+字母变体（无中文符号）；选中英符走 Rime。
       # 组合态字母上滑仍由代码拦截走 rime_upper，本段不管。g–m 编辑动作保留。
       q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "`", action: "process_rime_key", value: "`" }, "q", "Q"] } }
@@ -602,17 +603,18 @@ keyboard:
   # 与中文 46 镜像：上滑英符直上屏，长按中符+字母变体，选中符走 Rime。g–m 编辑动作保留。
   qwerty_en_46:
     keys:
-      # ── 数字行长按：与中文 46 键同一套，气泡仅英符+分数，松手英符走 Rime ──
-      "1": { long_press: { display: "bubble", values: [{ label: "!", action: "process_rime_key", value: "!" }, "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
-      "2": { long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
-      "3": { long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
-      "4": { long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
-      "5": { long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
-      "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
-      "7": { long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
-      "8": { long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
-      "9": { long_press: { display: "bubble", values: [{ label: "(", action: "process_rime_key", value: "(" }] } }
-      "0": { long_press: { display: "bubble", values: [{ label: ")", action: "process_rime_key", value: ")" }] } }
+      # ── 数字行：英文上滑全角直上屏；长按半角英符走 Rime+分数。
+      # 1/9/0 例外：上滑半角英符，长按中文标点直上屏。
+      "1": { swipe_up: "!", long_press: { display: "bubble", values: ["！", "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
+      "2": { swipe_up: "＠", long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
+      "3": { swipe_up: "＃", long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
+      "4": { swipe_up: "＄", long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
+      "5": { swipe_up: "％", long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
+      "6": { swipe_up: "＾", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+      "7": { swipe_up: "＆", long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
+      "8": { swipe_up: "＊", long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
+      "9": { swipe_up: "(", long_press: { display: "bubble", values: ["（"] } }
+      "0": { swipe_up: ")", long_press: { display: "bubble", values: ["）"] } }
       # ── 字母：空闲上滑英符直上屏；长按中符+字母变体（无英符）；选中符走 Rime。g–m 编辑动作保留。
       q: { swipe_up: "`", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "`" }, "q", "Q"] } }
       w: { swipe_up: "~", long_press: { display: "bubble", values: [{ label: "～", action: "process_rime_key", value: "~" }, "w", "W"] } }
