@@ -222,7 +222,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 return@launch
             }
             if (isRimePunctKey(key)) {
-                showInjectedPunctCandidates(MIDDLE_DOT_CANDIDATES)
+                val punctCandidates = rimePunctCandidates(key)
+                if (punctCandidates != null) {
+                    showInjectedPunctCandidates(punctCandidates)
+                }
                 return@launch
             }
             
@@ -236,7 +239,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 "clear_all" -> {
                     // 上滑清空 = 多次退格快捷方式（对标主流输入法）：输入态只清输入态，空闲态清空全部已上屏。
                     // 输入态判定见 hasInputState()——不能用 RIME getInput()，tryLocked 锁竞争时静默返回空。
-                    if (hasInputState(candState)) {
+                    // 注入标点栏也算输入态：只清候选，不擦已上屏字。
+                    if (hasInputState(candState) || hasInjectedCandidates(candState)) {
                         // 输入态：只清输入态（等价于 clear_composition），并记录 lastClearedText 供下滑撤回。
                         // 需在 clearInputStateForKeys() 之前记录（该函数会清空 preeditText/inputText）。
                         val pendingEnglish = candState.pendingEnglishText
@@ -311,6 +315,11 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     needsUIUpdate = !undoClearedSnapshot(candState)
                 }
                 "enter" -> {
+                    val injectedIndex = injectedCandidateSelectIndex(" ")
+                    if (injectedIndex != null) {
+                        selectCandidateAsync(injectedIndex)
+                        return@launch
+                    }
                     service.calculatorEngine.clear()
                     updateCalculatorCandidates()
                     val isT9 = isT9Schema(state.currentSchemaId)
@@ -392,6 +401,11 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 }
                 "space" -> {
                     val pendingEnglish = candState.pendingEnglishText
+                    val injectedIndex = injectedCandidateSelectIndex(" ")
+                    if (injectedIndex != null) {
+                        selectCandidateAsync(injectedIndex)
+                        return@launch
+                    }
 
                     if (pendingEnglish.isNotEmpty()) {
                         // 直接上屏模式：词已逐字落盘，此处只提交空格并结束本轮英文输入。
@@ -581,6 +595,12 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         updateCalculatorCandidates()
                     }
                     
+                    val injectedIndex = injectedCandidateSelectIndex(key)
+                    if (injectedIndex != null) {
+                        selectCandidateAsync(injectedIndex)
+                        return@launch
+                    }
+
                     // 数字选词拦截（插件候选变换存在时）：数字键不进入引擎——rime 会自行选
                     // 引擎候选并返回 committedText，绕过插件候选；映射为对应位置显示候选的
                     // 点击（selectCandidateAsync 按 candidateActions 分流上屏）。
@@ -956,13 +976,16 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 sendTransformedResult(result) { if (service.calculatorEngine.isActive()) updateCalculatorCandidates() }
             }
 
-            // 3. 联想词或剪贴板：仅清空候选栏，不回删已上屏字符
-            candState.associationCandidates.isNotEmpty() || candState.isShowingRecentClipboard -> {
+            // 3. 联想词、剪贴板、键盘注入标点：只清候选栏，不回删已上屏字。
+            candState.associationCandidates.isNotEmpty() ||
+                candState.isShowingRecentClipboard ||
+                hasInjectedCandidates(candState) -> {
                 service.candidateState.value = service.candidateState.value.copy(
                     candidates = emptyList(),
                     candidateComments = emptyList(),
                     associationCandidates = emptyList(),
-                    isShowingRecentClipboard = false
+                    isShowingRecentClipboard = false,
+                    candidateActions = emptyList(),
                 )
             }
 
@@ -997,7 +1020,16 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
      * Posts a rime operation to [keyJobs] for sequential execution.
      * Ensures no interleaving with key processing.
      */
-    /** 长按间隔号：把 · ・ ･ 直接塞进候选栏，中英都走这条，不切 ascii。 */
+    /** 注入标点候选：空格选 0，aeuio 选 1–5。没有注入栏返回 null。 */
+    private fun injectedCandidateSelectIndex(key: String): Int? {
+        val candState = service.candidateState.value
+        if (!hasInjectedCandidates(candState)) return null
+        val index = injectedPunctSelectIndex(key) ?: return null
+        if (index !in candState.candidates.indices) return null
+        return index
+    }
+
+    /** 长按符号：把变体直接塞进候选栏，中英都走这条，不切 ascii。 */
     private suspend fun showInjectedPunctCandidates(texts: List<String>) {
         if (texts.isEmpty()) return
         withContext(Dispatchers.Main) {
@@ -1300,7 +1332,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             inputText = "",
             preeditText = "",
             isComposing = false,
-            isShowingRecentClipboard = false
+            isShowingRecentClipboard = false,
+            candidateActions = emptyList(),
         )
         if (SettingsPreferences.getInputTextLocation(service) ==
             SettingsPreferences.INPUT_TEXT_INPUT_BOX
@@ -1569,8 +1602,47 @@ internal fun planIdleDelete(
 internal const val RIME_UPPER_PREFIX = "rime_upper:"
 internal const val RIME_PUNCT_PREFIX = "rime_punct:"
 internal val MIDDLE_DOT_CANDIDATES = listOf("·", "・", "･")
+/** 空格 －；a ——；e —；u -；i ---；o ─。 */
+internal val DASH_CANDIDATES = listOf("－", "——", "—", "-", "---", "─")
+/** 英文 46 长按选中的符号排首位，空格上屏它；aeuio 选后面变体。g–m 不走这条。 */
+internal val RIME_PUNCT_CANDIDATES: Map<String, List<String>> = mapOf(
+    "`" to MIDDLE_DOT_CANDIDATES,
+    "-" to DASH_CANDIDATES,
+    "~" to listOf("～", "~", "≈", "﹏"),
+    "+" to listOf("＋", "+"),
+    "=" to listOf("＝", "="),
+    "_" to listOf("——", "—", "_", "──"),
+    "{" to listOf("『", "〖", "{", "｛"),
+    "}" to listOf("』", "〗", "}", "｝"),
+    "[" to listOf("「", "【", "〔", "[", "［"),
+    "]" to listOf("」", "】", "〕", "]", "］"),
+    "\\" to listOf("、", "＼", "\\"),
+    "|" to listOf("｜", "·", "§", "¦"),
+    "*" to listOf("×", "＊", "*", "·"),
+    "/" to listOf("÷", "／", "/"),
+)
 
-/** 长按选间隔号：`rime_punct:` 后跟一个 ASCII 键。非法串返回 false。 */
+/** 注入标点候选：空格选首位，aeuio 对齐声笔字母选重。 */
+internal fun injectedPunctSelectIndex(key: String): Int? = when (key.lowercase()) {
+    " ", "space" -> 0
+    "a" -> 1
+    "e" -> 2
+    "u" -> 3
+    "i" -> 4
+    "o" -> 5
+    else -> null
+}
+
+/** `rime_punct:` 后跟 ASCII 键 → 注入栏内容。未知键返回 null。 */
+internal fun rimePunctCandidates(key: String): List<String>? {
+    if (!isRimePunctKey(key)) return null
+    return RIME_PUNCT_CANDIDATES[key.substring(RIME_PUNCT_PREFIX.length)]
+}
+
+internal fun hasInjectedCandidates(candState: CandidateState): Boolean =
+    candState.candidateActions.any { it.isInjectedCandidate }
+
+/** `rime_punct:` 后跟一个 ASCII 键。非法串返回 false。 */
 internal fun isRimePunctKey(key: String): Boolean {
     if (!key.startsWith(RIME_PUNCT_PREFIX)) return false
     val ch = key.substring(RIME_PUNCT_PREFIX.length)

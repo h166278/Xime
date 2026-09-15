@@ -744,14 +744,14 @@ keyboard:
     }
 
     @Test
-    fun `中文46数字6上滑半角脱字符长按省略号走 Rime`() {
+    fun `中文46数字6上滑全角省略号长按半角省略号走 Rime`() {
         val keys = parseKeys("""
-            "6": { swipe_up: "^", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+            "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
         """.trimIndent())
         val six = keys["6"]!!
-        assertEquals("^", six.swipeUp!!.label)
+        assertEquals("……", six.swipeUp!!.label)
         assertEquals(GestureAction.COMMIT, six.swipeUp!!.action)
-        assertEquals("^", six.swipeUp!!.value)
+        assertEquals("……", six.swipeUp!!.value)
         val lp = six.longPress!!
         assertEquals("…", lp.values[0].label)
         assertEquals(GestureAction.PROCESS_RIME_KEY, lp.values[0].action)
@@ -761,9 +761,25 @@ keyboard:
     }
 
     @Test
+    fun `英文46数字6上滑半角省略号长按省略号走 Rime`() {
+        val keys = parseKeys("""
+            "6": { swipe_up: "…", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+        """.trimIndent())
+        val six = keys["6"]!!
+        assertEquals("…", six.swipeUp!!.label)
+        assertEquals(GestureAction.COMMIT, six.swipeUp!!.action)
+        assertEquals("…", six.swipeUp!!.value)
+        val lp = six.longPress!!
+        assertEquals("…", lp.values[0].label)
+        assertEquals(GestureAction.PROCESS_RIME_KEY, lp.values[0].action)
+        assertEquals("^", lp.values[0].value)
+    }
+
+    @Test
     fun `中文46字母上滑中符长按英符走 Rime`() {
         val keys = parseKeys("""
             q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
+            r: { swipe_up: "－", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "rime_punct:-" }, "r", "R"] } }
             a: { swipe_up: "、", long_press: { display: "bubble", values: [{ label: "\\", action: "process_rime_key", value: "\\" }, "a", "A"] } }
         """.trimIndent())
         val q = keys["q"]!!
@@ -773,6 +789,11 @@ keyboard:
         assertEquals(GestureAction.PROCESS_RIME_KEY, q.longPress!!.values[0].action)
         assertEquals("rime_punct:`", q.longPress!!.values[0].value)
         assertEquals("q", q.longPress!!.values[1].label)
+        val r = keys["r"]!!
+        assertEquals("－", r.swipeUp!!.label)
+        assertEquals(GestureAction.COMMIT, r.swipeUp!!.action)
+        assertEquals("-", r.longPress!!.values[0].label)
+        assertEquals("rime_punct:-", r.longPress!!.values[0].value)
         val a = keys["a"]!!
         assertEquals("、", a.swipeUp!!.value)
         assertEquals(GestureAction.COMMIT, a.swipeUp!!.action)
@@ -784,7 +805,9 @@ keyboard:
     fun `英文46字母上滑英符长按中符走 Rime`() {
         val keys = parseKeys("""
             q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
-            a: { swipe_up: "\\", long_press: { display: "bubble", values: [{ label: "、", action: "process_rime_key", value: "\\" }, "a", "A"] } }
+            r: { swipe_up: "-", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "rime_punct:-" }, "r", "R"] } }
+            a: { swipe_up: "\\", long_press: { display: "bubble", values: [{ label: "、", action: "process_rime_key", value: "rime_punct:\\" }, "a", "A"] } }
+            w: { swipe_up: "~", long_press: { display: "bubble", values: [{ label: "～", action: "process_rime_key", value: "rime_punct:~" }, "w", "W"] } }
         """.trimIndent())
         val q = keys["q"]!!
         assertEquals("·", q.swipeUp!!.label)
@@ -793,11 +816,21 @@ keyboard:
         assertEquals(GestureAction.PROCESS_RIME_KEY, q.longPress!!.values[0].action)
         assertEquals("rime_punct:`", q.longPress!!.values[0].value)
         assertEquals("q", q.longPress!!.values[1].label)
+        val r = keys["r"]!!
+        assertEquals("-", r.swipeUp!!.label)
+        assertEquals(GestureAction.COMMIT, r.swipeUp!!.action)
+        assertEquals("-", r.longPress!!.values[0].label)
+        assertEquals(GestureAction.PROCESS_RIME_KEY, r.longPress!!.values[0].action)
+        assertEquals("rime_punct:-", r.longPress!!.values[0].value)
         val a = keys["a"]!!
         assertEquals("\\", a.swipeUp!!.value)
         assertEquals("、", a.longPress!!.values[0].label)
-        assertEquals("\\", a.longPress!!.values[0].value)
+        assertEquals("rime_punct:\\", a.longPress!!.values[0].value)
         assertEquals(GestureAction.PROCESS_RIME_KEY, a.longPress!!.values[0].action)
+        val w = keys["w"]!!
+        assertEquals("～", w.longPress!!.values[0].label)
+        assertEquals("rime_punct:~", w.longPress!!.values[0].value)
+        assertEquals(GestureAction.PROCESS_RIME_KEY, w.longPress!!.values[0].action)
     }
 
     @Test
@@ -856,7 +889,6 @@ keyboard:
             "3": { swipe_up: "#" }
             "4": { swipe_up: "$" }
             "5": { swipe_up: "%" }
-            "6": { swipe_up: "^" }
             "7": { swipe_up: "&" }
             "8": { swipe_up: "*" }
         """.trimIndent())
@@ -865,12 +897,11 @@ keyboard:
             "3": { swipe_up: "＃" }
             "4": { swipe_up: "＄" }
             "5": { swipe_up: "％" }
-            "6": { swipe_up: "＾" }
             "7": { swipe_up: "＆" }
             "8": { swipe_up: "＊" }
         """.trimIndent())
-        val half = mapOf("2" to "@", "3" to "#", "4" to "$", "5" to "%", "6" to "^", "7" to "&", "8" to "*")
-        val full = mapOf("2" to "＠", "3" to "＃", "4" to "＄", "5" to "％", "6" to "＾", "7" to "＆", "8" to "＊")
+        val half = mapOf("2" to "@", "3" to "#", "4" to "$", "5" to "%", "7" to "&", "8" to "*")
+        val full = mapOf("2" to "＠", "3" to "＃", "4" to "＄", "5" to "％", "7" to "＆", "8" to "＊")
         for ((k, v) in half) {
             assertEquals(v, zh[k]!!.swipeUp!!.label)
             assertEquals(GestureAction.COMMIT, zh[k]!!.swipeUp!!.action)

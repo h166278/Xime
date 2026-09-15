@@ -492,12 +492,13 @@ keyboard:
     keys:
       # ── 数字行：中文上滑半角直上屏；长按英符走 Rime+分数。
       # 1/9/0 例外：上滑中文标点，长按半角直上屏（! ( ) 走 Rime 会被 punctuator 直接交成全角）。
+      # 6 例外：上滑全角省略号……，长按半角…走 ^ 的省略号表。
       "1": { swipe_up: "！", long_press: { display: "bubble", values: ["!", "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
       "2": { swipe_up: "@", long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
       "3": { swipe_up: "#", long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
       "4": { swipe_up: "$", long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
       "5": { swipe_up: "%", long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
-      "6": { swipe_up: "^", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+      "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
       "7": { swipe_up: "&", long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
       "8": { swipe_up: "*", long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
       "9": { swipe_up: "（", long_press: { display: "bubble", values: ["("] } }
@@ -507,7 +508,7 @@ keyboard:
       q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
       w: { swipe_up: "～", long_press: { display: "bubble", values: [{ label: "~", action: "process_rime_key", value: "~" }, "w", "W"] } }
       e: { swipe_up: "＋", long_press: { display: "bubble", values: [{ label: "+", action: "process_rime_key", value: "+" }, "e", "E", "è", "é", "ê", "ë"] } }
-      r: { swipe_up: "－", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "-" }, "r", "R"] } }
+      r: { swipe_up: "－", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "rime_punct:-" }, "r", "R"] } }
       t: { swipe_up: "＝", long_press: { display: "bubble", values: [{ label: "=", action: "process_rime_key", value: "=" }, "t", "T"] } }
       y: { swipe_up: "——", long_press: { display: "bubble", values: [{ label: "_", action: "process_rime_key", value: "_" }, "y", "Y", "ÿ"] } }
       u: { swipe_up: "『", long_press: { display: "bubble", values: [{ label: "{", action: "process_rime_key", value: "{" }, "u", "U", "ù", "ú", "û", "ü"] } }
@@ -600,36 +601,37 @@ keyboard:
       earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
 
   # ── 46 键布局专属手势覆盖段（英文）──
-  # 与中文 46 镜像：上滑英符直上屏，长按中符+字母变体，选中符走 Rime。g–m 编辑动作保留。
+  # 与中文 46 镜像：上滑英符直上屏，长按中符+字母变体，选中符注入候选栏。g–m 编辑动作保留。
   qwerty_en_46:
     keys:
       # ── 数字行：英文上滑全角直上屏；长按半角英符走 Rime+分数。
       # 1/9/0 例外：上滑半角英符，长按中文标点直上屏。
+      # 6 例外：上滑半角省略号…，长按同样走 ^ 的省略号表。
       "1": { swipe_up: "!", long_press: { display: "bubble", values: ["！", "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
       "2": { swipe_up: "＠", long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
       "3": { swipe_up: "＃", long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
       "4": { swipe_up: "＄", long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
       "5": { swipe_up: "％", long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
-      "6": { swipe_up: "＾", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+      "6": { swipe_up: "…", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
       "7": { swipe_up: "＆", long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
       "8": { swipe_up: "＊", long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
       "9": { swipe_up: "(", long_press: { display: "bubble", values: ["（"] } }
       "0": { swipe_up: ")", long_press: { display: "bubble", values: ["）"] } }
-      # ── 字母：空闲上滑英符直上屏；长按中符+字母变体（无英符）；选中符走 Rime。g–m 编辑动作保留。
+      # ── 字母：空闲上滑英符直上屏；长按中符+字母变体（无英符）；选中符注入候选栏。g–m 编辑动作保留。
       q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
-      w: { swipe_up: "~", long_press: { display: "bubble", values: [{ label: "～", action: "process_rime_key", value: "~" }, "w", "W"] } }
-      e: { swipe_up: "+", long_press: { display: "bubble", values: [{ label: "＋", action: "process_rime_key", value: "+" }, "e", "E"] } }
-      r: { swipe_up: "-", long_press: { display: "bubble", values: [{ label: "－", action: "process_rime_key", value: "-" }, "r", "R"] } }
-      t: { swipe_up: "=", long_press: { display: "bubble", values: [{ label: "＝", action: "process_rime_key", value: "=" }, "t", "T"] } }
-      y: { swipe_up: "_", long_press: { display: "bubble", values: [{ label: "——", action: "process_rime_key", value: "_" }, "y", "Y"] } }
-      u: { swipe_up: "{", long_press: { display: "bubble", values: [{ label: "『", action: "process_rime_key", value: "{" }, "u", "U"] } }
-      i: { swipe_up: "}", long_press: { display: "bubble", values: [{ label: "』", action: "process_rime_key", value: "}" }, "i", "I"] } }
-      o: { swipe_up: "[", long_press: { display: "bubble", values: [{ label: "「", action: "process_rime_key", value: "[" }, "o", "O"] } }
-      p: { swipe_up: "]", long_press: { display: "bubble", values: [{ label: "」", action: "process_rime_key", value: "]" }, "p", "P"] } }
-      a: { swipe_up: "\\", long_press: { display: "bubble", values: [{ label: "、", action: "process_rime_key", value: "\\" }, "a", "A"] } }
-      s: { swipe_up: "|", long_press: { display: "bubble", values: [{ label: "｜", action: "process_rime_key", value: "|" }, "s", "S"] } }
-      d: { swipe_up: "*", long_press: { display: "bubble", values: [{ label: "×", action: "process_rime_key", value: "*" }, "d", "D"] } }
-      f: { swipe_up: "/", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "/" }, "f", "F"] } }
+      w: { swipe_up: "~", long_press: { display: "bubble", values: [{ label: "～", action: "process_rime_key", value: "rime_punct:~" }, "w", "W"] } }
+      e: { swipe_up: "+", long_press: { display: "bubble", values: [{ label: "＋", action: "process_rime_key", value: "rime_punct:+" }, "e", "E"] } }
+      r: { swipe_up: "-", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "rime_punct:-" }, "r", "R"] } }
+      t: { swipe_up: "=", long_press: { display: "bubble", values: [{ label: "＝", action: "process_rime_key", value: "rime_punct:=" }, "t", "T"] } }
+      y: { swipe_up: "_", long_press: { display: "bubble", values: [{ label: "——", action: "process_rime_key", value: "rime_punct:_" }, "y", "Y"] } }
+      u: { swipe_up: "{", long_press: { display: "bubble", values: [{ label: "『", action: "process_rime_key", value: "rime_punct:{" }, "u", "U"] } }
+      i: { swipe_up: "}", long_press: { display: "bubble", values: [{ label: "』", action: "process_rime_key", value: "rime_punct:}" }, "i", "I"] } }
+      o: { swipe_up: "[", long_press: { display: "bubble", values: [{ label: "「", action: "process_rime_key", value: "rime_punct:[" }, "o", "O"] } }
+      p: { swipe_up: "]", long_press: { display: "bubble", values: [{ label: "」", action: "process_rime_key", value: "rime_punct:]" }, "p", "P"] } }
+      a: { swipe_up: "\\", long_press: { display: "bubble", values: [{ label: "、", action: "process_rime_key", value: "rime_punct:\\" }, "a", "A"] } }
+      s: { swipe_up: "|", long_press: { display: "bubble", values: [{ label: "｜", action: "process_rime_key", value: "rime_punct:|" }, "s", "S"] } }
+      d: { swipe_up: "*", long_press: { display: "bubble", values: [{ label: "×", action: "process_rime_key", value: "rime_punct:*" }, "d", "D"] } }
+      f: { swipe_up: "/", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:/" }, "f", "F"] } }
       g: { swipe_up: "←", long_press: { display: "bubble", values: ["g", "G", { label: "行首", action: "line_start" }] } }
       h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
       j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
