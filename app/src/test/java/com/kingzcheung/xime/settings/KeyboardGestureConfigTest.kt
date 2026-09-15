@@ -761,6 +761,45 @@ keyboard:
     }
 
     @Test
+    fun `中文46字母上滑中符长按英符走 Rime`() {
+        val keys = parseKeys("""
+            q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "`", action: "process_rime_key", value: "`" }, "q", "Q"] } }
+            a: { swipe_up: "、", long_press: { display: "bubble", values: [{ label: "\\", action: "process_rime_key", value: "\\" }, "a", "A"] } }
+        """.trimIndent())
+        val q = keys["q"]!!
+        assertEquals("·", q.swipeUp!!.label)
+        assertEquals(GestureAction.COMMIT, q.swipeUp!!.action)
+        assertEquals("`", q.longPress!!.values[0].label)
+        assertEquals(GestureAction.PROCESS_RIME_KEY, q.longPress!!.values[0].action)
+        assertEquals("q", q.longPress!!.values[1].label)
+        val a = keys["a"]!!
+        assertEquals("、", a.swipeUp!!.value)
+        assertEquals(GestureAction.COMMIT, a.swipeUp!!.action)
+        assertEquals("\\", a.longPress!!.values[0].value)
+        assertEquals(GestureAction.PROCESS_RIME_KEY, a.longPress!!.values[0].action)
+    }
+
+    @Test
+    fun `英文46字母上滑英符长按中符走 Rime`() {
+        val keys = parseKeys("""
+            q: { swipe_up: "`", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "`" }, "q", "Q"] } }
+            a: { swipe_up: "\\", long_press: { display: "bubble", values: [{ label: "、", action: "process_rime_key", value: "\\" }, "a", "A"] } }
+        """.trimIndent())
+        val q = keys["q"]!!
+        assertEquals("`", q.swipeUp!!.label)
+        assertEquals(GestureAction.COMMIT, q.swipeUp!!.action)
+        assertEquals("·", q.longPress!!.values[0].label)
+        assertEquals(GestureAction.PROCESS_RIME_KEY, q.longPress!!.values[0].action)
+        assertEquals("`", q.longPress!!.values[0].value)
+        assertEquals("q", q.longPress!!.values[1].label)
+        val a = keys["a"]!!
+        assertEquals("\\", a.swipeUp!!.value)
+        assertEquals("、", a.longPress!!.values[0].label)
+        assertEquals("\\", a.longPress!!.values[0].value)
+        assertEquals(GestureAction.PROCESS_RIME_KEY, a.longPress!!.values[0].action)
+    }
+
+    @Test
     fun `数字长按英符走 Rime 分数直上屏`() {
         val keys = parseKeys("""
             "3": { long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
