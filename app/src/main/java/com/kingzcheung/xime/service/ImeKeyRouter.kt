@@ -340,7 +340,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             service.rimeEngine.getInput()
                         }
                         if (input.isNotEmpty()) {
-                            withContext(Dispatchers.Main) { service.commitText(input) }
+                            commitRecorded(input, candState.inputText.ifEmpty { service.rimeEngine.getInput() })
                         }
                         if (isT9) {
                             service.t9PartialSegments.clear()
@@ -427,6 +427,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             val input = candState.inputText
                             if (input.isNotEmpty()) {
                                 withContext(Dispatchers.Main) {
+                                    service.armCommitCode(input)
                                     service.commitText(input)
                                     service.candidateState.value = service.candidateState.value.copy(
                                         inputText = "",
@@ -634,6 +635,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         val isChinese = !state.isAsciiMode
                         val char = key
                         val isLetter = key.matches(Regex("[a-zA-Z]"))
+                        val codeBefore = candState.inputText.ifEmpty { service.rimeEngine.getInput() }
                         // 46 键空闲单击 Shift + 字母：交给声笔 auto_inline（首字母大写进临时英文）。
                         // 必须发 A-Z keycode；小写+SHIFT 过不了 lua 的 is_upper。
                         // 同时绕开下面 isShiftedChinese 硬提交，否则组合会被清掉、变成一次性大写直出。
@@ -671,7 +673,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                                     // commitText 不走 CONFLATED channel：channel 会覆盖丢弃未消费事件，
                                     // 快速打字时中间的 commitText 会被吞（吃键）。
                                     if (result.committedText.isNotEmpty()) {
-                                        withContext(Dispatchers.Main) { service.commitText(result.committedText) }
+                                        commitRecorded(
+                                            result.committedText,
+                                            commitCodeForProcessResult(codeBefore, result.inputText),
+                                        )
                                     }
                                     sendTransformedResult(result) { if (service.calculatorEngine.isActive()) updateCalculatorCandidates() }
                                 } else {
@@ -699,14 +704,18 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                                         service.candidateState.value = service.candidateState.value.copy(pendingEnglishText = newPending)
                                         // 直接上屏模式：只提交 Rime 返回的增量字符（如智能引号转换结果），
                                         // 整段 pending 对应的文本已逐字上屏，不可重复提交。
-                                        withContext(Dispatchers.Main) {
-                                            service.commitText(committed)
-                                        }
+                                        commitRecorded(
+                                            committed,
+                                            commitCodeForProcessResult(codeBefore, result.inputText),
+                                        )
                                         maybeArmEnglishPunctOverlay(committed)
                                         sendTransformedResult(result) { if (service.calculatorEngine.isActive()) updateCalculatorCandidates() }
                                     } else {
                                         if (committed.isNotEmpty()) {
-                                            withContext(Dispatchers.Main) { service.commitText(committed) }
+                                            commitRecorded(
+                                                committed,
+                                                commitCodeForProcessResult(codeBefore, result.inputText),
+                                            )
                                             maybeArmEnglishPunctOverlay(committed)
                                         }
                                         sendTransformedResult(result) { if (service.calculatorEngine.isActive()) updateCalculatorCandidates() }
@@ -742,6 +751,9 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                                     }
                                     committedText = candidateText + char
                                     needsUIUpdate = true
+                                    if (candidateText.isNotEmpty()) {
+                                        service.armCommitCode(codeBefore)
+                                    }
                                 }
                             }
                         }
@@ -1051,13 +1063,113 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
 
     /** 把 X11 keysym 送给 Rime 并刷新候选；有 committedText 则先上屏。 */
     private suspend fun sendRimeKey(keycode: Int, mask: Int) {
+        val codeBefore = snapshotCommitCode()
         val result = service.rimeEngine.processKeyAndGetResult(keycode, mask)
         if (result.processed) {
             if (result.committedText.isNotEmpty()) {
-                withContext(Dispatchers.Main) { service.commitText(result.committedText) }
+                commitRecorded(
+                    result.committedText,
+                    commitCodeForProcessResult(codeBefore, result.inputText),
+                )
                 maybeArmEnglishPunctOverlay(result.committedText)
             }
             sendTransformedResult(result)
+        }
+    }
+
+    private fun snapshotCommitCode(): String =
+        service.candidateState.value.inputText.ifEmpty { service.rimeEngine.getInput() }
+
+    private suspend fun commitRecorded(text: String, code: String) {
+        withContext(Dispatchers.Main) {
+            service.armCommitCode(code)
+            service.commitText(text)
+        }
+    }
+
+    /** 撤销上一笔本键盘上屏。对不上就丢栈顶再试下一条，不发 Ctrl+Z。 */
+    internal fun undoLastCommit() {
+        postRimeJob {
+            val cand = service.candidateState.value
+            val composing = hasInputState(cand)
+            val injected = hasInjectedCandidates(cand)
+            val codeInInputBox = composing &&
+                SettingsPreferences.getInputTextLocation(service) ==
+                SettingsPreferences.INPUT_TEXT_INPUT_BOX
+            val composingSuffix = if (codeInInputBox) {
+                cand.preeditText.ifEmpty { cand.inputText }
+            } else {
+                ""
+            }
+            while (true) {
+                val top = service.commitStack.peekUndo() ?: return@postRimeJob
+                val (before, hasSelection) = withContext(Dispatchers.Main) {
+                    val ic = service.currentInputConnection
+                    val sel = !ic?.getSelectedText(0).isNullOrEmpty()
+                    val n = top.text.length + composingSuffix.length
+                    val beforeText = if (n > 0) ic?.getTextBeforeCursor(n, 0)?.toString() else ""
+                    beforeText to sel
+                }
+                val plan = planCommitUndo(
+                    top, before, hasSelection, composing, composingSuffix, injected,
+                )
+                when (plan.action) {
+                    CommitUndoAction.NOOP -> return@postRimeJob
+                    CommitUndoAction.DROP -> {
+                        service.commitStack.dropUndo()
+                    }
+                    CommitUndoAction.DELETE,
+                    CommitUndoAction.DELETE_RESTORE_CODE -> {
+                        val entry = service.commitStack.popUndoToRedo() ?: return@postRimeJob
+                        withContext(Dispatchers.Main) {
+                            val ic = service.currentInputConnection ?: return@withContext
+                            if (codeInInputBox && composingSuffix.isNotEmpty()) {
+                                service.endComposingInputBox()
+                                ic.deleteSurroundingText(entry.text.length, 0)
+                                service.markInputBoxComposing()
+                                ic.beginBatchEdit()
+                                try {
+                                    ic.setComposingText(composingSuffix, 1)
+                                } finally {
+                                    ic.endBatchEdit()
+                                }
+                            } else {
+                                ic.deleteSurroundingText(entry.text.length, 0)
+                            }
+                        }
+                        if (plan.action == CommitUndoAction.DELETE_RESTORE_CODE) {
+                            service.rimeEngine.setInput(entry.code)
+                            withContext(Dispatchers.Main) { service.updateUI() }
+                        }
+                        return@postRimeJob
+                    }
+                }
+            }
+        }
+    }
+
+    /** 重做刚撤销的那笔。有编码、选区、注入栏时不贴。 */
+    internal fun redoLastCommit() {
+        postRimeJob {
+            val cand = service.candidateState.value
+            val composing = hasInputState(cand)
+            val injected = hasInjectedCandidates(cand)
+            val top = service.commitStack.peekRedo() ?: return@postRimeJob
+            val hasSelection = withContext(Dispatchers.Main) {
+                !service.currentInputConnection?.getSelectedText(0).isNullOrEmpty()
+            }
+            if (planCommitRedo(top, hasSelection, composing, injected).action != CommitRedoAction.COMMIT) {
+                return@postRimeJob
+            }
+            val entry = service.commitStack.popRedoToUndo() ?: return@postRimeJob
+            withContext(Dispatchers.Main) {
+                service.suppressCommitRecord = true
+                try {
+                    service.commitText(entry.text)
+                } finally {
+                    service.suppressCommitRecord = false
+                }
+            }
         }
     }
 
@@ -1101,6 +1213,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         val selectedCandidate = if (index < service.candidateState.value.candidates.size) {
             service.candidateState.value.candidates[index]
         } else null
+        val codeBefore = snapshotCommitCode()
 
         val isT9 = isT9Schema(service.uiState.value.currentSchemaId)
         val candidatePinyin = if (isT9 && index < service.candidateState.value.candidateComments.size) {
@@ -1190,6 +1303,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 }
             }
             withContext(Dispatchers.Main) {
+                service.armCommitCode(codeBefore)
                 service.commitText(fullCommitText)
                 service.t9PartialSegments.clear()
                 service.candidateState.value = service.candidateState.value.copy(
@@ -1245,6 +1359,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
      */
     private suspend fun commitPluginCandidate(text: String) {
         withContext(Dispatchers.Main) {
+            service.armCommitCode(snapshotCommitCode())
             service.commitText(text)
             service.candidateState.value = service.candidateState.value.copy(
                 inputText = "",
@@ -1401,10 +1516,11 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     service.serviceScope.launch(Dispatchers.Main) {
                         val ic = service.currentInputConnection
                         if (ic != null) {
-                            // 删除输入框中已键入的表达式
                             ic.deleteSurroundingText(expression.length, 0)
-                            // 提交选中的文本
                             ic.commitText(textToCommit, textToCommit.length)
+                            if (textToCommit.isNotEmpty()) {
+                                service.commitStack.replaceTail(expression, textToCommit)
+                            }
                         }
                         service.candidateState.value = CandidateState()
                     }

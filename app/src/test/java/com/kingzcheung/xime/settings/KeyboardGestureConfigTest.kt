@@ -1004,6 +1004,26 @@ keyboard:
     }
 
     @Test
+    fun `46键J上滑撤销K上滑重做长按仍默认字母`() {
+        val keys = parseKeys("""
+            j: { swipe_up: { label: "↶", action: "undo", display: "both" }, long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
+            k: { swipe_up: { label: "↷", action: "redo", display: "both" }, long_press: { display: "bubble", values: ["k", "K", { label: "重做", action: "redo" }] } }
+        """.trimIndent())
+        val j = keys["j"]!!
+        assertEquals(GestureAction.UNDO, j.swipeUp!!.action)
+        assertEquals("↶", j.swipeUp!!.label)
+        assertEquals("j", j.longPress!!.values[0].label)
+        assertEquals(GestureAction.COMMIT, j.longPress!!.values[0].action)
+        assertEquals(GestureAction.UNDO, j.longPress!!.values[2].action)
+        val k = keys["k"]!!
+        assertEquals(GestureAction.REDO, k.swipeUp!!.action)
+        assertEquals("↷", k.swipeUp!!.label)
+        assertEquals("k", k.longPress!!.values[0].label)
+        assertEquals(GestureAction.COMMIT, k.longPress!!.values[0].action)
+        assertEquals(GestureAction.REDO, k.longPress!!.values[2].action)
+    }
+
+    @Test
     fun `toggle_mnemonic 解析为 TOGGLE_MNEMONIC`() {
         val keys = parseKeys("""
             n: { swipe_up: { label: "助记", action: "toggle_mnemonic", display: "both" } }

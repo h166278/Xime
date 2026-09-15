@@ -13,6 +13,13 @@ class LongPressDefaultIndexTest {
     }
 
     @Test
+    fun `j J 撤销 defaults to letter not undo`() {
+        val items = listOf("j", "J", "撤销")
+        assertEquals(0, longPressDefaultIndex(items, preferUppercase = false))
+        assertEquals(1, longPressDefaultIndex(items, preferUppercase = true))
+    }
+
+    @Test
     fun `e with diacritics still picks E when preferring uppercase`() {
         val items = listOf("e", "E", "è", "é", "ê", "ë")
         assertEquals(0, longPressDefaultIndex(items, preferUppercase = false))

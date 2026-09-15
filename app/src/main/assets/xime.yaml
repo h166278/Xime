@@ -349,7 +349,8 @@ color_schemes:
 #   - { label, action, value }
 #     label:  按键上显示的文字
 #     action: commit（上屏）, command（内置命令，value 为命令名）, select_all, copy, cut,
-#             paste, line_start, line_end, undo, none, repeat
+#             paste, line_start, line_end, undo, redo, none, repeat
+#     undo/redo：IME 上屏栈，撤/重做上一笔本键盘送出去的字；不发 Ctrl+Z。
 #     command 可用命令：
 #       clear_composition - 清空当前输入编码和候选词
 #     value:  上屏时的输出文本（不指定则用 label）
@@ -522,8 +523,8 @@ keyboard:
       f: { swipe_up: "÷", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:/" }, "f", "F"] } }
       g: { swipe_up: "←", long_press: { display: "bubble", values: [{ label: "g", value: "g" }, { label: "G", value: "G" }, { label: "行首", action: "line_start" }] } }
       h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
-      j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
-      k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
+      j: { swipe_up: { label: "↶", action: "undo", display: "both" }, long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
+      k: { swipe_up: { label: "↷", action: "redo", display: "both" }, long_press: { display: "bubble", values: ["k", "K", { label: "重做", action: "redo" }] } }
       l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter", display: "both" }, long_press: { display: "bubble", values: ["l", "L"] } }
       z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
       x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }
@@ -637,8 +638,8 @@ keyboard:
       f: { swipe_up: "/", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:/" }, "f", "F"] } }
       g: { swipe_up: "←", long_press: { display: "bubble", values: ["g", "G", { label: "行首", action: "line_start" }] } }
       h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
-      j: { swipe_up: "↶", long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
-      k: { swipe_up: "↷", long_press: { display: "bubble", values: ["k", "K"] } }
+      j: { swipe_up: { label: "↶", action: "undo", display: "both" }, long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
+      k: { swipe_up: { label: "↷", action: "redo", display: "both" }, long_press: { display: "bubble", values: ["k", "K", { label: "重做", action: "redo" }] } }
       l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter", display: "both" }, long_press: { display: "bubble", values: ["l", "L"] } }
       z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
       x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }

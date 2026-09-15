@@ -105,10 +105,17 @@ enum class GestureAction(val value: String) {
         }
     },
 
-    /** 撤销。 */
+    /** 撤销上一笔本键盘上屏。走 IME 上屏栈，不发 Ctrl+Z。 */
     UNDO("undo") {
         override fun execute(context: ActionExecutor, value: String) {
-            context.performEditorMenuAction(android.R.id.undo)
+            context.executeCommand("undo_commit")
+        }
+    },
+
+    /** 重做刚撤销的那笔。走 IME 上屏栈，不发 Ctrl+Shift+Z。 */
+    REDO("redo") {
+        override fun execute(context: ActionExecutor, value: String) {
+            context.executeCommand("redo_commit")
         }
     },
 

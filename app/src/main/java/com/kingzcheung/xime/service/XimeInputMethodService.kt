@@ -244,6 +244,15 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
     internal var lastClearedText: String = ""
     /** 上次清空是组合态（编码+候选），撤回应 setInput 还原而不是当普通文字贴回。 */
     internal var lastClearedWasComposition: Boolean = false
+    /** 本键盘上屏栈。J/K 撤销重做只用这个，不发 Ctrl+Z。 */
+    internal val commitStack = CommitStack()
+    /**
+     * 下一笔 [commitTextSilently] 要记的 Rime 编码。上屏后立刻清空。
+     * 选词/顶屏前由路由 [armCommitCode]；直上屏符号保持空串。
+     */
+    internal var pendingCommitCode: String = ""
+    /** 重做贴回时跳过记账，避免自己记自己。 */
+    internal var suppressCommitRecord: Boolean = false
     /** 累积的 partial commit 段列表（多段选词场景下逐段追加，文本+拼音同源，供调频/回滚） */
     internal val t9PartialSegments = mutableListOf<T9PartialSegment>()
     /** 键盘回调引用，用于在 RIME selectCandidate 前同步通知 T9 控制器 */
@@ -1596,6 +1605,8 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                 imm.showInputMethodPicker()
             }
             "hide_keyboard" -> hideKeyboard()
+            "undo_commit" -> keyRouter.undoLastCommit()
+            "redo_commit" -> keyRouter.redoLastCommit()
             else -> Log.w(TAG, "Unknown command: $name")
         }
     }
@@ -1603,7 +1614,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
     override fun repeatLastInput() {
         val lastText = predictionManager.lastCommittedText
         if (lastText.isNotEmpty()) {
-            currentInputConnection?.commitText(lastText, 1)
+            commitText(lastText)
         }
     }
 
@@ -1626,6 +1637,11 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         }
 
         predictionManager.clearCommittedText()
+        if (!restarting) {
+            commitStack.clear()
+            pendingCommitCode = ""
+            suppressCommitRecord = false
+        }
         // 新输入会话清空 partial commit 累积：外部 UI（如设置页输入框"清除"按钮仅清 Compose
         // state）会触发 restartInput → 此处重建 T9，若残留累积会被 buildT9DisplayState 拼进
         // preedit 回灌输入框（2026-08-07 日志实证：清除后 testText 从 '' 回灌为 '几乎'）。
@@ -2288,6 +2304,11 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         commitTextAndPredict(text, isPaste = false)
     }
 
+    /** 下一笔上屏带上这笔的 Rime 编码；空串表示只记字、不捞码。 */
+    internal fun armCommitCode(code: String) {
+        pendingCommitCode = code
+    }
+
     /**
      * 粘贴性质上屏（键盘剪贴板点选/编辑面板提交）：与 [commitText] 相同的上屏与
      * 联想行为，但 text_committed 事件带 is_paste 标记——事件语义是"文本上屏"
@@ -2342,6 +2363,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
      */
     internal fun commitTextSilently(text: String, isPaste: Boolean = false) {
         if (uiState.value.quickSendFormFocused) {
+            pendingCommitCode = ""
             // 焦点在触发编码输入框时路由到编码框，否则路由到快捷发送文本框
             val codeFocused = uiState.value.quickSendCodeFocused
             mainHandler.post {
@@ -2357,6 +2379,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             return
         }
         if (uiState.value.toolPanelInputFocused) {
+            pendingCommitCode = ""
             mainHandler.post {
                 ToolPanelEditTextHolder.editText?.let { et ->
                     val start = et.selectionStart.coerceAtLeast(0)
@@ -2368,6 +2391,11 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             return
         }
         currentInputConnection?.commitText(text, 1)
+
+        if (!suppressCommitRecord && !pluginEvents.isCurrentEditorSensitive && text.isNotEmpty()) {
+            commitStack.record(text, pendingCommitCode)
+        }
+        pendingCommitCode = ""
 
         // text_committed 事件：真实上屏才累计/投递（内部编辑器分支已在上方 return；
         // 敏感输入框（密码）不计不投；粘贴性质上屏带 is_paste 标记，见 commitPastedText；
@@ -2451,6 +2479,9 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             ic.commitText(replacement, 1)
         } finally {
             ic.endBatchEdit()
+        }
+        if (replaced && !pluginEvents.isCurrentEditorSensitive && replacement.isNotEmpty()) {
+            commitStack.replaceTail(expected, replacement)
         }
         return replaced
     }

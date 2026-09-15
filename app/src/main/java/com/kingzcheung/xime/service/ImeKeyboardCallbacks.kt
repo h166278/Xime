@@ -335,11 +335,15 @@ internal fun rememberImeKeyboardCallbacks(
                     if (cs.candidates.isNotEmpty()) {
                         if (service.rimeEngine.selectCandidate(0)) {
                             val text = service.rimeEngine.commit()
-                            if (text.isNotEmpty()) service.commitText(text)
+                            if (text.isNotEmpty()) {
+                                service.armCommitCode(cs.inputText)
+                                service.commitText(text)
+                            }
                         }
                     } else if (cs.preeditText.isNotEmpty()) {
                         // 提交原始键入串而非 preeditText：后者现为带回显分隔符的展示串（如 ni'hao），
                         // 直接上屏会混入分隔符。
+                        service.armCommitCode(cs.inputText)
                         service.commitText(cs.inputText)
                         service.rimeEngine.clearComposition()
                     }
