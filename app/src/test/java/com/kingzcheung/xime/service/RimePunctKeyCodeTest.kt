@@ -90,7 +90,13 @@ class RimePunctKeyCodeTest {
         assertEquals("、", rimePunctCandidates("${RIME_PUNCT_PREFIX}\\")!!.first())
         assertEquals("｜", rimePunctCandidates("${RIME_PUNCT_PREFIX}|")!!.first())
         assertEquals("×", rimePunctCandidates("${RIME_PUNCT_PREFIX}*")!!.first())
-        assertEquals("÷", rimePunctCandidates("${RIME_PUNCT_PREFIX}/")!!.first())
+        assertEquals(TIMES_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}x"))
+        assertEquals(listOf("×", "⨯", "✖", "Ⅹ", "ₓ", "ⅹ"), TIMES_CANDIDATES)
+        assertEquals(listOf("", "叉积", "粗乘", "罗马", "下标", "小写"), TIMES_CANDIDATE_COMMENTS)
+        assertEquals(TIMES_CANDIDATE_COMMENTS, injectedPunctCommentsFor("${RIME_PUNCT_PREFIX}x", 6))
+        assertEquals(injectedPunctComments(6), injectedPunctCommentsFor("${RIME_PUNCT_PREFIX}*", 6))
+        assertEquals(DIVISION_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}/"))
+        assertEquals(listOf("÷", "⊘", "⟌"), DIVISION_CANDIDATES)
         assertEquals(null, rimePunctCandidates("${RIME_PUNCT_PREFIX}g"))
     }
 

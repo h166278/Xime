@@ -224,7 +224,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             if (isRimePunctKey(key)) {
                 val punctCandidates = rimePunctCandidates(key)
                 if (punctCandidates != null) {
-                    showInjectedPunctCandidates(punctCandidates)
+                    showInjectedPunctCandidates(punctCandidates, injectedPunctCommentsFor(key, punctCandidates.size))
                 }
                 return@launch
             }
@@ -1030,13 +1030,13 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
     }
 
     /** 长按符号：把变体直接塞进候选栏，中英都走这条，不切 ascii。 */
-    private suspend fun showInjectedPunctCandidates(texts: List<String>) {
+    private suspend fun showInjectedPunctCandidates(texts: List<String>, comments: List<String> = injectedPunctComments(texts.size)) {
         if (texts.isEmpty()) return
         withContext(Dispatchers.Main) {
             service.dismissInlineSuggestions()
             service.candidateState.value = service.candidateState.value.copy(
                 candidates = texts,
-                candidateComments = injectedPunctComments(texts.size),
+                candidateComments = comments,
                 candidateActions = texts.map { CandidateAction.injected(it) },
                 inputText = "",
                 preeditText = "",
@@ -1610,6 +1610,12 @@ internal val UNDERSCORE_CANDIDATES = listOf("＿", "_", "__", "___", "____")
 internal val EQUALS_CANDIDATES = listOf("＝", "=", "≠", "≡", "≈", "==")
 /** 空格 ……；a …；e ⋯；u ⋮；i ︙；o ‥。前两位不动。 */
 internal val ELLIPSIS_CANDIDATES = listOf("……", "…", "⋯", "⋮", "︙", "‥")
+/** 空格 ×；a ⨯；e ✖；u Ⅹ；i ₓ；o ⅹ。 */
+internal val TIMES_CANDIDATES = listOf("×", "⨯", "✖", "Ⅹ", "ₓ", "ⅹ")
+/** 空格 ÷；a ⊘；e ⟌。 */
+internal val DIVISION_CANDIDATES = listOf("÷", "⊘", "⟌")
+/** 乘号变体注释：首位空（空格上屏），aeuio 两字说明。 */
+internal val TIMES_CANDIDATE_COMMENTS = listOf("", "叉积", "粗乘", "罗马", "下标", "小写")
 /** 英文 46 长按选中的符号排首位，空格上屏它；aeuio 选后面变体。g–m 不走这条。 */
 internal val RIME_PUNCT_CANDIDATES: Map<String, List<String>> = mapOf(
     "`" to MIDDLE_DOT_CANDIDATES,
@@ -1626,7 +1632,8 @@ internal val RIME_PUNCT_CANDIDATES: Map<String, List<String>> = mapOf(
     "\\" to listOf("、", "＼", "\\"),
     "|" to listOf("｜", "·", "§", "¦"),
     "*" to listOf("×", "＊", "*", "·"),
-    "/" to listOf("÷", "／", "/"),
+    "x" to TIMES_CANDIDATES,
+    "/" to DIVISION_CANDIDATES,
 )
 
 /** 注入标点候选：空格选首位，aeuio 对齐声笔字母选重。 */
@@ -1645,6 +1652,16 @@ internal val INJECTED_PUNCT_SELECT_COMMENTS = listOf("", "a", "e", "u", "i", "o"
 
 internal fun injectedPunctComments(count: Int): List<String> =
     List(count) { i -> INJECTED_PUNCT_SELECT_COMMENTS.getOrElse(i) { "" } }
+
+/** 乘号通道用两字说明；其余仍 aeuio 选重注释。 */
+internal fun injectedPunctCommentsFor(key: String, count: Int): List<String> {
+    if (!isRimePunctKey(key)) return injectedPunctComments(count)
+    val ch = key.substring(RIME_PUNCT_PREFIX.length)
+    if (ch == "x") {
+        return List(count) { i -> TIMES_CANDIDATE_COMMENTS.getOrElse(i) { "" } }
+    }
+    return injectedPunctComments(count)
+}
 
 /** `rime_punct:` 后跟 ASCII 键 → 注入栏内容。未知键返回 null。 */
 internal fun rimePunctCandidates(key: String): List<String>? {
