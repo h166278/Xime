@@ -41,7 +41,7 @@ class LongPressDefaultIndexTest {
 
     @Test
     fun `symbol plus letters skips symbol and picks case`() {
-        val zh = listOf("`", "q", "Q")
+        val zh = listOf("·", "q", "Q")
         assertEquals(1, longPressDefaultIndex(zh, preferUppercase = false))
         assertEquals(2, longPressDefaultIndex(zh, preferUppercase = true))
         val en = listOf("·", "q", "Q")

@@ -221,6 +221,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 }
                 return@launch
             }
+            if (isRimePunctKey(key)) {
+                showInjectedPunctCandidates(MIDDLE_DOT_CANDIDATES)
+                return@launch
+            }
             
             when (key) {
                 "clear_composition" -> {
@@ -993,6 +997,26 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
      * Posts a rime operation to [keyJobs] for sequential execution.
      * Ensures no interleaving with key processing.
      */
+    /** 长按间隔号：把 · ・ ･ 直接塞进候选栏，中英都走这条，不切 ascii。 */
+    private suspend fun showInjectedPunctCandidates(texts: List<String>) {
+        if (texts.isEmpty()) return
+        withContext(Dispatchers.Main) {
+            service.dismissInlineSuggestions()
+            service.candidateState.value = service.candidateState.value.copy(
+                candidates = texts,
+                candidateComments = List(texts.size) { "" },
+                candidateActions = texts.map { CandidateAction.injected(it) },
+                inputText = "",
+                preeditText = "",
+                isComposing = false,
+                associationCandidates = emptyList(),
+                isShowingRecentClipboard = false,
+                hasNextPage = false,
+                hasPrevPage = false,
+            )
+        }
+    }
+
     /** 把 X11 keysym 送给 Rime 并刷新候选；有 committedText 则先上屏。 */
     private suspend fun sendRimeKey(keycode: Int, mask: Int) {
         val result = service.rimeEngine.processKeyAndGetResult(keycode, mask)
@@ -1030,12 +1054,13 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         // 引擎引用项继续走下方引擎路径，用映射记录的引擎索引（显示 index 因插件候选插入而错位）。
         val pendingAction = service.candidateState.value.candidateActions.getOrNull(index)
         if (pendingAction != null && pendingAction.isPluginCandidate) {
-            // 防御：中英/方案切换后引擎组合已清空但 candidateState 残留旧候选+actions，
+            // 键盘注入候选无引擎组合，必须直接上屏。
+            // 其余插件候选：中英/方案切换后引擎组合已清空但 candidateState 残留旧候选+actions，
             // 此时点选必须回落原生路径（引擎侧 selectCandidate 失败自动防呆，与旧行为一致），
             // 否则残留插件候选会绕过引擎校验直接上屏。
             val engineHasComposition = service.rimeEngine.getInput().isNotEmpty() ||
                 service.rimeEngine.getCandidates().isNotEmpty()
-            if (engineHasComposition) {
+            if (pendingAction.isInjectedCandidate || engineHasComposition) {
                 commitPluginCandidate(pendingAction.commitText)
                 return
             }
@@ -1542,6 +1567,15 @@ internal fun planIdleDelete(
     else IdleDeleteAction.DELETE_SCREEN
 
 internal const val RIME_UPPER_PREFIX = "rime_upper:"
+internal const val RIME_PUNCT_PREFIX = "rime_punct:"
+internal val MIDDLE_DOT_CANDIDATES = listOf("·", "・", "･")
+
+/** 长按选间隔号：`rime_punct:` 后跟一个 ASCII 键。非法串返回 false。 */
+internal fun isRimePunctKey(key: String): Boolean {
+    if (!key.startsWith(RIME_PUNCT_PREFIX)) return false
+    val ch = key.substring(RIME_PUNCT_PREFIX.length)
+    return ch.length == 1 && ch[0].code in 0x20..0x7E
+}
 
 /**
  * 解析组合态字母上滑通道。`rime_upper:B` → 0x42。非法串返回 null。

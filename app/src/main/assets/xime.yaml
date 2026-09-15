@@ -504,7 +504,7 @@ keyboard:
       "0": { swipe_up: "）", long_press: { display: "bubble", values: [")"] } }
       # ── 字母：空闲上滑直上屏中文符号；长按气泡英符+字母变体（无中文符号）；选中英符走 Rime。
       # 组合态字母上滑仍由代码拦截走 rime_upper，本段不管。g–m 编辑动作保留。
-      q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "`", action: "process_rime_key", value: "`" }, "q", "Q"] } }
+      q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
       w: { swipe_up: "～", long_press: { display: "bubble", values: [{ label: "~", action: "process_rime_key", value: "~" }, "w", "W"] } }
       e: { swipe_up: "＋", long_press: { display: "bubble", values: [{ label: "+", action: "process_rime_key", value: "+" }, "e", "E", "è", "é", "ê", "ë"] } }
       r: { swipe_up: "－", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "-" }, "r", "R"] } }
@@ -616,7 +616,7 @@ keyboard:
       "9": { swipe_up: "(", long_press: { display: "bubble", values: ["（"] } }
       "0": { swipe_up: ")", long_press: { display: "bubble", values: ["）"] } }
       # ── 字母：空闲上滑英符直上屏；长按中符+字母变体（无英符）；选中符走 Rime。g–m 编辑动作保留。
-      q: { swipe_up: "`", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "`" }, "q", "Q"] } }
+      q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
       w: { swipe_up: "~", long_press: { display: "bubble", values: [{ label: "～", action: "process_rime_key", value: "~" }, "w", "W"] } }
       e: { swipe_up: "+", long_press: { display: "bubble", values: [{ label: "＋", action: "process_rime_key", value: "+" }, "e", "E"] } }
       r: { swipe_up: "-", long_press: { display: "bubble", values: [{ label: "－", action: "process_rime_key", value: "-" }, "r", "R"] } }

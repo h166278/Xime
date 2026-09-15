@@ -763,14 +763,15 @@ keyboard:
     @Test
     fun `中文46字母上滑中符长按英符走 Rime`() {
         val keys = parseKeys("""
-            q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "`", action: "process_rime_key", value: "`" }, "q", "Q"] } }
+            q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
             a: { swipe_up: "、", long_press: { display: "bubble", values: [{ label: "\\", action: "process_rime_key", value: "\\" }, "a", "A"] } }
         """.trimIndent())
         val q = keys["q"]!!
         assertEquals("·", q.swipeUp!!.label)
         assertEquals(GestureAction.COMMIT, q.swipeUp!!.action)
-        assertEquals("`", q.longPress!!.values[0].label)
+        assertEquals("·", q.longPress!!.values[0].label)
         assertEquals(GestureAction.PROCESS_RIME_KEY, q.longPress!!.values[0].action)
+        assertEquals("rime_punct:`", q.longPress!!.values[0].value)
         assertEquals("q", q.longPress!!.values[1].label)
         val a = keys["a"]!!
         assertEquals("、", a.swipeUp!!.value)
@@ -782,15 +783,15 @@ keyboard:
     @Test
     fun `英文46字母上滑英符长按中符走 Rime`() {
         val keys = parseKeys("""
-            q: { swipe_up: "`", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "`" }, "q", "Q"] } }
+            q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
             a: { swipe_up: "\\", long_press: { display: "bubble", values: [{ label: "、", action: "process_rime_key", value: "\\" }, "a", "A"] } }
         """.trimIndent())
         val q = keys["q"]!!
-        assertEquals("`", q.swipeUp!!.label)
+        assertEquals("·", q.swipeUp!!.label)
         assertEquals(GestureAction.COMMIT, q.swipeUp!!.action)
         assertEquals("·", q.longPress!!.values[0].label)
         assertEquals(GestureAction.PROCESS_RIME_KEY, q.longPress!!.values[0].action)
-        assertEquals("`", q.longPress!!.values[0].value)
+        assertEquals("rime_punct:`", q.longPress!!.values[0].value)
         assertEquals("q", q.longPress!!.values[1].label)
         val a = keys["a"]!!
         assertEquals("\\", a.swipeUp!!.value)
