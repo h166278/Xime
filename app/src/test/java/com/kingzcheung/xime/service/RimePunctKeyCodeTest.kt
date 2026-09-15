@@ -57,6 +57,7 @@ class RimePunctKeyCodeTest {
     @Test
     fun `注入栏注释首位空后面aeuio`() {
         assertEquals(listOf("", "a", "e"), injectedPunctComments(3))
+        assertEquals(listOf("", "a", "e", "u", "i"), injectedPunctComments(5))
         assertEquals(listOf("", "a", "e", "u", "i", "o"), injectedPunctComments(6))
         assertEquals(emptyList<String>(), injectedPunctComments(0))
         assertEquals(listOf(""), injectedPunctComments(1))
@@ -77,7 +78,8 @@ class RimePunctKeyCodeTest {
         assertEquals("～", rimePunctCandidates("${RIME_PUNCT_PREFIX}~")!!.first())
         assertEquals("＋", rimePunctCandidates("${RIME_PUNCT_PREFIX}+")!!.first())
         assertEquals("＝", rimePunctCandidates("${RIME_PUNCT_PREFIX}=")!!.first())
-        assertEquals("——", rimePunctCandidates("${RIME_PUNCT_PREFIX}_")!!.first())
+        assertEquals(UNDERSCORE_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}_"))
+        assertEquals(listOf("＿", "_", "__", "___", "____"), UNDERSCORE_CANDIDATES)
         assertEquals("『", rimePunctCandidates("${RIME_PUNCT_PREFIX}{")!!.first())
         assertEquals("』", rimePunctCandidates("${RIME_PUNCT_PREFIX}}")!!.first())
         assertEquals("「", rimePunctCandidates("${RIME_PUNCT_PREFIX}[")!!.first())
