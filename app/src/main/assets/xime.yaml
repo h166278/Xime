@@ -490,6 +490,17 @@ keyboard:
   # 下滑气泡在 46 键由代码换成飞系字根；N 上滑切助记键帽。
   qwerty_46:
     keys:
+      # ── 数字行长按：气泡仅英符+原分数；松手英符走 Rime punctuator 出变体候选 ──
+      "1": { long_press: { display: "bubble", values: [{ label: "!", action: "process_rime_key", value: "!" }, "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
+      "2": { long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
+      "3": { long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
+      "4": { long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
+      "5": { long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
+      "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+      "7": { long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
+      "8": { long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
+      "9": { long_press: { display: "bubble", values: [{ label: "(", action: "process_rime_key", value: "(" }] } }
+      "0": { long_press: { display: "bubble", values: [{ label: ")", action: "process_rime_key", value: ")" }] } }
       # ── 第二行 ──
       q: { swipe_up: "`", long_press: { display: "bubble", values: ["q", "Q"] } }
       w: { swipe_up: "~", long_press: { display: "bubble", values: ["w", "W"] } }
@@ -592,6 +603,17 @@ keyboard:
   # 规则同 qwerty_46：上滑 = 符号，长按 = 字母。
   qwerty_en_46:
     keys:
+      # ── 数字行长按：与中文 46 键同一套，气泡仅英符+分数，松手英符走 Rime ──
+      "1": { long_press: { display: "bubble", values: [{ label: "!", action: "process_rime_key", value: "!" }, "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
+      "2": { long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
+      "3": { long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
+      "4": { long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
+      "5": { long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
+      "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+      "7": { long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
+      "8": { long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
+      "9": { long_press: { display: "bubble", values: [{ label: "(", action: "process_rime_key", value: "(" }] } }
+      "0": { long_press: { display: "bubble", values: [{ label: ")", action: "process_rime_key", value: ")" }] } }
       # ── 第一行 ──
       q: { swipe_up: "`", long_press: { display: "bubble", values: ["q", "Q"] } }
       w: { swipe_up: "~", long_press: { display: "bubble", values: ["w", "W"] } }

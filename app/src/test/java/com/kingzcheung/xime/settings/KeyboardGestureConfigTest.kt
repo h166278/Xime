@@ -744,6 +744,39 @@ keyboard:
     }
 
     @Test
+    fun `46键6上滑省略号长按三点走 Rime`() {
+        val keys = parseKeys("""
+            "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+        """.trimIndent())
+        val six = keys["6"]!!
+        assertEquals("……", six.swipeUp!!.label)
+        assertEquals(GestureAction.COMMIT, six.swipeUp!!.action)
+        assertEquals("……", six.swipeUp!!.value)
+        val lp = six.longPress!!
+        assertEquals("…", lp.values[0].label)
+        assertEquals(GestureAction.PROCESS_RIME_KEY, lp.values[0].action)
+        assertEquals("^", lp.values[0].value)
+        assertEquals("⅚", lp.values[1].label)
+        assertEquals(GestureAction.COMMIT, lp.values[1].action)
+    }
+
+    @Test
+    fun `数字长按英符走 Rime 分数直上屏`() {
+        val keys = parseKeys("""
+            "3": { long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
+        """.trimIndent())
+        val lp = keys["3"]!!.longPress!!
+        assertEquals("bubble", lp.display)
+        assertEquals(4, lp.values.size)
+        assertEquals("#", lp.values[0].label)
+        assertEquals(GestureAction.PROCESS_RIME_KEY, lp.values[0].action)
+        assertEquals("#", lp.values[0].value)
+        assertEquals("¾", lp.values[1].label)
+        assertEquals(GestureAction.COMMIT, lp.values[1].action)
+        assertEquals("⅜", lp.values[3].label)
+    }
+
+    @Test
     fun `toggle_mnemonic 解析为 TOGGLE_MNEMONIC`() {
         val keys = parseKeys("""
             n: { swipe_up: { label: "助记", action: "toggle_mnemonic", display: "both" } }

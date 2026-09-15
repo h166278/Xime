@@ -26,9 +26,16 @@ class LongPressDefaultIndexTest {
     }
 
     @Test
-    fun `uppercase missing falls back to index 1`() {
+    fun `no letter stays at zero even when preferring uppercase`() {
         val items = listOf("行首", "撤销")
         assertEquals(0, longPressDefaultIndex(items, preferUppercase = false))
-        assertEquals(1, longPressDefaultIndex(items, preferUppercase = true))
+        assertEquals(0, longPressDefaultIndex(items, preferUppercase = true))
+    }
+
+    @Test
+    fun `symbol plus fractions stays at first english symbol`() {
+        val items = listOf("!", "½", "⅓", "¼")
+        assertEquals(0, longPressDefaultIndex(items, preferUppercase = false))
+        assertEquals(0, longPressDefaultIndex(items, preferUppercase = true))
     }
 }
