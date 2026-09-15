@@ -1606,14 +1606,19 @@ internal val MIDDLE_DOT_CANDIDATES = listOf("·", "・", "･")
 internal val DASH_CANDIDATES = listOf("－", "——", "—", "-", "---", "─")
 /** 空格 ＿；a _；e __；u ___；i ____。没有 o。 */
 internal val UNDERSCORE_CANDIDATES = listOf("＿", "_", "__", "___", "____")
+/** 空格 ＝；a =；e ≠；u ≡；i ≈；o ==。 */
+internal val EQUALS_CANDIDATES = listOf("＝", "=", "≠", "≡", "≈", "==")
+/** 空格 ……；a …；e ⋯；u ⋮；i ︙；o ‥。前两位不动。 */
+internal val ELLIPSIS_CANDIDATES = listOf("……", "…", "⋯", "⋮", "︙", "‥")
 /** 英文 46 长按选中的符号排首位，空格上屏它；aeuio 选后面变体。g–m 不走这条。 */
 internal val RIME_PUNCT_CANDIDATES: Map<String, List<String>> = mapOf(
     "`" to MIDDLE_DOT_CANDIDATES,
     "-" to DASH_CANDIDATES,
     "~" to listOf("～", "~", "≈", "﹏"),
     "+" to listOf("＋", "+"),
-    "=" to listOf("＝", "="),
+    "=" to EQUALS_CANDIDATES,
     "_" to UNDERSCORE_CANDIDATES,
+    "^" to ELLIPSIS_CANDIDATES,
     "{" to listOf("『", "〖", "{", "｛"),
     "}" to listOf("』", "〗", "}", "｝"),
     "[" to listOf("「", "【", "〔", "[", "［"),

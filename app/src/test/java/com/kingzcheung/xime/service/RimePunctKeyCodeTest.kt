@@ -77,7 +77,10 @@ class RimePunctKeyCodeTest {
     fun `英文46长按符号注入表气泡项排首位`() {
         assertEquals("～", rimePunctCandidates("${RIME_PUNCT_PREFIX}~")!!.first())
         assertEquals("＋", rimePunctCandidates("${RIME_PUNCT_PREFIX}+")!!.first())
-        assertEquals("＝", rimePunctCandidates("${RIME_PUNCT_PREFIX}=")!!.first())
+        assertEquals(EQUALS_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}="))
+        assertEquals(listOf("＝", "=", "≠", "≡", "≈", "=="), EQUALS_CANDIDATES)
+        assertEquals(ELLIPSIS_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}^"))
+        assertEquals(listOf("……", "…", "⋯", "⋮", "︙", "‥"), ELLIPSIS_CANDIDATES)
         assertEquals(UNDERSCORE_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}_"))
         assertEquals(listOf("＿", "_", "__", "___", "____"), UNDERSCORE_CANDIDATES)
         assertEquals("『", rimePunctCandidates("${RIME_PUNCT_PREFIX}{")!!.first())

@@ -492,13 +492,13 @@ keyboard:
     keys:
       # ── 数字行：中文上滑半角直上屏；长按英符走 Rime+分数。
       # 1/9/0 例外：上滑中文标点，长按半角直上屏（! ( ) 走 Rime 会被 punctuator 直接交成全角）。
-      # 6 例外：上滑全角省略号……，长按半角…走 ^ 的省略号表。
+      # 6 例外：上滑全角省略号……，长按半角…注入省略号变体。
       "1": { swipe_up: "！", long_press: { display: "bubble", values: ["!", "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
       "2": { swipe_up: "@", long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
       "3": { swipe_up: "#", long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
       "4": { swipe_up: "$", long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
       "5": { swipe_up: "%", long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
-      "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+      "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "rime_punct:^" }, "⅚"] } }
       "7": { swipe_up: "&", long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
       "8": { swipe_up: "*", long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
       "9": { swipe_up: "（", long_press: { display: "bubble", values: ["("] } }
@@ -509,10 +509,10 @@ keyboard:
       w: { swipe_up: "～", long_press: { display: "bubble", values: [{ label: "~", action: "process_rime_key", value: "~" }, "w", "W"] } }
       e: { swipe_up: "＋", long_press: { display: "bubble", values: [{ label: "+", action: "process_rime_key", value: "+" }, "e", "E", "è", "é", "ê", "ë"] } }
       r: { swipe_up: "－", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "rime_punct:-" }, "r", "R"] } }
-      t: { swipe_up: "＝", long_press: { display: "bubble", values: [{ label: "=", action: "process_rime_key", value: "=" }, "t", "T"] } }
+      t: { swipe_up: "＝", long_press: { display: "bubble", values: [{ label: "=", action: "process_rime_key", value: "rime_punct:=" }, "t", "T"] } }
       y: { swipe_up: "＿", long_press: { display: "bubble", values: [{ label: "_", action: "process_rime_key", value: "rime_punct:_" }, "y", "Y", "ÿ"] } }
-      u: { swipe_up: "『", long_press: { display: "bubble", values: [{ label: "{", action: "process_rime_key", value: "{" }, "u", "U", "ù", "ú", "û", "ü"] } }
-      i: { swipe_up: "』", long_press: { display: "bubble", values: [{ label: "}", action: "process_rime_key", value: "}" }, "i", "I", "ì", "í", "î", "ï"] } }
+      u: { swipe_up: "『", long_press: { display: "bubble", values: [{ label: "『", action: "process_rime_key", value: "{" }, "u", "U", "ù", "ú", "û", "ü"] } }
+      i: { swipe_up: "』", long_press: { display: "bubble", values: [{ label: "』", action: "process_rime_key", value: "}" }, "i", "I", "ì", "í", "î", "ï"] } }
       o: { swipe_up: "「", long_press: { display: "bubble", values: [{ label: "[", action: "process_rime_key", value: "[" }, "o", "O", "ò", "ó", "ô", "õ", "ö", "ø"] } }
       p: { swipe_up: "」", long_press: { display: "bubble", values: [{ label: "]", action: "process_rime_key", value: "]" }, "p", "P"] } }
       a: { swipe_up: "、", long_press: { display: "bubble", values: [{ label: "\\", action: "process_rime_key", value: "\\" }, "a", "A", "à", "á", "â", "ã", "ä", "å", "æ"] } }
@@ -607,13 +607,13 @@ keyboard:
     keys:
       # ── 数字行：英文上滑全角直上屏；长按半角英符走 Rime+分数。
       # 1 上滑半角、长按 ! 走 Rime。9/0 上滑半角，长按全角括号直上屏。
-      # 6 保持 bfa2b94：上滑半角省略号…，长按走 ^ 的省略号表。
+      # 6：上滑半角省略号…，长按注入省略号变体。
       "1": { swipe_up: "!", long_press: { display: "bubble", values: [{ label: "!", action: "process_rime_key", value: "!" }, "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
       "2": { swipe_up: "＠", long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
       "3": { swipe_up: "＃", long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
       "4": { swipe_up: "＄", long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
       "5": { swipe_up: "％", long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
-      "6": { swipe_up: "…", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "^" }, "⅚"] } }
+      "6": { swipe_up: "…", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "rime_punct:^" }, "⅚"] } }
       "7": { swipe_up: "＆", long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
       "8": { swipe_up: "＊", long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
       "9": { swipe_up: "(", long_press: { display: "bubble", values: ["（"] } }
