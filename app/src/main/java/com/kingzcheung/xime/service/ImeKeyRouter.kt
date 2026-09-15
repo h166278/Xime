@@ -1036,7 +1036,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             service.dismissInlineSuggestions()
             service.candidateState.value = service.candidateState.value.copy(
                 candidates = texts,
-                candidateComments = List(texts.size) { "" },
+                candidateComments = injectedPunctComments(texts.size),
                 candidateActions = texts.map { CandidateAction.injected(it) },
                 inputText = "",
                 preeditText = "",
@@ -1632,6 +1632,12 @@ internal fun injectedPunctSelectIndex(key: String): Int? = when (key.lowercase()
     "o" -> 5
     else -> null
 }
+
+/** 注入栏注释：首位空格不上字，后面 aeuio 对齐选重。 */
+internal val INJECTED_PUNCT_SELECT_COMMENTS = listOf("", "a", "e", "u", "i", "o")
+
+internal fun injectedPunctComments(count: Int): List<String> =
+    List(count) { i -> INJECTED_PUNCT_SELECT_COMMENTS.getOrElse(i) { "" } }
 
 /** `rime_punct:` 后跟 ASCII 键 → 注入栏内容。未知键返回 null。 */
 internal fun rimePunctCandidates(key: String): List<String>? {

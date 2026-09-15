@@ -55,6 +55,15 @@ class RimePunctKeyCodeTest {
     }
 
     @Test
+    fun `注入栏注释首位空后面aeuio`() {
+        assertEquals(listOf("", "a", "e"), injectedPunctComments(3))
+        assertEquals(listOf("", "a", "e", "u", "i", "o"), injectedPunctComments(6))
+        assertEquals(emptyList<String>(), injectedPunctComments(0))
+        assertEquals(listOf(""), injectedPunctComments(1))
+        assertEquals(listOf("", "a", "e", "u", "i", "o", ""), injectedPunctComments(7))
+    }
+
+    @Test
     fun `破折号候选空格是全角减号a是破折号`() {
         assertEquals(listOf("－", "——", "—", "-", "---", "─"), DASH_CANDIDATES)
         assertEquals(DASH_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}-"))
@@ -84,7 +93,7 @@ class RimePunctKeyCodeTest {
     fun `有注入动作才算注入栏`() {
         val injected = CandidateState(
             candidates = MIDDLE_DOT_CANDIDATES,
-            candidateComments = listOf("", "", ""),
+            candidateComments = injectedPunctComments(3),
             candidateActions = MIDDLE_DOT_CANDIDATES.map { CandidateAction.injected(it) },
         )
         assertTrue(hasInjectedCandidates(injected))
