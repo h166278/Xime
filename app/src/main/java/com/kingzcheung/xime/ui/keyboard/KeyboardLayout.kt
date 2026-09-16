@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -2188,6 +2190,7 @@ private fun LandscapeKeyboardContent(
     val shiftMode by viewModel.shiftMode.collectAsStateWithLifecycle()
     val longPressPreferUppercase by viewModel.longPressPreferUppercase.collectAsStateWithLifecycle()
     val mnemonicHintsEnabled by viewModel.mnemonicHintsEnabled.collectAsStateWithLifecycle()
+    val englishPunctOverlay by viewModel.englishPunctOverlay.collectAsStateWithLifecycle()
 
     var visualIsShifted by remember { mutableStateOf(false) }
     LaunchedEffect(isShifted) {
@@ -2381,7 +2384,7 @@ private fun LandscapeKeyboardContent(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = staggerStep * 2)
+                    .padding(start = if (is46Layout) 0.dp else staggerStep * 2),
             ) {
                 CompactKeyboardRowWithConfig(
                     keys = listOf("z", "x", "c", "v"),
@@ -2409,43 +2412,194 @@ private fun LandscapeKeyboardContent(
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
                     isComposing = isComposing,
+                    leadingContent = if (is46Layout) {
+                        {
+                            ShiftCapsKeyButton(
+                                shiftMode = visualShiftMode,
+                                onKeyPress = onKeyPress,
+                                onKeyPressDown = onKeyPressDown,
+                                backgroundColor = specialKeyBackgroundColor,
+                                iconColor = specialKeyTextColor,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight(),
+                                shadowEnabled = shadowEnabled,
+                                shadowElevation = shadowElevation,
+                                shadowShapeRadius = shadowShapeRadius,
+                                tabWhenComposing = isComposing,
+                                onSwipeStateChange = onSwipeStateChange,
+                                idleSwipeTogglesLongPressCase = !isComposing,
+                                longPressPreferUppercase = longPressPreferUppercase,
+                                logicalShiftMode = shiftMode,
+                                onIdleSwipeUp = { modeAtDown ->
+                                    viewModel.restoreShift(modeAtDown)
+                                    viewModel.toggleLongPressPreferUppercase()
+                                },
+                                onIdleSwipeCancel = { modeAtDown ->
+                                    viewModel.restoreShift(modeAtDown)
+                                },
+                                composingSwipeUpLabel = composingShiftSwipeUpBubble(
+                                    hasPrevPage = hasPrevPage,
+                                    input = composingInput,
+                                    schemaId = uiState.currentSchemaId,
+                                    hasMenu = hasMenu,
+                                ),
+                                composingInput = composingInput,
+                            )
+                        }
+                    } else {
+                        {}
+                    },
                 )
             }
+            if (is46Layout) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                val gap = 4.dp
+                val shift = 4.dp
+                val unit = (maxWidth - gap * 3) / 5f
+                Row(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .offset(x = -shift)
+                        .width(maxWidth + shift),
+                    horizontalArrangement = Arrangement.spacedBy(gap),
+                ) {
+                    val composingClearOn123 = isComposing
+                    val idle123Swipe = !isComposing
+                    SwipeableKeyButton(
+                        text = if (composingClearOn123) "清空" else "?123",
+                        onClick = { onKeyPress(if (composingClearOn123) "clear_all" else "mode_change") },
+                        backgroundColor = specialKeyBackgroundColor,
+                        textColor = specialKeyTextColor,
+                        modifier = Modifier
+                            .width(unit * 1.2f)
+                            .fillMaxHeight(),
+                        swipeText = when {
+                            idle123Swipe -> "上滑清空"
+                            composingClearOn123 -> "?123"
+                            else -> null
+                        },
+                        swipeUpKeyLabel = if (composingClearOn123) "?123" else null,
+                        swipeUpHintTopEnd = composingClearOn123,
+                        swipeDownText = "下滑撤回",
+                        onSwipe = if (idle123Swipe) {
+                            { onKeyPress("clear_all") }
+                        } else {
+                            { onKeyPress("mode_change") }
+                        },
+                        onSwipeDown = { onKeyPress("undo_clear") },
+                        swipeUpThresholdDp = if (idle123Swipe) 32.dp else 50.dp,
+                        swipeDownThresholdDp = if (idle123Swipe) 32.dp else 24.dp,
+                        commitSwipeOnRelease = idle123Swipe,
+                        pressBubbleDanger = composingClearOn123,
+                        swipeBubbleDanger = idle123Swipe,
+                        onPress = { onKeyPressDown?.invoke("mode_change") },
+                        onRelease = { onKeyRelease?.invoke("mode_change") },
+                        onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
+                        longPressItems = listOf("number", "common_symbol"),
+                        longPressDrawableIds = listOf(
+                            com.kingzcheung.xime.R.drawable.t9,
+                            com.kingzcheung.xime.R.drawable.t26
+                        ),
+                        onSwipeStateChange = onSwipeStateChange,
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                    )
+                    ConfigDrivenSymbolKey(
+                        keyId = "/",
+                        isAsciiMode = isAsciiMode,
+                        englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
+                        onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                        isComposing = isComposing,
+                        backgroundColor = keyBackgroundColor,
+                        textColor = keyTextColor,
+                        modifier = Modifier
+                            .width(unit * 0.8f)
+                            .fillMaxHeight(),
+                        fallbackTap = "/",
+                        fallbackTapLabel = "/",
+                        onKeyPress = onKeyPress,
+                        onKeyPressDown = onKeyPressDown,
+                        onKeyRelease = onKeyRelease,
+                        onCommitText = onCommitText,
+                        onGestureAction = onGestureAction,
+                        onSwipeStateChange = onSwipeStateChange,
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                        swipeUpHintsEnabled = swipeUpHintsEnabled,
+                        swipeDownHintsEnabled = swipeDownHintsEnabled,
+                        swipeUpHintTopEnd = true,
+                    )
+                    ConfigDrivenSymbolKey(
+                        keyId = ",",
+                        isAsciiMode = isAsciiMode,
+                        englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
+                        onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                        isComposing = isComposing,
+                        backgroundColor = keyBackgroundColor,
+                        textColor = keyTextColor,
+                        modifier = Modifier
+                            .width(unit * 0.8f)
+                            .fillMaxHeight(),
+                        fallbackTap = ",",
+                        fallbackTapLabel = if (isAsciiMode) "," else "，",
+                        onKeyPress = onKeyPress,
+                        onKeyPressDown = onKeyPressDown,
+                        onKeyRelease = onKeyRelease,
+                        onCommitText = onCommitText,
+                        onGestureAction = onGestureAction,
+                        onSwipeStateChange = onSwipeStateChange,
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                        swipeUpHintsEnabled = swipeUpHintsEnabled,
+                        swipeDownHintsEnabled = swipeDownHintsEnabled,
+                        swipeUpHintTopEnd = true,
+                    )
+                    SplitSpaceKey(
+                        onClick = { onKeyPress("space") },
+                        backgroundColor = keyBackgroundColor,
+                        textColor = keyTextColor,
+                        schemaName = if (isAsciiMode) "English" else schemaName,
+                        modifier = Modifier
+                            .width(unit * 2.2f + shift)
+                            .fillMaxHeight(),
+                        onPress = { onKeyPressDown?.invoke("space") },
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                    )
+                }
+            }
+            } else {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                ShiftCapsKeyButton(
-                    shiftMode = visualShiftMode,
-                    onKeyPress = onKeyPress,
-                    onKeyPressDown = onKeyPressDown,
-                    backgroundColor = specialKeyBackgroundColor,
-                    iconColor = specialKeyTextColor,
-                    modifier = Modifier.weight(1.2f),
+                    ShiftCapsKeyButton(
+                        shiftMode = visualShiftMode,
+                        onKeyPress = onKeyPress,
+                        onKeyPressDown = onKeyPressDown,
+                        backgroundColor = specialKeyBackgroundColor,
+                        iconColor = specialKeyTextColor,
+                        modifier = Modifier.weight(1.2f),
                         shadowEnabled = shadowEnabled,
                         shadowElevation = shadowElevation,
                         shadowShapeRadius = shadowShapeRadius,
-                    tabWhenComposing = is46Layout && isComposing,
-                    onSwipeStateChange = onSwipeStateChange,
-                    idleSwipeTogglesLongPressCase = is46Layout && !isComposing,
-                    longPressPreferUppercase = longPressPreferUppercase,
-                    logicalShiftMode = shiftMode,
-                    onIdleSwipeUp = { modeAtDown ->
-                        viewModel.restoreShift(modeAtDown)
-                        viewModel.toggleLongPressPreferUppercase()
-                    },
-                    onIdleSwipeCancel = { modeAtDown ->
-                        viewModel.restoreShift(modeAtDown)
-                    },
-                    composingSwipeUpLabel = composingShiftSwipeUpBubble(
-                        hasPrevPage = hasPrevPage,
-                        input = composingInput,
-                        schemaId = uiState.currentSchemaId,
-                        hasMenu = hasMenu,
-                    ),
-                    composingInput = composingInput,
+                        tabWhenComposing = false,
+                        onSwipeStateChange = onSwipeStateChange,
+                        idleSwipeTogglesLongPressCase = false,
+                        longPressPreferUppercase = longPressPreferUppercase,
+                        logicalShiftMode = shiftMode,
+                        composingInput = composingInput,
                     )
                     val k2Gesture = KeysConfigHelper.getKeyGesture("'")
                     val k2Action = k2Gesture?.tap?.action
@@ -2453,8 +2607,6 @@ private fun LandscapeKeyboardContent(
                         ?: k2Gesture?.tap?.label?.takeIf { it.isNotEmpty() }
                         ?: "，"
                     val k2SwipeValue = k2Gesture?.swipeUp?.value?.takeIf { it.isNotEmpty() } ?: "。"
-                    val k2SwipeLabel = if (isAsciiMode) k2SwipeValue
-                        else (k2Gesture?.swipeUp?.label?.takeIf { it.isNotEmpty() } ?: k2SwipeValue)
                     val k2Swipe = k2SwipeValue
                     if (k2Action == GestureAction.TOGGLE_ASCII) {
                         IconKeyButton(
@@ -2504,6 +2656,8 @@ private fun LandscapeKeyboardContent(
                     shadowShapeRadius = shadowShapeRadius,
                 )
             }
+            }
+
         }
 
         // 中间留空
@@ -2602,171 +2756,139 @@ private fun LandscapeKeyboardContent(
                     isComposing = isComposing,
                 )
             }
-            Row(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
                     .weight(1f)
-                    .padding(end = staggerStep * 2),
+                    .padding(end = if (is46Layout) 0.dp else staggerStep * 2),
             ) {
-                Box(modifier = Modifier.weight(4f)) {
-                    CompactKeyboardRowWithConfig(
-                        keys = listOf("v", "b", "n", "m"),
-                        onKeyPress = onKeyPress,
-                        config = KeyboardRowConfig(
-                            keyBackgroundColor = keyBackgroundColor,
-                            keyTextColor = keyTextColor,
-                            keyboardBackgroundColor = keyboardBackgroundColor,
-                            fontSize = landscapeFontSize,
-                            swipeFontSize = landscapeSwipeFontSize,
-                        ),
-                        isShifted = visualIsShifted,
-                        isAsciiMode = isAsciiMode,
-                        onKeyPressDown = onKeyPressDown,
-                        onKeyRelease = onKeyRelease,
-                        swipeDownHintsEnabled = swipeDownHintsEnabled,
-                        swipeUpHintsEnabled = swipeUpHintsEnabled,
-                        onCommitText = onCommitText,
-                        onGestureAction = onGestureAction,
-                        onSwipeStateChange = onSwipeStateChange,
-                        longPressPreferUppercase = longPressPreferUppercase,
-                        is46Layout = is46Layout,
-                        mnemonicHintsEnabled = mnemonicHintsEnabled,
-                        isComposing = isComposing,
-                    )
-                }
-                SwipeableIconKeyButton(
-                    icon = rememberVectorPainter(Icons.AutoMirrored.Filled.Backspace),
-                    onClick = { onKeyPress("delete") },
-                    backgroundColor = specialKeyBackgroundColor,
-                    iconColor = specialKeyTextColor,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    onLongClick = { onKeyPress("delete") },
-                    onPress = { onKeyPressDown?.invoke("delete") },
-                    onRelease = { onKeyRelease?.invoke("delete") },
-                    swipeUpLabel = "上滑清空",
-                    swipeDownLabel = "下滑撤回",
-                    onSwipeUp = { onKeyPress("clear_all") },
-                    onSwipeDown = { onKeyPress("undo_clear") },
-                    onSwipeLeft = { suppressCursorMove.value = true; onKeyPress("clear_composition") },
+                CompactKeyboardRowWithConfig(
+                    keys = listOf("v", "b", "n", "m"),
+                    onKeyPress = onKeyPress,
+                    config = KeyboardRowConfig(
+                        keyBackgroundColor = keyBackgroundColor,
+                        keyTextColor = keyTextColor,
+                        keyboardBackgroundColor = keyboardBackgroundColor,
+                        fontSize = landscapeFontSize,
+                        swipeFontSize = landscapeSwipeFontSize,
+                    ),
+                    isShifted = visualIsShifted,
+                    isAsciiMode = isAsciiMode,
+                    onKeyPressDown = onKeyPressDown,
+                    onKeyRelease = onKeyRelease,
+                    swipeDownHintsEnabled = swipeDownHintsEnabled,
+                    swipeUpHintsEnabled = swipeUpHintsEnabled,
+                    onCommitText = onCommitText,
+                    onGestureAction = onGestureAction,
                     onSwipeStateChange = onSwipeStateChange,
-                    shadowEnabled = shadowEnabled,
-                    shadowElevation = shadowElevation,
-                    shadowShapeRadius = shadowShapeRadius,
+                    longPressPreferUppercase = longPressPreferUppercase,
+                    is46Layout = is46Layout,
+                    mnemonicHintsEnabled = mnemonicHintsEnabled,
+                    isComposing = isComposing,
+                    trailingContent = {
+                        SwipeableIconKeyButton(
+                            icon = rememberVectorPainter(Icons.AutoMirrored.Filled.Backspace),
+                            onClick = { onKeyPress("delete") },
+                            backgroundColor = specialKeyBackgroundColor,
+                            iconColor = specialKeyTextColor,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight(),
+                            onLongClick = { onKeyPress("delete") },
+                            onPress = { onKeyPressDown?.invoke("delete") },
+                            onRelease = { onKeyRelease?.invoke("delete") },
+                            swipeUpLabel = "上滑清空",
+                            swipeDownLabel = "下滑撤回",
+                            onSwipeUp = { onKeyPress("clear_all") },
+                            onSwipeDown = { onKeyPress("undo_clear") },
+                            onSwipeLeft = { suppressCursorMove.value = true; onKeyPress("clear_composition") },
+                            onSwipeStateChange = onSwipeStateChange,
+                            shadowEnabled = shadowEnabled,
+                            shadowElevation = shadowElevation,
+                            shadowShapeRadius = shadowShapeRadius,
+                        )
+                    },
                 )
             }
-            Row(
+            if (is46Layout) {
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                SplitSpaceKey(
-                    onClick = { onKeyPress("space") },
-                    backgroundColor = keyBackgroundColor,
-                    textColor = keyTextColor,
-                    schemaName = if (isAsciiMode) "English" else "",
-                    modifier = Modifier.weight(2f),
-                    onPress = { onKeyPressDown?.invoke("space") },
-                    shadowEnabled = shadowEnabled,
-                    shadowElevation = shadowElevation,
-                    shadowShapeRadius = shadowShapeRadius,
-                )
-                val composingClearOn123 = is46Layout && isComposing
-                val idle123Swipe = is46Layout && !isComposing
-                SwipeableKeyButton(
-                    text = if (composingClearOn123) "清空" else "?123",
-                    onClick = { onKeyPress(if (composingClearOn123) "clear_all" else "mode_change") },
-                    backgroundColor = specialKeyBackgroundColor,
-                    textColor = specialKeyTextColor,
-                    modifier = Modifier.weight(1.2f),
-                    swipeText = when {
-                        idle123Swipe -> "上滑清空"
-                        composingClearOn123 -> "?123"
-                        else -> null
-                    },
-                    swipeUpKeyLabel = if (composingClearOn123) "?123" else null,
-                    swipeUpHintTopEnd = composingClearOn123,
-                    swipeDownText = when {
-                        is46Layout -> "下滑撤回"
-                        else -> null
-                    },
-                    onSwipe = if (idle123Swipe) {
-                        { onKeyPress("clear_all") }
-                    } else if (is46Layout) {
-                        { onKeyPress("mode_change") }
-                    } else null,
-                    onSwipeDown = if (is46Layout) {
-                        { onKeyPress("undo_clear") }
-                    } else null,
-                    swipeUpThresholdDp = if (idle123Swipe) 32.dp else 50.dp,
-                    swipeDownThresholdDp = if (idle123Swipe) 32.dp else if (is46Layout) 24.dp else 50.dp,
-                    commitSwipeOnRelease = idle123Swipe,
-                    pressBubbleDanger = composingClearOn123,
-                    swipeBubbleDanger = idle123Swipe,
-                    onPress = { onKeyPressDown?.invoke("mode_change") },
-                    onRelease = { onKeyRelease?.invoke("mode_change") },
-                    onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
-                    longPressItems = listOf("number", "common_symbol"),
-                    longPressDrawableIds = listOf(
-                        com.kingzcheung.xime.R.drawable.t9,
-                        com.kingzcheung.xime.R.drawable.t26
-                    ),
-                    onSwipeStateChange = onSwipeStateChange,
-                    shadowEnabled = shadowEnabled,
-                    shadowElevation = shadowElevation,
-                    shadowShapeRadius = shadowShapeRadius,
-                )
-                val k4Gesture = KeysConfigHelper.getKeyGesture("earth")
-                val k4Action = k4Gesture?.tap?.action
-                val k4Value = k4Gesture?.tap?.value?.takeIf { it.isNotEmpty() } ?: k4Gesture?.tap?.label?.takeIf { it.isNotEmpty() } ?: "ime_switch"
-                val k4Label = k4Gesture?.tap?.label?.takeIf { it.isNotEmpty() } ?: "中"
-                if (k4Action == GestureAction.TOGGLE_ASCII) {
-                    IconKeyButton(
-                        icon = rememberVectorPainter(Icons.Default.Language),
-                        onClick = {
-                            if (k4Action != null && k4Action != GestureAction.COMMIT) {
-                                onGestureAction?.invoke(k4Action, k4Value)
-                            } else {
-                                onKeyPress(k4Value)
-                            }
-                        },
-                        backgroundColor = keyBackgroundColor,
-                        iconColor = keyTextColor,
-                        modifier = Modifier.weight(0.8f),
-                        onPress = { onKeyPressDown?.invoke(k4Value) },
-                        onRelease = { onKeyRelease?.invoke(k4Value) },
-                        shadowEnabled = shadowEnabled,
-                        shadowElevation = shadowElevation,
-                        shadowShapeRadius = shadowShapeRadius,
-                    )
-                } else {
-                    val k4SwipeValue = k4Gesture?.swipeUp?.value?.takeIf { it.isNotEmpty() }
-                    val k4SwipeLabel = if (isAsciiMode) (k4SwipeValue ?: "")
-                        else (k4Gesture?.swipeUp?.label?.takeIf { it.isNotEmpty() } ?: k4SwipeValue ?: "")
-                    SwipeableKeyButtonLandscape(
-                        text = k4Label,
-                        onClick = {
-                            if (k4Action != null && k4Action != GestureAction.COMMIT) {
-                                onGestureAction?.invoke(k4Action, k4Value)
-                            } else {
-                                onKeyPress(k4Value)
-                            }
-                        },
+                val gap = 4.dp
+                val shift = 4.dp
+                val unit = (maxWidth - gap * 3) / 5f
+                Row(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(maxWidth + shift),
+                    horizontalArrangement = Arrangement.spacedBy(gap),
+                ) {
+                    SplitSpaceKey(
+                        onClick = { onKeyPress("space") },
                         backgroundColor = keyBackgroundColor,
                         textColor = keyTextColor,
-                        modifier = Modifier.weight(0.8f),
-                        swipeText = k4SwipeLabel,
-                        onSwipe = if (k4SwipeValue != null) { { onKeyPress(k4SwipeValue) } } else null,
-                        onPress = { onKeyPressDown?.invoke(k4Value) },
-                        onRelease = { onKeyRelease?.invoke(k4Value) },
+                        schemaName = if (isAsciiMode) "English" else "",
+                        modifier = Modifier
+                            .width(unit * 2.2f + shift)
+                            .fillMaxHeight(),
+                        onPress = { onKeyPressDown?.invoke("space") },
                         shadowEnabled = shadowEnabled,
                         shadowElevation = shadowElevation,
                         shadowShapeRadius = shadowShapeRadius,
                     )
-                }
-                if (is46Layout) {
+                    ConfigDrivenSymbolKey(
+                        keyId = ".",
+                        isAsciiMode = isAsciiMode,
+                        englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
+                        onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                        isComposing = isComposing,
+                        backgroundColor = keyBackgroundColor,
+                        textColor = keyTextColor,
+                        modifier = Modifier
+                            .width(unit * 0.8f)
+                            .fillMaxHeight(),
+                        fallbackTap = ".",
+                        fallbackTapLabel = if (isAsciiMode) "." else "。",
+                        onKeyPress = onKeyPress,
+                        onKeyPressDown = onKeyPressDown,
+                        onKeyRelease = onKeyRelease,
+                        onCommitText = onCommitText,
+                        onGestureAction = onGestureAction,
+                        onSwipeStateChange = onSwipeStateChange,
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                        swipeUpHintsEnabled = swipeUpHintsEnabled,
+                        swipeDownHintsEnabled = swipeDownHintsEnabled,
+                        swipeUpHintTopEnd = true,
+                    )
+                    ConfigDrivenSymbolKey(
+                        keyId = "quote46",
+                        isAsciiMode = isAsciiMode,
+                        englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
+                        onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                        isComposing = isComposing,
+                        backgroundColor = keyBackgroundColor,
+                        textColor = keyTextColor,
+                        modifier = Modifier
+                            .width(unit * 0.8f)
+                            .fillMaxHeight(),
+                        fallbackTap = "'",
+                        fallbackTapLabel = "'",
+                        onKeyPress = onKeyPress,
+                        onKeyPressDown = onKeyPressDown,
+                        onKeyRelease = onKeyRelease,
+                        onCommitText = onCommitText,
+                        onGestureAction = onGestureAction,
+                        onSwipeStateChange = onSwipeStateChange,
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                        swipeUpHintsEnabled = swipeUpHintsEnabled,
+                        swipeDownHintsEnabled = swipeDownHintsEnabled,
+                        swipeUpHintTopEnd = true,
+                    )
                     val idleEnter = !isComposing
                     val enterHintIcons = listOf(
                         rememberVectorPainter(Icons.TwoTone.KeyboardAlt),
@@ -2778,7 +2900,9 @@ private fun LandscapeKeyboardContent(
                         onClick = { onKeyPress("enter") },
                         backgroundColor = specialKeyBackgroundColor,
                         textColor = specialKeyTextColor,
-                        modifier = Modifier.weight(1.2f),
+                        modifier = Modifier
+                            .width(unit * 1.2f)
+                            .fillMaxHeight(),
                         swipeText = if (idleEnter) "切换方案" else "全大写",
                         swipeDownText = if (idleEnter) "选择输入法" else null,
                         onSwipe = if (idleEnter) {
@@ -2804,19 +2928,111 @@ private fun LandscapeKeyboardContent(
                         shadowElevation = shadowElevation,
                         shadowShapeRadius = shadowShapeRadius,
                     )
-                } else {
-                KeyButton(
-                    text = enterKeyText,
-                    onClick = { onKeyPress("enter") },
-                    backgroundColor = specialKeyBackgroundColor,
-                    textColor = specialKeyTextColor,
-                    modifier = Modifier.weight(1.2f),
-                    onPress = { onKeyPressDown?.invoke("enter") },
-                    onRelease = { onKeyRelease?.invoke("enter") },
-                    shadowEnabled = shadowEnabled,
-                    shadowElevation = shadowElevation,
-                    shadowShapeRadius = shadowShapeRadius,
-                )
+                }
+            }
+            } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                    SplitSpaceKey(
+                        onClick = { onKeyPress("space") },
+                        backgroundColor = keyBackgroundColor,
+                        textColor = keyTextColor,
+                        schemaName = if (isAsciiMode) "English" else "",
+                        modifier = Modifier.weight(2f),
+                        onPress = { onKeyPressDown?.invoke("space") },
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                    )
+                    SwipeableKeyButton(
+                        text = "?123",
+                        onClick = { onKeyPress("mode_change") },
+                        backgroundColor = specialKeyBackgroundColor,
+                        textColor = specialKeyTextColor,
+                        modifier = Modifier.weight(1.2f),
+                        swipeText = null,
+                        swipeDownText = null,
+                        onSwipe = null,
+                        onSwipeDown = null,
+                        swipeUpThresholdDp = 50.dp,
+                        swipeDownThresholdDp = 50.dp,
+                        onPress = { onKeyPressDown?.invoke("mode_change") },
+                        onRelease = { onKeyRelease?.invoke("mode_change") },
+                        onLongPressSelect = { label -> onKeyPress(if (label == "number") "mode_change_number" else "mode_change_common_symbol") },
+                        longPressItems = listOf("number", "common_symbol"),
+                        longPressDrawableIds = listOf(
+                            com.kingzcheung.xime.R.drawable.t9,
+                            com.kingzcheung.xime.R.drawable.t26
+                        ),
+                        onSwipeStateChange = onSwipeStateChange,
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                    )
+                    val k4Gesture = KeysConfigHelper.getKeyGesture("earth")
+                    val k4Action = k4Gesture?.tap?.action
+                    val k4Value = k4Gesture?.tap?.value?.takeIf { it.isNotEmpty() } ?: k4Gesture?.tap?.label?.takeIf { it.isNotEmpty() } ?: "ime_switch"
+                    val k4Label = k4Gesture?.tap?.label?.takeIf { it.isNotEmpty() } ?: "中"
+                    if (k4Action == GestureAction.TOGGLE_ASCII) {
+                        IconKeyButton(
+                            icon = rememberVectorPainter(Icons.Default.Language),
+                            onClick = {
+                                if (k4Action != null && k4Action != GestureAction.COMMIT) {
+                                    onGestureAction?.invoke(k4Action, k4Value)
+                                } else {
+                                    onKeyPress(k4Value)
+                                }
+                            },
+                            backgroundColor = keyBackgroundColor,
+                            iconColor = keyTextColor,
+                            modifier = Modifier.weight(0.8f),
+                            onPress = { onKeyPressDown?.invoke(k4Value) },
+                            onRelease = { onKeyRelease?.invoke(k4Value) },
+                            shadowEnabled = shadowEnabled,
+                            shadowElevation = shadowElevation,
+                            shadowShapeRadius = shadowShapeRadius,
+                        )
+                    } else {
+                        val k4SwipeValue = k4Gesture?.swipeUp?.value?.takeIf { it.isNotEmpty() }
+                        val k4SwipeLabel = if (isAsciiMode) (k4SwipeValue ?: "")
+                            else (k4Gesture?.swipeUp?.label?.takeIf { it.isNotEmpty() } ?: k4SwipeValue ?: "")
+                        SwipeableKeyButtonLandscape(
+                            text = k4Label,
+                            onClick = {
+                                if (k4Action != null && k4Action != GestureAction.COMMIT) {
+                                    onGestureAction?.invoke(k4Action, k4Value)
+                                } else {
+                                    onKeyPress(k4Value)
+                                }
+                            },
+                            backgroundColor = keyBackgroundColor,
+                            textColor = keyTextColor,
+                            modifier = Modifier.weight(0.8f),
+                            swipeText = k4SwipeLabel,
+                            onSwipe = if (k4SwipeValue != null) { { onKeyPress(k4SwipeValue) } } else null,
+                            onPress = { onKeyPressDown?.invoke(k4Value) },
+                            onRelease = { onKeyRelease?.invoke(k4Value) },
+                            shadowEnabled = shadowEnabled,
+                            shadowElevation = shadowElevation,
+                            shadowShapeRadius = shadowShapeRadius,
+                        )
+                    }
+                    KeyButton(
+                        text = enterKeyText,
+                        onClick = { onKeyPress("enter") },
+                        backgroundColor = specialKeyBackgroundColor,
+                        textColor = specialKeyTextColor,
+                        modifier = Modifier.weight(1.2f),
+                        onPress = { onKeyPressDown?.invoke("enter") },
+                        onRelease = { onKeyRelease?.invoke("enter") },
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                    )
                 }
             }
         }
@@ -3244,11 +3460,14 @@ fun CompactKeyboardRowWithConfig(
     is46Layout: Boolean = false,
     mnemonicHintsEnabled: Boolean = false,
     isComposing: Boolean = false,
+    leadingContent: @Composable RowScope.() -> Unit = {},
+    trailingContent: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
         modifier = modifier
             .fillMaxSize(),
     ) {
+        leadingContent()
         keys.forEach { key ->
             val mnemonicHint = letterMnemonicHint(key, is46Layout, mnemonicHintsEnabled)
             val composingLetterSwipe =
@@ -3386,6 +3605,7 @@ fun CompactKeyboardRowWithConfig(
                 shadowShapeRadius = config.shadowShapeRadius,
             )
         }
+        trailingContent()
     }
 }
 
