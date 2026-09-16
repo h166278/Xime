@@ -21,7 +21,17 @@ internal enum class CommitUndoAction {
 
 internal data class CommitUndoPlan(
     val action: CommitUndoAction,
+    val beforeCount: Int = 0,
+    val afterCount: Int = 0,
 )
+
+/** 成对贴上、光标进中间的两字符：弯双引号、弯单引号。 */
+internal val WRAP_PAIR_COMMITS = setOf("“”", "‘’")
+
+internal fun wrapPairSplit(text: String): Pair<String, String>? {
+    if (text !in WRAP_PAIR_COMMITS) return null
+    return text.substring(0, 1) to text.substring(1)
+}
 
 internal enum class CommitRedoAction {
     NOOP,
@@ -61,17 +71,27 @@ internal fun planCommitUndo(
     composing: Boolean,
     composingSuffix: String = "",
     injected: Boolean = false,
+    textAfterCursor: String? = "",
 ): CommitUndoPlan {
     if (hasSelection || injected) return CommitUndoPlan(CommitUndoAction.NOOP)
     if (top == null || top.text.isEmpty()) return CommitUndoPlan(CommitUndoAction.NOOP)
     val committed = committedTextBeforeCursor(textBeforeCursor, composingSuffix)
-    if (committed == null || !committed.endsWith(top.text)) {
+    if (committed == null) return CommitUndoPlan(CommitUndoAction.DROP)
+    val wrap = wrapPairSplit(top.text)
+    val after = textAfterCursor ?: ""
+    val (beforeCount, afterCount) = if (wrap != null &&
+        committed.endsWith(wrap.first) && after.startsWith(wrap.second)
+    ) {
+        wrap.first.length to wrap.second.length
+    } else if (committed.endsWith(top.text)) {
+        top.text.length to 0
+    } else {
         return CommitUndoPlan(CommitUndoAction.DROP)
     }
     return if (!composing && top.code.isNotEmpty()) {
-        CommitUndoPlan(CommitUndoAction.DELETE_RESTORE_CODE)
+        CommitUndoPlan(CommitUndoAction.DELETE_RESTORE_CODE, beforeCount, afterCount)
     } else {
-        CommitUndoPlan(CommitUndoAction.DELETE)
+        CommitUndoPlan(CommitUndoAction.DELETE, beforeCount, afterCount)
     }
 }
 

@@ -45,6 +45,43 @@ class CommitStackTest {
         val top = CommitEntry("·")
         val plan = planCommitUndo(top, "·", hasSelection = false, composing = false)
         assertEquals(CommitUndoAction.DELETE, plan.action)
+        assertEquals(1, plan.beforeCount)
+        assertEquals(0, plan.afterCount)
+    }
+
+    @Test
+    fun `成对引号夹光标按前后各删一半`() {
+        val top = CommitEntry("“”")
+        val plan = planCommitUndo(
+            top, "他说“", hasSelection = false, composing = false, textAfterCursor = "”啊",
+        )
+        assertEquals(CommitUndoAction.DELETE, plan.action)
+        assertEquals(1, plan.beforeCount)
+        assertEquals(1, plan.afterCount)
+        assertEquals("“" to "”", wrapPairSplit("“”"))
+        assertEquals("‘" to "’", wrapPairSplit("‘’"))
+        assertNull(wrapPairSplit("《》"))
+        assertNull(wrapPairSplit("“"))
+    }
+
+    @Test
+    fun `成对引号右半没了就丢掉`() {
+        val top = CommitEntry("“”")
+        val plan = planCommitUndo(
+            top, "他说“", hasSelection = false, composing = false, textAfterCursor = "啊",
+        )
+        assertEquals(CommitUndoAction.DROP, plan.action)
+    }
+
+    @Test
+    fun `成对引号光标在右半后面整段删`() {
+        val top = CommitEntry("“”")
+        val plan = planCommitUndo(
+            top, "他说“”", hasSelection = false, composing = false, textAfterCursor = "啊",
+        )
+        assertEquals(CommitUndoAction.DELETE, plan.action)
+        assertEquals(2, plan.beforeCount)
+        assertEquals(0, plan.afterCount)
     }
 
     @Test

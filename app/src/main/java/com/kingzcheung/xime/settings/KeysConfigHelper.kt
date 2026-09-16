@@ -69,7 +69,11 @@ data class LongPressConfig(
 
 data class KeyGestureConfig(
     val tap: GestureDef? = null,
+    /** 空闲点按；有编码时仍走 [tap]（46 键 / 空闲顿号、组合加码）。 */
+    val idle: GestureDef? = null,
     val swipeUp: GestureDef? = null,
+    /** 空闲上滑；有编码时仍走 [swipeUp]（46 键引号空闲弯引号）。 */
+    val idleSwipeUp: GestureDef? = null,
     val swipeDown: GestureDef? = null,
     val longPress: LongPressConfig? = null,
     val swipeRight: GestureDef? = null,
@@ -171,7 +175,9 @@ private fun parseKeyboardConfig(raw: com.charleskorn.kaml.YamlMap?): KeyboardCon
 
 private fun parseKeyGestureConfig(map: com.charleskorn.kaml.YamlMap): KeyGestureConfig {
     var tap: GestureDef? = null
+    var idle: GestureDef? = null
     var swipeUp: GestureDef? = null
+    var idleSwipeUp: GestureDef? = null
     var swipeDown: GestureDef? = null
     var longPress: LongPressConfig? = null
     var swipeRight: GestureDef? = null
@@ -179,13 +185,15 @@ private fun parseKeyGestureConfig(map: com.charleskorn.kaml.YamlMap): KeyGesture
         val name = (kNode as? com.charleskorn.kaml.YamlScalar)?.content ?: continue
         when (name) {
             "tap" -> tap = parseGestureNode(vNode)
+            "idle" -> idle = parseGestureNode(vNode)
             "swipe_up" -> swipeUp = parseGestureNode(vNode)
+            "idle_swipe_up" -> idleSwipeUp = parseGestureNode(vNode)
             "swipe_down" -> swipeDown = parseGestureNode(vNode)
             "long_press" -> longPress = parseLongPress(vNode)
             "swipe_right" -> swipeRight = parseGestureNode(vNode)
         }
     }
-    return KeyGestureConfig(tap, swipeUp, swipeDown, longPress, swipeRight)
+    return KeyGestureConfig(tap, idle, swipeUp, idleSwipeUp, swipeDown, longPress, swipeRight)
 }
 
 /**
@@ -722,7 +730,9 @@ object KeysConfigHelper {
             val cur = merged[key]
             merged[key] = if (cur == null) ov else KeyGestureConfig(
                 tap = ov.tap ?: cur.tap,
+                idle = ov.idle ?: cur.idle,
                 swipeUp = ov.swipeUp ?: cur.swipeUp,
+                idleSwipeUp = ov.idleSwipeUp ?: cur.idleSwipeUp,
                 swipeDown = ov.swipeDown ?: cur.swipeDown,
                 longPress = ov.longPress ?: cur.longPress,
                 swipeRight = ov.swipeRight ?: cur.swipeRight,

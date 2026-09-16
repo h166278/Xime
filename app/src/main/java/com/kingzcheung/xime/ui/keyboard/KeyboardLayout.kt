@@ -812,6 +812,7 @@ fun KeyboardLayout(
                                     isAsciiMode = isAsciiMode,
                                     englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
                                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                                    isComposing = isComposing,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
                                     modifier = Modifier.weight(symbolKeyWeight),
@@ -1145,6 +1146,7 @@ fun KeyboardLayout(
                                     isAsciiMode = isAsciiMode,
                                     englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
                                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                                    isComposing = isComposing,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
                                     modifier = Modifier.weight(symbolKeyWeight),
@@ -1330,6 +1332,7 @@ fun ConfigDrivenSymbolKey(
     swipeUpHintTopEnd: Boolean = false,
     englishPunctOverlay: Boolean = false,
     onConsumeEnglishPunct: (() -> Unit)? = null,
+    isComposing: Boolean = false,
 ) {
     val gesture = KeysConfigHelper.getKeyGesture(keyId, isAsciiMode)
     val overlayFace = if (englishPunctOverlay) englishPunctOverlayFace(keyId) else null
@@ -1343,15 +1346,30 @@ fun ConfigDrivenSymbolKey(
         ?: gesture?.tap?.label?.takeIf { it.isNotEmpty() }
         ?: fallbackTapLabel
 
+    val idleRaw = gesture?.idle
+    val idleValue = idleRaw?.value?.takeIf { it.isNotEmpty() }
+        ?: idleRaw?.label?.takeIf { it.isNotEmpty() }
+    val idleAction = idleRaw?.action
+    val useIdleTap = !isComposing && overlayFace == null && !idleValue.isNullOrEmpty()
+
     val swipeUpRaw = gesture?.swipeUp
+    val idleSwipeRaw = gesture?.idleSwipeUp
+    val idleSwipeValue = idleSwipeRaw?.value?.takeIf { it.isNotEmpty() }
+        ?: idleSwipeRaw?.label?.takeIf { it.isNotEmpty() }
+    val useIdleSwipe = !isComposing && overlayFace == null && !idleSwipeValue.isNullOrEmpty()
     val swipeUpLabel = overlayFace?.swipeLabel
-        ?: swipeUpRaw?.label?.takeIf { it.isNotEmpty() }
-        ?: swipeUpRaw?.value?.takeIf { it.isNotEmpty() }
+        ?: if (useIdleSwipe) {
+            idleSwipeRaw?.label?.takeIf { it.isNotEmpty() } ?: idleSwipeValue
+        } else {
+            swipeUpRaw?.label?.takeIf { it.isNotEmpty() }
+                ?: swipeUpRaw?.value?.takeIf { it.isNotEmpty() }
+        }
     val swipeUpValue = overlayFace?.swipeValue
-        ?: swipeUpRaw?.value?.takeIf { it.isNotEmpty() }
-        ?: swipeUpLabel
-    val swipeUpAction = swipeUpRaw?.action
-    val swipeUpDisplay = swipeUpRaw?.display ?: DisplayMode.BOTH
+        ?: if (useIdleSwipe) idleSwipeValue
+        else swipeUpRaw?.value?.takeIf { it.isNotEmpty() } ?: swipeUpLabel
+    val swipeUpAction = if (useIdleSwipe) idleSwipeRaw?.action else swipeUpRaw?.action
+    val swipeUpDisplay = (if (useIdleSwipe) idleSwipeRaw?.display else swipeUpRaw?.display)
+        ?: DisplayMode.BOTH
 
     val swipeDownRaw = gesture?.swipeDown
     val swipeDownLabel = swipeDownRaw?.label?.takeIf { it.isNotEmpty() }
@@ -1382,11 +1400,21 @@ fun ConfigDrivenSymbolKey(
         longPressConfig?.values?.associateBy { it.label }
     } else null
 
-    val onClick: () -> Unit = remember(tapAction, tapValue, onKeyPress, onGestureAction, overlayFace, onCommitText, onConsumeEnglishPunct) {
+    val onClick: () -> Unit = remember(
+        tapAction, tapValue, idleValue, idleAction, useIdleTap,
+        onKeyPress, onGestureAction, overlayFace, onCommitText, onConsumeEnglishPunct,
+    ) {
         {
             if (overlayFace != null) {
                 (onCommitText ?: onKeyPress)(overlayFace.tapValue)
                 onConsumeEnglishPunct?.invoke()
+            } else if (useIdleTap) {
+                val v = idleValue!!
+                if (idleAction != null && idleAction != GestureAction.COMMIT) {
+                    onGestureAction?.invoke(idleAction, v)
+                } else {
+                    (onCommitText ?: onKeyPress)(v)
+                }
             } else if (tapAction != null && tapAction != GestureAction.COMMIT) {
                 onGestureAction?.invoke(tapAction, tapValue)
             } else {
@@ -1800,6 +1828,13 @@ internal fun shouldComposingLetterSwipeUp(
     isAsciiMode: Boolean,
     key: String,
 ): Boolean = isComposing && !isAsciiMode && isLetterKey(key)
+
+/** 空闲点按走 idle；组合/无 idle 仍走 tap。覆盖脸不走这条。 */
+internal fun idleSymbolTapValue(
+    composing: Boolean,
+    idleValue: String?,
+    tapValue: String,
+): String = if (!composing && !idleValue.isNullOrEmpty()) idleValue else tapValue
 
 internal fun composingLetterSwipeUpKey(key: String): String =
     "$RIME_UPPER_PREFIX${key.uppercase()}"

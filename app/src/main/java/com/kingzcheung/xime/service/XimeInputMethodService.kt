@@ -2373,7 +2373,8 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                     val start = box.selectionStart.coerceAtLeast(0)
                     val textLen = text.length
                     box.text?.replace(start, box.selectionEnd.coerceAtLeast(start), text)
-                    try { box.setSelection(start + textLen) } catch (_: Exception) {}
+                    val cursor = start + (wrapPairSplit(text)?.first?.length ?: textLen)
+                    try { box.setSelection(cursor) } catch (_: Exception) {}
                 }
             }
             return
@@ -2385,12 +2386,14 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                     val start = et.selectionStart.coerceAtLeast(0)
                     val textLen = text.length
                     et.text?.replace(start, et.selectionEnd.coerceAtLeast(start), text)
-                    try { et.setSelection(start + textLen) } catch (_: Exception) {}
+                    val cursor = start + (wrapPairSplit(text)?.first?.length ?: textLen)
+                    try { et.setSelection(cursor) } catch (_: Exception) {}
                 }
             }
             return
         }
         currentInputConnection?.commitText(text, 1)
+        placeCursorInsideWrapPair(text)
 
         if (!suppressCommitRecord && !pluginEvents.isCurrentEditorSensitive && text.isNotEmpty()) {
             commitStack.record(text, pendingCommitCode)
@@ -2405,6 +2408,24 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         if (isChineseMode) {
             predictionManager.appendCommittedText(text)
             predictionManager.recordInput(text)
+        }
+    }
+
+    /** 成对弯引号贴上后把光标挪进中间。 */
+    private fun placeCursorInsideWrapPair(text: String) {
+        val back = wrapPairSplit(text)?.second?.length ?: return
+        val ic = currentInputConnection ?: return
+        try {
+            val extracted = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)
+            if (extracted != null && extracted.selectionStart >= back) {
+                val pos = extracted.selectionStart - back
+                ic.setSelection(pos, pos)
+                return
+            }
+        } catch (_: Exception) {}
+        repeat(back) {
+            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT))
+            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_LEFT))
         }
     }
 

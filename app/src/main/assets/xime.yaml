@@ -479,13 +479,14 @@ keyboard:
       earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
 
       # ── 46 键布局专用底行符号键（默认布局不显示，仅布局选 46 键时启用）──
-      # tap.value 必须半角：组词时进声笔加码（, . / '），空码时由 punctuator 转全角。
+      # tap.value 必须半角：组词时进声笔加码（, . / '）。/ 空闲走 idle 直上屏顿号，组合仍 tap /。
       # 分号键点按已改全角直上屏，不在这组。
-      # 上滑与长按同值，长按用 display: key 直接提交；quote46 避免与默认逗号键 id "'" 冲突
-      "/": { tap: { label: "/", value: "/" }, swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "?", value: "?" } ] } }
-      ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "key", values: [ { label: "《", value: "《" } ] } }
-      ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "key", values: [ { label: "》", value: "》" } ] } }
-      quote46: { tap: { label: "'", value: "'" }, swipe_up: { label: "\"", value: "\"" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
+      # 上滑书名号直上屏。逗号/句号长按气泡：〈<>≤≥，选中走 commit 直上屏（别走 Rime，< 会被 punctuator 交成《）。
+      # /：中文空闲顿号、上滑 ﹖、长按 /。quote46 空闲点按 “”、上滑 ‘’（光标进中间），键帽右上仍 "。
+      "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "﹖", value: "﹖" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
+      ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
+      ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
+      quote46: { tap: { label: "'", value: "'" }, idle: "“”", swipe_up: { label: "\"", value: "\"" }, idle_swipe_up: { label: "\"", value: "‘’" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
 
   # ── 46 键布局专属手势覆盖段（中文）──
   # 与 qwerty 逐键合并（本段优先），仅在「布局选择 = 46 键」时生效。
@@ -598,9 +599,11 @@ keyboard:
       #  逗号键，label 为中文显示，value 为英文显示+提交值
       "'": { tap: { label: ".", value: "." }, swipe_up: { label: ",", value: "," } }
       # ── 46 键布局专用底行符号键（英文）──
-      "/": { tap: { label: "/", value: "/" }, swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "?", value: "?" } ] } }
-      ",": { tap: { label: ",", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "key", values: [ { label: "《", value: "《" } ] } }
-      ".": { tap: { label: ".", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "key", values: [ { label: "》", value: "》" } ] } }
+      # 逗号/句号：键帽右上和上滑 < >；长按气泡仍 〈<>≤≥，选中直上屏。
+      # /：空闲半角顿号 ､、上滑 ?、长按 /。组合仍 tap /。
+      "/": { tap: { label: "/", value: "/" }, idle: "､", swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
+      ",": { tap: { label: ",", value: "," }, swipe_up: { label: "<", value: "<" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
+      ".": { tap: { label: ".", value: "." }, swipe_up: { label: ">", value: ">" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
       quote46: { tap: { label: "'", value: "'" }, swipe_up: { label: "\"", value: "\"" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
       # 中/英切换键，label 为按键显示文字
       earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }

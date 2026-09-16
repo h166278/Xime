@@ -1114,15 +1114,21 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             }
             while (true) {
                 val top = service.commitStack.peekUndo() ?: return@postRimeJob
-                val (before, hasSelection) = withContext(Dispatchers.Main) {
+                val wrap = wrapPairSplit(top.text)
+                val (before, after, hasSelection) = withContext(Dispatchers.Main) {
                     val ic = service.currentInputConnection
                     val sel = !ic?.getSelectedText(0).isNullOrEmpty()
                     val n = top.text.length + composingSuffix.length
                     val beforeText = if (n > 0) ic?.getTextBeforeCursor(n, 0)?.toString() else ""
-                    beforeText to sel
+                    val afterText = if (wrap != null) {
+                        ic?.getTextAfterCursor(wrap.second.length, 0)?.toString().orEmpty()
+                    } else {
+                        ""
+                    }
+                    Triple(beforeText, afterText, sel)
                 }
                 val plan = planCommitUndo(
-                    top, before, hasSelection, composing, composingSuffix, injected,
+                    top, before, hasSelection, composing, composingSuffix, injected, after,
                 )
                 when (plan.action) {
                     CommitUndoAction.NOOP -> return@postRimeJob
@@ -1136,7 +1142,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             val ic = service.currentInputConnection ?: return@withContext
                             if (codeInInputBox && composingSuffix.isNotEmpty()) {
                                 service.endComposingInputBox()
-                                ic.deleteSurroundingText(entry.text.length, 0)
+                                ic.deleteSurroundingText(plan.beforeCount, plan.afterCount)
                                 service.markInputBoxComposing()
                                 ic.beginBatchEdit()
                                 try {
@@ -1145,7 +1151,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                                     ic.endBatchEdit()
                                 }
                             } else {
-                                ic.deleteSurroundingText(entry.text.length, 0)
+                                ic.deleteSurroundingText(plan.beforeCount, plan.afterCount)
                             }
                         }
                         if (plan.action == CommitUndoAction.DELETE_RESTORE_CODE) {

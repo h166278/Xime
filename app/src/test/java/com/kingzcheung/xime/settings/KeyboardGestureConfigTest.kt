@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class KeyboardGestureConfigTest {
@@ -432,7 +433,9 @@ class KeyboardGestureConfigTest {
 
     private fun parseKeyGestureConfig(map: com.charleskorn.kaml.YamlMap): KeyGestureConfig {
         var tap: GestureDef? = null
+        var idle: GestureDef? = null
         var swipeUp: GestureDef? = null
+        var idleSwipeUp: GestureDef? = null
         var swipeDown: GestureDef? = null
         var longPress: LongPressConfig? = null
         var swipeRight: GestureDef? = null
@@ -440,13 +443,15 @@ class KeyboardGestureConfigTest {
             val name = (kNode as com.charleskorn.kaml.YamlScalar).content
             when (name) {
                 "tap" -> tap = parseGestureNode(vNode)
+                "idle" -> idle = parseGestureNode(vNode)
                 "swipe_up" -> swipeUp = parseGestureNode(vNode)
+                "idle_swipe_up" -> idleSwipeUp = parseGestureNode(vNode)
                 "swipe_down" -> swipeDown = parseGestureNode(vNode)
                 "long_press" -> longPress = parseLongPress(vNode)
                 "swipe_right" -> swipeRight = parseGestureNode(vNode)
             }
         }
-        return KeyGestureConfig(tap = tap, swipeUp = swipeUp, swipeDown = swipeDown, longPress = longPress, swipeRight = swipeRight)
+        return KeyGestureConfig(tap = tap, idle = idle, swipeUp = swipeUp, idleSwipeUp = idleSwipeUp, swipeDown = swipeDown, longPress = longPress, swipeRight = swipeRight)
     }
 
     private fun parseLongPress(node: com.charleskorn.kaml.YamlNode): LongPressConfig? {
@@ -1063,6 +1068,81 @@ keyboard:
         val n = keys["n"]!!.swipeUp!!
         assertEquals(GestureAction.TOGGLE_MNEMONIC, n.action)
         assertEquals("助记", n.label)
+    }
+
+    @Test
+    fun `46键斜杠空闲顿号组合斜杠长按斜杠`() {
+        val zh = parseKeys("""
+            "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "﹖", value: "﹖" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
+        """.trimIndent())["/"]!!
+        assertEquals("/", zh.tap!!.value)
+        assertEquals("、", zh.idle!!.label)
+        assertEquals("、", zh.idle!!.value)
+        assertEquals(GestureAction.COMMIT, zh.idle!!.action)
+        assertEquals("﹖", zh.swipeUp!!.label)
+        assertEquals("key", zh.longPress!!.display)
+        assertEquals("/", zh.longPress!!.values[0].label)
+        assertEquals(GestureAction.COMMIT, zh.longPress!!.values[0].action)
+        val en = parseKeys("""
+            "/": { tap: { label: "/", value: "/" }, idle: "､", swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
+        """.trimIndent())["/"]!!
+        assertEquals("､", en.idle!!.label)
+        assertEquals("､", en.idle!!.value)
+        assertEquals(GestureAction.COMMIT, en.idle!!.action)
+        assertEquals("?", en.swipeUp!!.label)
+        assertEquals("/", en.longPress!!.values[0].value)
+    }
+
+    @Test
+    fun `46键中文引号空闲弯引号对组合仍半角`() {
+        val zh = parseKeys("""
+            quote46: { tap: { label: "'", value: "'" }, idle: "“”", swipe_up: { label: "\"", value: "\"" }, idle_swipe_up: { label: "\"", value: "‘’" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
+        """.trimIndent())["quote46"]!!
+        assertEquals("'", zh.tap!!.value)
+        assertEquals("“”", zh.idle!!.value)
+        assertEquals(GestureAction.COMMIT, zh.idle!!.action)
+        assertEquals("\"", zh.swipeUp!!.value)
+        assertEquals("\"", zh.idleSwipeUp!!.label)
+        assertEquals("‘’", zh.idleSwipeUp!!.value)
+        assertEquals(GestureAction.COMMIT, zh.idleSwipeUp!!.action)
+        val en = parseKeys("""
+            quote46: { tap: { label: "'", value: "'" }, swipe_up: { label: "\"", value: "\"" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
+        """.trimIndent())["quote46"]!!
+        assertNull(en.idle)
+        assertNull(en.idleSwipeUp)
+        assertEquals("'", en.tap!!.value)
+        assertEquals("\"", en.swipeUp!!.value)
+    }
+
+    @Test
+    fun `46键逗号句号长按气泡尖括号小于等于直上屏`() {
+        val zh = parseKeys("""
+            ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
+            ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
+        """.trimIndent())
+        val comma = zh[","]!!
+        assertEquals("《", comma.swipeUp!!.label)
+        assertEquals(GestureAction.COMMIT, comma.swipeUp!!.action)
+        assertEquals("bubble", comma.longPress!!.display)
+        assertEquals(listOf("〈", "<", "≤"), comma.longPress!!.values.map { it.label })
+        assertTrue(comma.longPress!!.values.all { it.action == GestureAction.COMMIT })
+        assertNotEquals(GestureAction.PROCESS_RIME_KEY, comma.longPress!!.values[1].action)
+        val period = zh["."]!!
+        assertEquals("》", period.swipeUp!!.label)
+        assertEquals("bubble", period.longPress!!.display)
+        assertEquals(listOf("〉", ">", "≥"), period.longPress!!.values.map { it.label })
+        assertTrue(period.longPress!!.values.all { it.action == GestureAction.COMMIT })
+        val en = parseKeys("""
+            ",": { tap: { label: ",", value: "," }, swipe_up: { label: "<", value: "<" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
+            ".": { tap: { label: ".", value: "." }, swipe_up: { label: ">", value: ">" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
+        """.trimIndent())
+        assertEquals("<", en[","]!!.swipeUp!!.label)
+        assertEquals("<", en[","]!!.swipeUp!!.value)
+        assertEquals(GestureAction.COMMIT, en[","]!!.swipeUp!!.action)
+        assertEquals(">", en["."]!!.swipeUp!!.label)
+        assertEquals(">", en["."]!!.swipeUp!!.value)
+        assertEquals(listOf("〈", "<", "≤"), en[","]!!.longPress!!.values.map { it.value })
+        assertEquals(listOf("〉", ">", "≥"), en["."]!!.longPress!!.values.map { it.value })
     }
 
 }
