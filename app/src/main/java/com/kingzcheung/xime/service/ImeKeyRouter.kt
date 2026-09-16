@@ -222,16 +222,16 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 }
                 return@launch
             }
-            val layout46SymbolId = parseLayout46SymbolKey(key)
-            if (layout46SymbolId != null) {
-                handleLayout46SymbolTap(layout46SymbolId, state.isAsciiMode)
-                return@launch
-            }
             if (isRimePunctKey(key)) {
                 val punctCandidates = rimePunctCandidates(key)
                 if (punctCandidates != null) {
                     showInjectedPunctCandidates(punctCandidates, injectedPunctCommentsFor(key, punctCandidates.size))
                 }
+                return@launch
+            }
+            val layout46SymbolId = parseLayout46SymbolKey(key)
+            if (layout46SymbolId != null) {
+                handleLayout46SymbolTap(layout46SymbolId, state.isAsciiMode)
                 return@launch
             }
             // 中文 46 分号：有编码发 ; 进声笔组词；空闲直上屏 ；。英文盘点按是 ;，不进这里。
@@ -292,13 +292,13 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         // 记录撤回内容：输入框模式 getTextBeforeCursor 已含 composing 区（与 inputText 同源，
                         // 避免重复拼接）；候选栏模式输入框只有已上屏文本，需补候选栏编码 inputText。
                         // 英文输入态已被 hasInputState() 拦截，此处 pendingEnglishText 恒为空，拼接仅作防御。
-                        val codeInInputBox = SettingsPreferences.getInputTextLocation(service) ==
-                            SettingsPreferences.INPUT_TEXT_INPUT_BOX
+                        val loc = SettingsPreferences.getInputTextLocation(service)
                         val inputFieldText = withContext(Dispatchers.Main) {
                             service.currentInputConnection?.getTextBeforeCursor(XimeInputMethodService.SAFE_TEXT_LIMIT, 0)?.toString() ?: ""
                         }
                         service.lastClearedText = when {
-                            codeInInputBox -> inputFieldText + candState.pendingEnglishText
+                            loc == SettingsPreferences.INPUT_TEXT_INPUT_BOX ->
+                                inputFieldText + candState.pendingEnglishText
                             else -> inputFieldText + candState.inputText + candState.pendingEnglishText
                         }
                         service.lastClearedWasComposition = false
@@ -991,8 +991,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     if (service.t9PartialSegments.isNotEmpty()) {
                         val len = service.t9PartialSegments.last().text.length
                         withContext(Dispatchers.Main) {
-                            if (SettingsPreferences.getInputTextLocation(service)
-                                == SettingsPreferences.INPUT_TEXT_INPUT_BOX) {
+                            if (writesComposingToInputBox(
+                                    SettingsPreferences.getInputTextLocation(service)
+                                )
+                            ) {
                                 service.endComposingInputBox()
                             } else {
                                 service.deleteBeforeCursor(len)
@@ -1169,11 +1171,17 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             val cand = service.candidateState.value
             val composing = hasInputState(cand)
             val injected = hasInjectedCandidates(cand)
-            val codeInInputBox = composing &&
-                SettingsPreferences.getInputTextLocation(service) ==
-                SettingsPreferences.INPUT_TEXT_INPUT_BOX
+            val loc = SettingsPreferences.getInputTextLocation(service)
+            val codeInInputBox = composing && writesComposingToInputBox(loc)
             val composingSuffix = if (codeInInputBox) {
-                cand.preeditText.ifEmpty { cand.inputText }
+                inputBoxComposingText(
+                    loc,
+                    cand.preeditText.ifEmpty { cand.inputText },
+                    cand.candidates,
+                    service.currentHighlightIndex(),
+                    cand.isComposing,
+                    service.t9PartialSegments.joinToString("") { it.text },
+                )
             } else {
                 ""
             }
@@ -1539,9 +1547,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             isShowingRecentClipboard = false,
             candidateActions = emptyList(),
         )
-        if (SettingsPreferences.getInputTextLocation(service) ==
-            SettingsPreferences.INPUT_TEXT_INPUT_BOX
-        ) {
+        if (writesComposingToInputBox(SettingsPreferences.getInputTextLocation(service))) {
             withContext(Dispatchers.Main) { service.endComposingInputBox() }
         }
         if (isT9Schema(service.uiState.value.currentSchemaId)) {
@@ -1677,7 +1683,6 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         if (plan.clearCurrentFirst) clearInputStateForKeys()
         return restoreLastCleared(
             keepCurrentComposition = plan.keepCurrentComposition,
-            composingDisplay = candState.preeditText.ifEmpty { candState.inputText },
         )
     }
 
@@ -1691,7 +1696,6 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
      */
     private suspend fun restoreLastCleared(
         keepCurrentComposition: Boolean,
-        composingDisplay: String = "",
     ): Boolean {
         val text = service.lastClearedText
         if (text.isEmpty()) return false
@@ -1711,18 +1715,12 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             // 只插入快照，绝不 deleteSurroundingText。空闲清空仍会删字，撤回这条路不删。
             // 有编码时不碰 Rime、不 updateUI：候选栏/首选/sk 原样留下。
             if (keepCurrentComposition) {
-                val codeInInputBox = SettingsPreferences.getInputTextLocation(service) ==
-                    SettingsPreferences.INPUT_TEXT_INPUT_BOX
+                val loc = SettingsPreferences.getInputTextLocation(service)
+                val codeInInputBox = writesComposingToInputBox(loc)
                 if (codeInInputBox) service.endComposingInputBox()
                 ic.commitText(text, 1)
-                if (codeInInputBox && composingDisplay.isNotEmpty()) {
-                    service.markInputBoxComposing()
-                    ic.beginBatchEdit()
-                    try {
-                        ic.setComposingText(composingDisplay, 1)
-                    } finally {
-                        ic.endBatchEdit()
-                    }
+                if (codeInInputBox) {
+                    service.sessionController.syncInputBoxComposing()
                 }
             } else {
                 ic.commitText(text, 1)
@@ -1735,6 +1733,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         postRimeJob {
             service.rimeEngine.pageDown()
             withContext(Dispatchers.Main) {
+                service.resetHighlightIndex()
                 service.updateUI()
             }
         }
@@ -1744,6 +1743,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         postRimeJob {
             service.rimeEngine.pageUp()
             withContext(Dispatchers.Main) {
+                service.resetHighlightIndex()
                 service.updateUI()
             }
         }
@@ -1853,6 +1853,7 @@ internal fun planLayout46SymbolTap(
     !idle.isNullOrEmpty() -> Layout46SymbolTapAction.COMMIT_IDLE
     else -> Layout46SymbolTapAction.PROCESS
 }
+
 internal val MIDDLE_DOT_CANDIDATES = listOf("·", "・", "･")
 /** 空格 －；a ——；e —；u -；i ---；o ─。 */
 internal val DASH_CANDIDATES = listOf("－", "——", "—", "-", "---", "─")

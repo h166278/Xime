@@ -564,7 +564,8 @@ fun CodeDisplayCard(
     isSelected: Boolean,
     showCodeInInputBox: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showCandidateInInputBox: Boolean = false,
 ) {
     val primary = MaterialTheme.colorScheme.primary
     val onSurface = MaterialTheme.colorScheme.onSurface
@@ -621,10 +622,10 @@ fun CodeDisplayCard(
                                 .padding(horizontal = 8.dp),
                             contentAlignment = Alignment.CenterStart
                         ) {
-                            if (showCodeInInputBox) {
+                            if (showCodeInInputBox || showCandidateInInputBox) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "曦码 shu ru fa",
+                                        text = if (showCandidateInInputBox) "曦码 输入法" else "曦码 shu ru fa",
                                         fontSize = 12.sp,
                                         color = onSurface,
                                         maxLines = 1
@@ -733,6 +734,23 @@ fun CodeDisplayCardPreview_NotSelectedNoCode() {
             title = "曦码",
             isSelected = true,
             showCodeInInputBox = false,
+            onClick = {},
+            modifier = Modifier
+                .padding(16.dp)
+                .height(160.dp)
+        )
+    }
+}
+
+@Preview(name = "CodeDisplayCard - 预览上屏")
+@Composable
+fun CodeDisplayCardPreview_CommitPreview() {
+    XimeTheme {
+        CodeDisplayCard(
+            title = "预览上屏",
+            isSelected = true,
+            showCodeInInputBox = false,
+            showCandidateInInputBox = true,
             onClick = {},
             modifier = Modifier
                 .padding(16.dp)

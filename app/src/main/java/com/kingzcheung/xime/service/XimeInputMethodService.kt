@@ -1550,10 +1550,12 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                 KeyEvent.KEYCODE_DPAD_RIGHT -> {
                     val maxIdx = candidateState.value.candidates.size - 1
                     highlightIndex.intValue = (highlightIndex.intValue + 1).coerceAtMost(maxIdx)
+                    refreshCommitPreview()
                     return true
                 }
                 KeyEvent.KEYCODE_DPAD_LEFT -> {
                     highlightIndex.intValue = (highlightIndex.intValue - 1).coerceAtLeast(0)
+                    refreshCommitPreview()
                     return true
                 }
                 KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_ENTER -> {
@@ -1806,6 +1808,22 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
     
     private val highlightIndex = mutableIntStateOf(0)
 
+    internal fun currentHighlightIndex(): Int = highlightIndex.intValue
+
+    internal fun resetHighlightIndex() {
+        highlightIndex.intValue = 0
+    }
+
+    internal fun clampHighlightIndex(size: Int) {
+        if (size <= 0) {
+            highlightIndex.intValue = 0
+            return
+        }
+        if (highlightIndex.intValue >= size) {
+            highlightIndex.intValue = size - 1
+        }
+    }
+
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         info?.let { updateEnterKeyText(it) }
@@ -2033,6 +2051,9 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             page = keyboardViewModel.page.value
         }
         calculatorEngine.clear()
+        // 预览上屏：先把输入框里漂的词交出去并静默记用户词，再清引擎。
+        // 必须在 clearComposition / 清 t9Partial 之前，否则没词可交。
+        val previewCommitted = sessionController.commitPreviewOnHide()
         rimeEngine.clearComposition()
         keyRouter.setSbxlmWordBuffer(false)
         t9PartialSegments.clear()
@@ -2072,7 +2093,10 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             englishReplaceSupported = true,
             candidateActions = emptyList()
         )
-        endComposingInputBox()
+        highlightIndex.intValue = 0
+        if (!previewCommitted) {
+            endComposingInputBox()
+        }
     }
 
     /**
@@ -2085,6 +2109,8 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
     internal fun markInputBoxComposing() {
         inputBoxComposingActive = true
     }
+
+    internal fun hasInputBoxComposing(): Boolean = inputBoxComposingActive
 
     /**
      * 清理输入框中的 composing 区域（未上屏的拼音编码 / 语音临时文本）。
@@ -2105,6 +2131,40 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             }
         }
         inputBoxComposingActive = false
+    }
+
+    /**
+     * 把输入框 composing 交出去，不清空。预览上屏藏键盘走这条。
+     * 没标记过 composing 时 finish 是空操作。
+     */
+    internal fun finishInputBoxComposing() {
+        currentInputConnection?.finishComposingText()
+        inputBoxComposingActive = false
+    }
+
+    /** 高亮改了立刻改输入框预览，不重跑引擎。 */
+    internal fun refreshCommitPreview() {
+        if (!SettingsPreferences.isCommitPreview(this)) return
+        sessionController.syncInputBoxComposing()
+    }
+
+    /**
+     * 编辑器已经通过 finishComposingText 拿到字，只记上屏栈/联想/事件，不再 commitText。
+     */
+    internal fun recordCommitWithoutSending(text: String) {
+        if (text.isEmpty()) {
+            pendingCommitCode = ""
+            return
+        }
+        if (!suppressCommitRecord && !pluginEvents.isCurrentEditorSensitive) {
+            commitStack.record(text, pendingCommitCode)
+        }
+        pendingCommitCode = ""
+        pluginEvents.onTextCommitted(text, false)
+        if (isChineseMode) {
+            predictionManager.appendCommittedText(text)
+            predictionManager.recordInput(text)
+        }
     }
 
     /**

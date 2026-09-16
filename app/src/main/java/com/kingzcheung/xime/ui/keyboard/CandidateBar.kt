@@ -138,6 +138,7 @@ fun CandidateBar(
         SettingsPreferences.getCandidateCommentLayout(context) == SettingsPreferences.COMMENT_LAYOUT_STACKED
     val inputTextLocation = SettingsPreferences.getInputTextLocation(context)
     val showInputBoxStyle = inputTextLocation == SettingsPreferences.INPUT_TEXT_INPUT_BOX
+    // 预览上屏：编码仍画候选栏气泡，输入框只漂高亮词。
     val candidateTextSize = SettingsPreferences.getCandidateTextSize(context)
     val candidateFontFamily = AppFonts.candidateFontFamily
     val commentFontFamily = AppFonts.commentFontFamily

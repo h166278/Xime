@@ -291,8 +291,10 @@ internal fun rememberImeKeyboardCallbacks(
             onT9RightCommitUndone = { count ->
                 // 半提交文本在 composing 区域时无法用 deleteSurroundingText 删除，
                 // 需通过 endComposingInputBox 清空，交由后续 applyComposition 重建。
-                if (SettingsPreferences.getInputTextLocation(service)
-                    == SettingsPreferences.INPUT_TEXT_INPUT_BOX) {
+                if (writesComposingToInputBox(
+                        SettingsPreferences.getInputTextLocation(service)
+                    )
+                ) {
                     service.endComposingInputBox()
                 } else {
                     service.deleteBeforeCursor(count)
@@ -432,10 +434,13 @@ internal fun rememberImeKeyboardCallbacks(
 private fun moveEditorCursor(service: XimeInputMethodService, direction: Int) {
     val ic = service.currentInputConnection
     if (ic == null || direction == 0) return
-    if (SettingsPreferences.getInputTextLocation(service) == SettingsPreferences.INPUT_TEXT_INPUT_BOX &&
-        service.candidateState.value.isComposing
-    ) {
-        ic.finishComposingText()
+    val loc = SettingsPreferences.getInputTextLocation(service)
+    if (writesComposingToInputBox(loc) && service.candidateState.value.isComposing) {
+        if (isCommitPreview(loc)) {
+            service.sessionController.commitPreviewOnHide()
+        } else {
+            ic.finishComposingText()
+        }
         service.keyRouter.postRimeJob {
             service.rimeEngine.clearComposition()
             withContext(Dispatchers.Main) {

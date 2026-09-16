@@ -25,7 +25,7 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         t9PluginInjections: List<T9CandidateInjection> = emptyList(),
     ) {
         val inputText = composition.input
-        val codeInInputBox = SettingsPreferences.getInputTextLocation(service) == SettingsPreferences.INPUT_TEXT_INPUT_BOX
+        val prevInput = service.candidateState.value.inputText
         val preeditText = composition.preedit
         val candidatesWithComments = composition.candidates.toList()
         val isAsciiMode = composition.isAsciiMode
@@ -153,22 +153,114 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
             }
         }
 
-        if (codeInInputBox && !service.uiState.value.toolPanelInputFocused) {
-            val ic = service.currentInputConnection
-            if (isComposing && displayText.isNotEmpty()) {
-                showInputBoxComposition(ic, displayText)
-            } else {
-                service.endComposingInputBox()
+        if (inputText != prevInput) {
+            service.resetHighlightIndex()
+        } else {
+            service.clampHighlightIndex(displayCandidates.size)
+        }
+        syncInputBoxComposing(displayText, displayCandidates, isComposing)
+    }
+
+    /** 按编码显示档位写/清输入框 composing。预览上屏跟高亮走。 */
+    internal fun syncInputBoxComposing(
+        displayText: String = service.candidateState.value.preeditText,
+        candidates: List<String> = service.candidateState.value.candidates,
+        isComposing: Boolean = service.candidateState.value.isComposing,
+    ) {
+        if (service.uiState.value.toolPanelInputFocused) return
+        val location = SettingsPreferences.getInputTextLocation(service)
+        val planned = planInputBoxComposing(
+            location,
+            displayText,
+            candidates,
+            service.currentHighlightIndex(),
+            isComposing,
+        )
+        val prefix = service.t9PartialSegments.joinToString("") { it.text }
+        val text = if (isCommitPreview(location)) {
+            composingTextWithT9Prefix(planned, prefix)
+        } else {
+            planned
+        }
+        val ic = service.currentInputConnection
+        when {
+            text == null -> {
+                if (writesComposingToInputBox(location)) service.endComposingInputBox()
             }
+            text.isEmpty() -> service.endComposingInputBox()
+            else -> showInputBoxComposition(ic, text)
         }
     }
 
-    /** 在输入框模式向编辑器写入编码文本。 */
-    private fun showInputBoxComposition(ic: android.view.inputmethod.InputConnection, displayText: String) {
+    /**
+     * 藏键盘/结束输入：预览上屏把输入框里漂的词交出去，并静默走引擎选词记用户词。
+     * 返回 true 表示已经 finish，调用方不要再抹空 composing。
+     */
+    internal fun commitPreviewOnHide(): Boolean {
+        if (!SettingsPreferences.isCommitPreview(service)) return false
+        if (service.uiState.value.toolPanelInputFocused) return false
+        val cs = service.candidateState.value
+        val t9Prefix = service.t9PartialSegments.joinToString("") { it.text }
+        if (!cs.isComposing && t9Prefix.isEmpty()) return false
+        val planned = planInputBoxComposing(
+            SettingsPreferences.INPUT_TEXT_COMMIT_PREVIEW,
+            cs.preeditText.ifEmpty { cs.inputText },
+            cs.candidates,
+            service.currentHighlightIndex(),
+            cs.isComposing || t9Prefix.isNotEmpty(),
+        )
+        val text = composingTextWithT9Prefix(planned, t9Prefix) ?: return false
+        if (text.isEmpty() || !service.hasInputBoxComposing()) return false
+        service.finishInputBoxComposing()
+        val code = cs.inputText
+        val highlight = service.currentHighlightIndex()
+        val action = cs.candidateActions.getOrNull(highlight)
+        val comment = cs.candidateComments.getOrNull(highlight).orEmpty()
+        val isT9 = isT9Schema(service.uiState.value.currentSchemaId)
+        service.armCommitCode(code)
+        service.recordCommitWithoutSending(text)
+        if (isT9) {
+            val pinyin = buildString {
+                service.t9PartialSegments.forEachIndexed { i, seg ->
+                    if (i > 0) append(' ')
+                    append(seg.pinyin)
+                }
+                if (comment.isNotEmpty()) {
+                    if (isNotEmpty()) append(' ')
+                    append(comment)
+                }
+            }
+            if (text.isNotEmpty() && pinyin.isNotEmpty()) {
+                service.rimeEngine.t9Memorize(text, pinyin)
+            }
+            service.rimeEngine.clearComposition()
+        } else if (action == null || !action.isPluginCandidate) {
+            val rimeIndex = if (action != null && action.engineIndex >= 0) {
+                action.engineIndex
+            } else {
+                com.kingzcheung.xime.rime.resolveRimeCandidateIndex(
+                    highlight,
+                    cs.candidates.getOrNull(highlight),
+                    service.rimeEngine.getCandidates().toList(),
+                )
+            }
+            if (service.rimeEngine.selectCandidate(rimeIndex)) {
+                service.rimeEngine.commit()
+            }
+            service.rimeEngine.clearComposition()
+        } else {
+            service.rimeEngine.clearComposition()
+        }
+        return true
+    }
+
+    /** 在输入框模式向编辑器写入编码或预览文本。 */
+    private fun showInputBoxComposition(ic: android.view.inputmethod.InputConnection?, displayText: String) {
         // 第二参数为 1：光标相对编码起始偏移 1 个字符，使光标落在编码末尾，
         // 避免传 displayText.length 时被 AOSP 钳制到整段文本末尾（光标跑到最右边）。
         // 标记输入框存在 composing 区域：endComposingInputBox 仅在此标记下执行 setComposingText("") 清空，
         // 否则该调用会在光标处插入空串，光标处有选中文字时等于删除选区。
+        if (ic == null) return
         service.markInputBoxComposing()
         ic.beginBatchEdit()
         try {
@@ -184,6 +276,7 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
     ) {
         val isAsciiMode = result.isAsciiMode
         val candidatesWithComments = result.candidates
+        val prevInput = service.candidateState.value.inputText
 
         val pendingEnglish = service.candidateState.value.pendingEnglishText
 
@@ -269,14 +362,13 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
             }
         }
 
-        if (SettingsPreferences.getInputTextLocation(service) == SettingsPreferences.INPUT_TEXT_INPUT_BOX) {
-            val ic = service.currentInputConnection
-            if (isComposing && displayText.isNotEmpty()) {
-                showInputBoxComposition(ic, displayText)
-            } else {
-                service.endComposingInputBox()
-            }
+        val newInput = if (isT9Schema) displayText else result.inputText
+        if (newInput != prevInput) {
+            service.resetHighlightIndex()
+        } else {
+            service.clampHighlightIndex(displayCandidates.size)
         }
+        syncInputBoxComposing(displayText, displayCandidates, isComposing)
     }
 
     internal fun updateSchemaName() {

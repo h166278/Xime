@@ -108,6 +108,8 @@ object SettingsPreferences {
     private const val KEY_CANDIDATE_TEXT_SIZE = "candidate_text_size"
     const val INPUT_TEXT_INPUT_BOX = "input_box"
     const val INPUT_TEXT_CANDIDATE_BAR = "candidate_bar"
+    /** 输入框漂高亮候选，编码仍在候选栏。藏键盘把预览交出去。 */
+    const val INPUT_TEXT_COMMIT_PREVIEW = "commit_preview"
     const val DEFAULT_PAGE_SIZE = 20 // 手机候选栏每页候选词数；无选重布局的方案 PC 默认 5 太短。飞系/象码等带 alternative_select_keys 的方案不覆盖，沿用方案自己的 page_size。
 
     fun isCompactModeEnabled(context: Context): Boolean {
@@ -142,6 +144,14 @@ object SettingsPreferences {
     fun setInputTextLocation(context: Context, location: String) {
         getPrefs(context).edit().putString(KEY_INPUT_TEXT_LOCATION, location).apply()
     }
+
+    fun writesComposingToInputBox(context: Context): Boolean {
+        val loc = getInputTextLocation(context)
+        return loc == INPUT_TEXT_INPUT_BOX || loc == INPUT_TEXT_COMMIT_PREVIEW
+    }
+
+    fun isCommitPreview(context: Context): Boolean =
+        getInputTextLocation(context) == INPUT_TEXT_COMMIT_PREVIEW
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

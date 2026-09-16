@@ -237,7 +237,7 @@ fun LayoutDisplaySettingsContent(
                         modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
                     )
                     Text(
-                        text = "选择输入编码的显示位置",
+                        text = "编码放哪。预览上屏时输入框漂高亮词，编码仍在候选栏",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
@@ -248,7 +248,7 @@ fun LayoutDisplaySettingsContent(
                             .fillMaxWidth()
                             .height(150.dp)
                             .padding(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         CodeDisplayCard(
                             title = "显示在输入框",
@@ -267,6 +267,20 @@ fun LayoutDisplaySettingsContent(
                             onClick = {
                                 inputTextLocation = SettingsPreferences.INPUT_TEXT_CANDIDATE_BAR
                                 SettingsPreferences.setInputTextLocation(context, SettingsPreferences.INPUT_TEXT_CANDIDATE_BAR)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        CodeDisplayCard(
+                            title = "预览上屏",
+                            isSelected = inputTextLocation == SettingsPreferences.INPUT_TEXT_COMMIT_PREVIEW,
+                            showCodeInInputBox = false,
+                            showCandidateInInputBox = true,
+                            onClick = {
+                                inputTextLocation = SettingsPreferences.INPUT_TEXT_COMMIT_PREVIEW
+                                SettingsPreferences.setInputTextLocation(
+                                    context,
+                                    SettingsPreferences.INPUT_TEXT_COMMIT_PREVIEW,
+                                )
                             },
                             modifier = Modifier.weight(1f)
                         )
