@@ -6,6 +6,7 @@ import android.view.inputmethod.EditorInfo
 import com.kingzcheung.xime.association.AssociationManager
 import com.kingzcheung.xime.keyboard.OverlayRoute
 import com.kingzcheung.xime.rime.resolveRimeCandidateIndex
+import com.kingzcheung.xime.settings.KeysConfigHelper
 import com.kingzcheung.xime.settings.SettingsPreferences
 import com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState
 import com.kingzcheung.xime.ui.keyboard.isT9Schema
@@ -221,6 +222,11 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 }
                 return@launch
             }
+            val layout46SymbolId = parseLayout46SymbolKey(key)
+            if (layout46SymbolId != null) {
+                handleLayout46SymbolTap(layout46SymbolId, state.isAsciiMode)
+                return@launch
+            }
             if (isRimePunctKey(key)) {
                 val punctCandidates = rimePunctCandidates(key)
                 if (punctCandidates != null) {
@@ -229,13 +235,16 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 return@launch
             }
             // 中文 46 分号：有编码发 ; 进声笔组词；空闲直上屏 ；。英文盘点按是 ;，不进这里。
+            // 有没有码问引擎（阻塞），不信滞后的 candidateState。
             if (key == "；") {
+                val engineHasInput = service.rimeEngine.getInputBlocking().isNotEmpty() ||
+                    candState.pendingEnglishText.isNotEmpty()
                 if (planFullwidthSemicolonTap(
                         chineseMode = !state.isAsciiMode,
-                        composing = hasInputState(candState),
+                        composing = engineHasInput,
                     ) == FullwidthSemicolonTapAction.SEND_SEMICOLON
                 ) {
-                    sendRimeKey(';'.code, 0)
+                    sendRimeKeyBlocking(';'.code, 0)
                     return@launch
                 }
             }
@@ -1074,8 +1083,24 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
 
     /** 把 X11 keysym 送给 Rime 并刷新候选；有 committedText 则先上屏。 */
     private suspend fun sendRimeKey(keycode: Int, mask: Int) {
-        val codeBefore = snapshotCommitCode()
-        val result = service.rimeEngine.processKeyAndGetResult(keycode, mask)
+        sendRimeKeyInternal(keycode, mask, blocking = false)
+    }
+
+    /** key-process 线程：阻塞拿锁，避免 UI 刷新占锁把有码判成空闲。 */
+    private suspend fun sendRimeKeyBlocking(keycode: Int, mask: Int): Boolean =
+        sendRimeKeyInternal(keycode, mask, blocking = true)
+
+    private suspend fun sendRimeKeyInternal(keycode: Int, mask: Int, blocking: Boolean): Boolean {
+        val codeBefore = if (blocking) {
+            service.candidateState.value.inputText.ifEmpty { service.rimeEngine.getInputBlocking() }
+        } else {
+            snapshotCommitCode()
+        }
+        val result = if (blocking) {
+            service.rimeEngine.processKeyAndGetResultBlocking(keycode, mask)
+        } else {
+            service.rimeEngine.processKeyAndGetResult(keycode, mask)
+        }
         if (result.processed) {
             if (result.committedText.isNotEmpty()) {
                 commitRecorded(
@@ -1085,6 +1110,46 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 maybeArmEnglishPunctOverlay(result.committedText)
             }
             sendTransformedResult(result)
+        }
+        return result.processed
+    }
+
+    /**
+     * 46 底行 / , . quote46 点按。空闲字面跟 YAML：/ 顿号、引号弯引号对；
+     * 逗号句号空闲仍走 Rime punctuator（，。）。有码一律半角进 popping。
+     */
+    private suspend fun handleLayout46SymbolTap(keyId: String, asciiMode: Boolean) {
+        val gesture = KeysConfigHelper.getKeyGesture(keyId, asciiMode)
+        val idle = gesture?.idle?.value?.takeIf { it.isNotEmpty() }
+            ?: gesture?.idle?.label?.takeIf { it.isNotEmpty() }
+        val tap = gesture?.tap?.value?.takeIf { it.isNotEmpty() }
+            ?: gesture?.tap?.label?.takeIf { it.isNotEmpty() }
+            ?: when (keyId) {
+                "quote46" -> "'"
+                else -> keyId
+            }
+        val engineHasInput = service.rimeEngine.getInputBlocking().isNotEmpty() ||
+            service.candidateState.value.pendingEnglishText.isNotEmpty()
+        when (planLayout46SymbolTap(engineHasInput, asciiMode, idle)) {
+            Layout46SymbolTapAction.PROCESS -> {
+                val ascii = layout46SymbolAsciiKey(keyId, tap)
+                val processed = sendRimeKeyBlocking(ascii.code, 0)
+                // 空闲逗号句号走 punctuator；引擎没接才贴 tap，避免丢键。
+                if (!processed && !engineHasInput) {
+                    withContext(Dispatchers.Main) { service.commitText(tap) }
+                }
+            }
+            Layout46SymbolTapAction.COMMIT_IDLE -> {
+                val text = idle!!
+                withContext(Dispatchers.Main) {
+                    service.commitText(text)
+                }
+            }
+            Layout46SymbolTapAction.COMMIT_TAP -> {
+                withContext(Dispatchers.Main) {
+                    service.commitText(tap)
+                }
+            }
         }
     }
 
@@ -1754,6 +1819,40 @@ internal fun planIdleDelete(
 
 internal const val RIME_UPPER_PREFIX = "rime_upper:"
 internal const val RIME_PUNCT_PREFIX = "rime_punct:"
+internal const val LAYOUT46_SYMBOL_PREFIX = "layout46_symbol:"
+
+internal enum class Layout46SymbolTapAction {
+    PROCESS,
+    COMMIT_IDLE,
+    COMMIT_TAP,
+}
+
+internal fun parseLayout46SymbolKey(key: String): String? =
+    if (key.startsWith(LAYOUT46_SYMBOL_PREFIX)) key.removePrefix(LAYOUT46_SYMBOL_PREFIX) else null
+
+/** quote46 发 '；其余必须是单字符 ASCII，别把全角 label 当键码。 */
+internal fun layout46SymbolAsciiKey(keyId: String, tap: String): Char {
+    if (keyId == "quote46") return '\''
+    val c = tap.firstOrNull()
+    return if (c != null && c.code in 0x21..0x7E) c else (keyId.firstOrNull() ?: '/')
+}
+
+/**
+ * 中文有码：半角进 Rime 标点字。空闲有 YAML idle（/ 顿号、引号弯引号）直上屏。
+ * 空闲无 idle（逗号句号）仍 processKey，punctuator 出 ，。
+ * 英文盘不进 Rime：空闲 / 仍 ､，其余半角直上屏。
+ */
+internal fun planLayout46SymbolTap(
+    engineHasInput: Boolean,
+    asciiMode: Boolean,
+    idle: String?,
+): Layout46SymbolTapAction = when {
+    asciiMode && !engineHasInput && !idle.isNullOrEmpty() -> Layout46SymbolTapAction.COMMIT_IDLE
+    asciiMode -> Layout46SymbolTapAction.COMMIT_TAP
+    engineHasInput -> Layout46SymbolTapAction.PROCESS
+    !idle.isNullOrEmpty() -> Layout46SymbolTapAction.COMMIT_IDLE
+    else -> Layout46SymbolTapAction.PROCESS
+}
 internal val MIDDLE_DOT_CANDIDATES = listOf("·", "・", "･")
 /** 空格 －；a ——；e —；u -；i ---；o ─。 */
 internal val DASH_CANDIDATES = listOf("－", "——", "—", "-", "---", "─")

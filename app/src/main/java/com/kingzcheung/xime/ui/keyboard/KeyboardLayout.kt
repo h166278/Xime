@@ -60,6 +60,7 @@ import com.kingzcheung.xime.settings.DisplayMode
 import com.kingzcheung.xime.settings.ButtonLayout
 import com.kingzcheung.xime.settings.KeysConfigHelper
 import com.kingzcheung.xime.keyboard.GestureAction
+import com.kingzcheung.xime.service.LAYOUT46_SYMBOL_PREFIX
 import com.kingzcheung.xime.service.RIME_UPPER_PREFIX
 
 /** 半角 → 全角标点映射，中文模式下键帽显示用。提交仍走半角由 Rime 处理。 */
@@ -836,6 +837,7 @@ fun KeyboardLayout(
                                     isAsciiMode = isAsciiMode,
                                     englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
                                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                                    isComposing = isComposing,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
                                     modifier = Modifier.weight(symbolKeyWeight),
@@ -1123,6 +1125,7 @@ fun KeyboardLayout(
                                     isAsciiMode = isAsciiMode,
                                     englishPunctOverlay = !isAsciiMode && englishPunctOverlay,
                                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                                    isComposing = isComposing,
                                     backgroundColor = keyBackgroundColor,
                                     textColor = keyTextColor,
                                     modifier = Modifier.weight(symbolKeyWeight),
@@ -1301,7 +1304,8 @@ private fun LayoutSelectionSheet(
  * 与 [KeyboardRowWithConfig] 共用同一套 YAML 手势语义：
  * - tap：按键主文字与提交值
  * - swipe_up：上滑提交值（display 为 key/both 时同步显示在键帽上滑位）
- * - long_press：display = "key" 时作为长按提交值显示在键帽长按位；
+ * - long_press：display = "key" 时作为长按提交值显示在键帽长按位，
+ *               并塞进 longPressItems，松手走长按值（空闲点按是顿号时不能当 tap）；
  *               为 "bubble" 时弹出候选气泡供选择
  *
  * @param keyId YAML keyboard.<section>.keys 中的键 id（如 "/"、","）
@@ -1345,12 +1349,6 @@ fun ConfigDrivenSymbolKey(
     val tapLabel = overlayFace?.tapLabel
         ?: gesture?.tap?.label?.takeIf { it.isNotEmpty() }
         ?: fallbackTapLabel
-
-    val idleRaw = gesture?.idle
-    val idleValue = idleRaw?.value?.takeIf { it.isNotEmpty() }
-        ?: idleRaw?.label?.takeIf { it.isNotEmpty() }
-    val idleAction = idleRaw?.action
-    val useIdleTap = !isComposing && overlayFace == null && !idleValue.isNullOrEmpty()
 
     val swipeUpRaw = gesture?.swipeUp
     val idleSwipeRaw = gesture?.idleSwipeUp
@@ -1401,24 +1399,18 @@ fun ConfigDrivenSymbolKey(
     } else null
 
     val onClick: () -> Unit = remember(
-        tapAction, tapValue, idleValue, idleAction, useIdleTap,
+        tapAction, tapValue, keyId,
         onKeyPress, onGestureAction, overlayFace, onCommitText, onConsumeEnglishPunct,
     ) {
         {
             if (overlayFace != null) {
                 (onCommitText ?: onKeyPress)(overlayFace.tapValue)
                 onConsumeEnglishPunct?.invoke()
-            } else if (useIdleTap) {
-                val v = idleValue!!
-                if (idleAction != null && idleAction != GestureAction.COMMIT) {
-                    onGestureAction?.invoke(idleAction, v)
-                } else {
-                    (onCommitText ?: onKeyPress)(v)
-                }
             } else if (tapAction != null && tapAction != GestureAction.COMMIT) {
                 onGestureAction?.invoke(tapAction, tapValue)
             } else {
-                onKeyPress(tapValue)
+                // 空闲/组合都进路由器，由引擎线程看码再决定 idle 直上屏还是 processKey。
+                onKeyPress("$LAYOUT46_SYMBOL_PREFIX$keyId")
             }
             Unit
         }
@@ -1493,12 +1485,12 @@ fun ConfigDrivenSymbolKey(
         onPress = onKeyPressDown?.let { cb -> { cb(tapValue) } },
         onRelease = onKeyRelease?.let { cb -> { cb(tapValue) } },
         onLongPressSelect = if (longPressKeyValue != null) {
-            // display=key：长按直接提交该值
+            // display=key：长按松手提交该值（不走 idle 点按）
             remember(longPressKeyValue, onKeyPress, onCommitText) {
                 { _: String -> (onCommitText ?: onKeyPress)(longPressKeyValue); Unit }
             }
         } else onLongPressSelect,
-        longPressItems = longPressBubbleLabels,
+        longPressItems = symbolLongPressItems(longPressDisplay, longPressKeyLabel, longPressBubbleLabels),
         shadowEnabled = shadowEnabled,
         shadowElevation = shadowElevation,
         shadowShapeRadius = shadowShapeRadius,
@@ -1835,6 +1827,20 @@ internal fun idleSymbolTapValue(
     idleValue: String?,
     tapValue: String,
 ): String = if (!composing && !idleValue.isNullOrEmpty()) idleValue else tapValue
+
+/**
+ * display=key 也要有 longPressItems，否则 SwipeableKeyButton 不进长按，
+ * 空闲松手会当成点按，46 键 / 就变成顿号。
+ */
+internal fun symbolLongPressItems(
+    display: String?,
+    keyLabel: String?,
+    bubbleLabels: List<String>?,
+): List<String>? = when {
+    display == "bubble" -> bubbleLabels?.takeIf { it.isNotEmpty() }
+    !keyLabel.isNullOrEmpty() -> listOf(keyLabel)
+    else -> null
+}
 
 internal fun composingLetterSwipeUpKey(key: String): String =
     "$RIME_UPPER_PREFIX${key.uppercase()}"

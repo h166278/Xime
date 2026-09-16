@@ -283,6 +283,32 @@ class RimeEngine {
         }
     }
 
+    /**
+     * key-process 线程用：阻塞拿锁。
+     * [processKeyAndGetResult] 走 tryLocked，主线程 UI 刷新占锁时会 processed=false，
+     * 单码后紧跟标点会被当成空闲直上屏。
+     */
+    fun processKeyAndGetResultBlocking(keycode: Int, mask: Int): RimeProcessResult {
+        if (!isInitialized) return RimeProcessResult(false, "", "", "", emptyArray(), false, false, false)
+        return locked {
+            if (!nativeHasSession() && !nativeCreateSession())
+                return@locked RimeProcessResult(false, "", "", "", emptyArray(), false, false, false)
+            nativeProcessKeyAndGetResult(keycode, mask)
+        }
+    }
+
+    /**
+     * key-process 线程用：阻塞读当前码。
+     * [getInput] 走 tryLocked，拿不到锁返回空串，会把有码判成空闲。
+     */
+    fun getInputBlocking(): String {
+        if (!isInitialized) return ""
+        return locked {
+            if (!nativeHasSession()) return@locked ""
+            nativeGetInput() ?: ""
+        }
+    }
+
     fun getProcessResult(processed: Boolean): RimeProcessResult {
         if (!isInitialized) return RimeProcessResult(false, "", "", "", emptyArray(), false, false, false)
         // 必须持 rimeLock：nativeGetProcessResult 内部 RimeGetContext → Menu::Prepare

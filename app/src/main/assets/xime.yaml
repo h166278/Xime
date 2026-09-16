@@ -482,7 +482,7 @@ keyboard:
       # tap.value 必须半角：组词时进声笔加码（, . / '）。/ 空闲走 idle 直上屏顿号，组合仍 tap /。
       # 分号键点按已改全角直上屏，不在这组。
       # 上滑书名号直上屏。逗号/句号长按气泡：〈<>≤≥，选中走 commit 直上屏（别走 Rime，< 会被 punctuator 交成《）。
-      # /：中文空闲顿号、上滑 ﹖、长按 /。quote46 空闲点按 “”、上滑 ‘’（光标进中间），键帽右上仍 "。
+      # /：中文空闲点按顿号、上滑 ﹖、长按松手直上屏 /。quote46 空闲点按 “”、上滑 ‘’（光标进中间），键帽右上仍 "。
       "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "﹖", value: "﹖" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
       ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
       ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
@@ -600,7 +600,7 @@ keyboard:
       "'": { tap: { label: ".", value: "." }, swipe_up: { label: ",", value: "," } }
       # ── 46 键布局专用底行符号键（英文）──
       # 逗号/句号：键帽右上和上滑 < >；长按气泡仍 〈<>≤≥，选中直上屏。
-      # /：空闲半角顿号 ､、上滑 ?、长按 /。组合仍 tap /。
+      # /：空闲点按半角顿号 ､、上滑 ?、长按松手直上屏 /。组合仍 tap /。
       "/": { tap: { label: "/", value: "/" }, idle: "､", swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
       ",": { tap: { label: ",", value: "," }, swipe_up: { label: "<", value: "<" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
       ".": { tap: { label: ".", value: "." }, swipe_up: { label: ">", value: ">" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
