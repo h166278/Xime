@@ -26,6 +26,8 @@ internal data class CommitUndoPlan(
 internal enum class CommitRedoAction {
     NOOP,
     COMMIT,
+    /** 当前码就是刚捞回来的那串：清码再贴。 */
+    CLEAR_THEN_COMMIT,
 }
 
 internal data class CommitRedoPlan(
@@ -73,15 +75,26 @@ internal fun planCommitUndo(
     }
 }
 
-/** 有选区、打码、注入符号栏不重做。 */
+/**
+ * 有选区、注入栏不重做。
+ * 打码时只有当前码正好是刚撤销捞回来的那串才清码再贴，避免盖掉新打的码。
+ */
 internal fun planCommitRedo(
     top: CommitEntry?,
     hasSelection: Boolean,
     composing: Boolean,
     injected: Boolean = false,
+    currentInput: String = "",
 ): CommitRedoPlan {
-    if (hasSelection || composing || injected) return CommitRedoPlan(CommitRedoAction.NOOP)
+    if (hasSelection || injected) return CommitRedoPlan(CommitRedoAction.NOOP)
     if (top == null || top.text.isEmpty()) return CommitRedoPlan(CommitRedoAction.NOOP)
+    if (composing) {
+        return if (top.code.isNotEmpty() && currentInput == top.code) {
+            CommitRedoPlan(CommitRedoAction.CLEAR_THEN_COMMIT)
+        } else {
+            CommitRedoPlan(CommitRedoAction.NOOP)
+        }
+    }
     return CommitRedoPlan(CommitRedoAction.COMMIT)
 }
 

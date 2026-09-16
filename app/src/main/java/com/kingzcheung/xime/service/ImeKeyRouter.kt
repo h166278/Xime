@@ -228,7 +228,18 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 }
                 return@launch
             }
-            
+            // 中文 46 分号：有编码发 ; 进声笔组词；空闲直上屏 ；。英文盘点按是 ;，不进这里。
+            if (key == "；") {
+                if (planFullwidthSemicolonTap(
+                        chineseMode = !state.isAsciiMode,
+                        composing = hasInputState(candState),
+                    ) == FullwidthSemicolonTapAction.SEND_SEMICOLON
+                ) {
+                    sendRimeKey(';'.code, 0)
+                    return@launch
+                }
+            }
+
             when (key) {
                 "clear_composition" -> {
                     // 只清输入态（预编辑/候选/联想/partial 累积/计算器/左栏），不动已上屏文本。
@@ -1148,7 +1159,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         }
     }
 
-    /** 重做刚撤销的那笔。有编码、选区、注入栏时不贴。 */
+    /** 重做刚撤销的那笔。当前码就是刚捞回来的那串时先清码再贴。 */
     internal fun redoLastCommit() {
         postRimeJob {
             val cand = service.candidateState.value
@@ -1158,10 +1169,17 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             val hasSelection = withContext(Dispatchers.Main) {
                 !service.currentInputConnection?.getSelectedText(0).isNullOrEmpty()
             }
-            if (planCommitRedo(top, hasSelection, composing, injected).action != CommitRedoAction.COMMIT) {
-                return@postRimeJob
+            val currentInput = if (composing) {
+                cand.inputText.ifEmpty { service.rimeEngine.getInput() }
+            } else {
+                ""
             }
+            val action = planCommitRedo(top, hasSelection, composing, injected, currentInput).action
+            if (action == CommitRedoAction.NOOP) return@postRimeJob
             val entry = service.commitStack.popRedoToUndo() ?: return@postRimeJob
+            if (action == CommitRedoAction.CLEAR_THEN_COMMIT) {
+                clearInputStateForKeys()
+            }
             withContext(Dispatchers.Main) {
                 service.suppressCommitRecord = true
                 try {
@@ -1704,6 +1722,19 @@ internal enum class IdleDeleteAction {
     DELETE_SCREEN,
 }
 
+internal enum class FullwidthSemicolonTapAction {
+    SEND_SEMICOLON,
+    COMMIT,
+}
+
+/** 中文有编码：分号进声笔组词。空闲/英文：直上屏。 */
+internal fun planFullwidthSemicolonTap(
+    chineseMode: Boolean,
+    composing: Boolean,
+): FullwidthSemicolonTapAction =
+    if (chineseMode && composing) FullwidthSemicolonTapAction.SEND_SEMICOLON
+    else FullwidthSemicolonTapAction.COMMIT
+
 /**
  * 空码退格：造词缓冲还开着就只关缓冲，不回删已上屏字。
  * 缓冲跟编码不是一回事，删空码后键盘看起来空闲，option 可能还挂着。
@@ -1749,7 +1780,7 @@ internal val RIME_PUNCT_CANDIDATES: Map<String, List<String>> = mapOf(
     "|" to listOf("｜", "·", "§", "¦"),
     "*" to listOf("×", "＊", "*", "·"),
     "x" to TIMES_CANDIDATES,
-    "/" to DIVISION_CANDIDATES,
+    "÷" to DIVISION_CANDIDATES,
 )
 
 /** 注入标点候选：空格选首位，aeuio 对齐声笔字母选重。 */
@@ -1779,7 +1810,7 @@ internal fun injectedPunctCommentsFor(key: String, count: Int): List<String> {
     return injectedPunctComments(count)
 }
 
-/** `rime_punct:` 后跟 ASCII 键 → 注入栏内容。未知键返回 null。 */
+/** `rime_punct:` 后跟 ASCII 键或注入表里的非 ASCII 键（如 ÷）。未知键返回 null。 */
 internal fun rimePunctCandidates(key: String): List<String>? {
     if (!isRimePunctKey(key)) return null
     return RIME_PUNCT_CANDIDATES[key.substring(RIME_PUNCT_PREFIX.length)]
@@ -1788,11 +1819,12 @@ internal fun rimePunctCandidates(key: String): List<String>? {
 internal fun hasInjectedCandidates(candState: CandidateState): Boolean =
     candState.candidateActions.any { it.isInjectedCandidate }
 
-/** `rime_punct:` 后跟一个 ASCII 键。非法串返回 false。 */
+/** `rime_punct:` 后跟一个 ASCII 键，或注入表已登记的单字符。非法串返回 false。 */
 internal fun isRimePunctKey(key: String): Boolean {
     if (!key.startsWith(RIME_PUNCT_PREFIX)) return false
     val ch = key.substring(RIME_PUNCT_PREFIX.length)
-    return ch.length == 1 && ch[0].code in 0x20..0x7E
+    if (ch.length != 1) return false
+    return ch[0].code in 0x20..0x7E || RIME_PUNCT_CANDIDATES.containsKey(ch)
 }
 
 /**

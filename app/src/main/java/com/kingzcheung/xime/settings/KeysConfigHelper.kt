@@ -72,6 +72,7 @@ data class KeyGestureConfig(
     val swipeUp: GestureDef? = null,
     val swipeDown: GestureDef? = null,
     val longPress: LongPressConfig? = null,
+    val swipeRight: GestureDef? = null,
 )
 
 data class KeyboardConfig(
@@ -173,6 +174,7 @@ private fun parseKeyGestureConfig(map: com.charleskorn.kaml.YamlMap): KeyGesture
     var swipeUp: GestureDef? = null
     var swipeDown: GestureDef? = null
     var longPress: LongPressConfig? = null
+    var swipeRight: GestureDef? = null
     for ((kNode, vNode) in map.entries) {
         val name = (kNode as? com.charleskorn.kaml.YamlScalar)?.content ?: continue
         when (name) {
@@ -180,9 +182,10 @@ private fun parseKeyGestureConfig(map: com.charleskorn.kaml.YamlMap): KeyGesture
             "swipe_up" -> swipeUp = parseGestureNode(vNode)
             "swipe_down" -> swipeDown = parseGestureNode(vNode)
             "long_press" -> longPress = parseLongPress(vNode)
+            "swipe_right" -> swipeRight = parseGestureNode(vNode)
         }
     }
-    return KeyGestureConfig(tap, swipeUp, swipeDown, longPress)
+    return KeyGestureConfig(tap, swipeUp, swipeDown, longPress, swipeRight)
 }
 
 /**
@@ -722,6 +725,7 @@ object KeysConfigHelper {
                 swipeUp = ov.swipeUp ?: cur.swipeUp,
                 swipeDown = ov.swipeDown ?: cur.swipeDown,
                 longPress = ov.longPress ?: cur.longPress,
+                swipeRight = ov.swipeRight ?: cur.swipeRight,
             )
         }
         return merged
@@ -1333,6 +1337,7 @@ object KeysConfigHelper {
             "tap" -> kc.tap?.label
             "swipe_up" -> kc.swipeUp?.label
             "swipe_down" -> kc.swipeDown?.label
+            "swipe_right" -> kc.swipeRight?.label
             "long_press" -> kc.longPress?.values?.firstOrNull()?.label
             else -> null
         }

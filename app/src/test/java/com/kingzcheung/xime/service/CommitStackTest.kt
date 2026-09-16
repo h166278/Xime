@@ -56,7 +56,30 @@ class CommitStackTest {
         )
         assertEquals(
             CommitRedoAction.NOOP,
-            planCommitRedo(top, hasSelection = false, composing = true).action,
+            planCommitRedo(top, hasSelection = false, composing = true, currentInput = "w").action,
+        )
+    }
+
+    @Test
+    fun `撤回捞回的码还在就清码再贴`() {
+        val top = CommitEntry("你好", "nih")
+        assertEquals(
+            CommitRedoAction.CLEAR_THEN_COMMIT,
+            planCommitRedo(
+                top, hasSelection = false, composing = true, currentInput = "nih",
+            ).action,
+        )
+        assertEquals(
+            CommitRedoAction.NOOP,
+            planCommitRedo(
+                top, hasSelection = false, composing = true, currentInput = "nihw",
+            ).action,
+        )
+        assertEquals(
+            CommitRedoAction.NOOP,
+            planCommitRedo(
+                CommitEntry("·"), hasSelection = false, composing = true, currentInput = "nih",
+            ).action,
         )
     }
 

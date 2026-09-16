@@ -461,8 +461,9 @@ keyboard:
       j: { tap: "j", swipe_up: { label: "－", value: "-" }, swipe_down: { label: "日曰早廾刂虫丿Ⅱ", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["j", "J"] } }
       k: { tap: "k", swipe_up: { label: "（", value: "(" }, swipe_down: { label: "口Ⅲ川", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["k", "K"] } }
       l: { tap: "l", swipe_up: { label: "）", value: ")" }, swipe_down: { label: "田甲囗四罒车皿力", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["l", "L"] } }
-      # 分号键：仅 46 键布局使用（第三行补位）。上滑/长按均为冒号
-      ";": { tap: { label: "；", value: ";" }, swipe_up: { label: "：", value: ":" }, long_press: { display: "key", values: [ { label: "：", value: ":" } ] } }
+      # 分号键：仅 46 键布局使用（L 右侧补位）。
+      # 点按空闲直上屏 ；；有编码路由器改发 ; 进声笔组词。上滑/长按 ：。
+      ";": { tap: "；", swipe_up: "：", long_press: { display: "key", values: [ { label: "：", value: "：" } ] } }
       # ── 第三行 ──
       z: { tap: "z", swipe_up: { label: "＊", value: "*" }, swipe_down: { label: "", action: "none", display: "key" }, long_press: { display: "bubble", values: [ "z","Z"] } }
       x: { tap: "x", swipe_up: { label: "＠", value: "@" }, swipe_down: { label: "弓匕纟幺弓𠤎", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["x", "X"] } }
@@ -478,7 +479,8 @@ keyboard:
       earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
 
       # ── 46 键布局专用底行符号键（默认布局不显示，仅布局选 46 键时启用）──
-      # tap.value 必须半角：组词时进声笔加码（, . / ; '），空码时由 punctuator 转全角。
+      # tap.value 必须半角：组词时进声笔加码（, . / '），空码时由 punctuator 转全角。
+      # 分号键点按已改全角直上屏，不在这组。
       # 上滑与长按同值，长按用 display: key 直接提交；quote46 避免与默认逗号键 id "'" 冲突
       "/": { tap: { label: "/", value: "/" }, swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "?", value: "?" } ] } }
       ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "key", values: [ { label: "《", value: "《" } ] } }
@@ -520,11 +522,12 @@ keyboard:
       a: { swipe_up: { label: "\\", action: "process_rime_key", value: "\\" }, long_press: { display: "bubble", values: [{ label: "\\", action: "process_rime_key", value: "\\" }, "a", "A", "à", "á", "â", "ã", "ä", "å", "æ"] } }
       s: { swipe_up: "｜", long_press: { display: "bubble", values: [{ label: "|", action: "process_rime_key", value: "|" }, "s", "S", "ß"] } }
       d: { swipe_up: "×", long_press: { display: "bubble", values: [{ label: "×", action: "process_rime_key", value: "rime_punct:x" }, "d", "D"] } }
-      f: { swipe_up: "÷", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:/" }, "f", "F"] } }
+      f: { swipe_up: "÷", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:÷" }, "f", "F"] } }
       g: { swipe_up: "←", long_press: { display: "bubble", values: [{ label: "g", value: "g" }, { label: "G", value: "G" }, { label: "行首", action: "line_start" }] } }
       h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
       j: { swipe_up: { label: "↶", action: "undo", display: "both" }, long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
-      k: { swipe_up: { label: "↷", action: "redo", display: "both" }, long_press: { display: "bubble", values: ["k", "K", { label: "重做", action: "redo" }] } }
+      # K：空闲上滑贴 ↷；右滑重做。组合态上滑仍组词。
+      k: { swipe_up: "↷", swipe_right: { label: "↷", action: "redo", display: "bubble" }, long_press: { display: "bubble", values: ["k", "K", { label: "重做", action: "redo" }] } }
       l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter", display: "both" }, long_press: { display: "bubble", values: ["l", "L"] } }
       z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
       x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }
@@ -634,12 +637,14 @@ keyboard:
       # A：键帽 /。上滑直上屏 /，长按仍 \。
       a: { swipe_up: "/", long_press: { display: "bubble", values: [{ label: "\\", action: "process_rime_key", value: "\\" }, "a", "A", "à", "á", "â", "ã", "ä", "å", "æ"] } }
       s: { swipe_up: "|", long_press: { display: "bubble", values: [{ label: "|", action: "process_rime_key", value: "|" }, "s", "S", "ß"] } }
-      d: { swipe_up: "*", long_press: { display: "bubble", values: [{ label: "×", action: "process_rime_key", value: "rime_punct:x" }, "d", "D"] } }
-      f: { swipe_up: "/", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:/" }, "f", "F"] } }
+      # D/F：键帽和上滑跟中文 46，× ÷ 直上屏。长按仍注入。
+      d: { swipe_up: "×", long_press: { display: "bubble", values: [{ label: "×", action: "process_rime_key", value: "rime_punct:x" }, "d", "D"] } }
+      f: { swipe_up: "÷", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:÷" }, "f", "F"] } }
       g: { swipe_up: "←", long_press: { display: "bubble", values: ["g", "G", { label: "行首", action: "line_start" }] } }
       h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
       j: { swipe_up: { label: "↶", action: "undo", display: "both" }, long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
-      k: { swipe_up: { label: "↷", action: "redo", display: "both" }, long_press: { display: "bubble", values: ["k", "K", { label: "重做", action: "redo" }] } }
+      # K：空闲上滑贴 ↷；右滑重做。组合态上滑仍组词。
+      k: { swipe_up: "↷", swipe_right: { label: "↷", action: "redo", display: "bubble" }, long_press: { display: "bubble", values: ["k", "K", { label: "重做", action: "redo" }] } }
       l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter", display: "both" }, long_press: { display: "bubble", values: ["l", "L"] } }
       z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
       x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }
