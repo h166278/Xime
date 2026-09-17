@@ -481,8 +481,12 @@ keyboard:
       # ── 46 键布局专用底行符号键（默认布局不显示，仅布局选 46 键时启用）──
       # tap.value 必须半角：组词时进声笔加码（, . / '）。/ 空闲走 idle 直上屏顿号，组合仍 tap /。
       # 分号键点按已改全角直上屏，不在这组。
-      # 上滑书名号直上屏。逗号/句号长按气泡：〈<>≤≥，选中走 commit 直上屏（别走 Rime，< 会被 punctuator 交成《）。
+      # 上滑书名号：空闲直上屏；有码先交高亮再贴字面（yu + 句号上滑 → 用》），不进 punctuator。
+      # 逗号/句号长按气泡：〈<>≤≥，选中走 commit 直上屏（别走 Rime，< 会被 punctuator 交成《）。
       # /：中文空闲点按顿号、上滑 ﹖、长按松手直上屏 /。quote46 空闲点按 “”、上滑 ‘’（光标进中间），键帽右上仍 "。
+      # 分号上滑 ： 同样：有码交高亮再贴，空闲直贴。
+      # 拉丁上屏后五个键改英文脸：组合态不套脸；覆盖脸点按仍问引擎，有码进 popping，空闲才贴 '。
+      # 两码后点 ' 偶尔直上屏，就是覆盖脸没清、Compose isComposing 滞后。
       "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "﹖", value: "﹖" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
       ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
       ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }

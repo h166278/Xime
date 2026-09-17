@@ -10,7 +10,9 @@ import com.kingzcheung.xime.settings.KeysConfigHelper
 import com.kingzcheung.xime.settings.SettingsPreferences
 import com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState
 import com.kingzcheung.xime.ui.keyboard.isT9Schema
+import com.kingzcheung.xime.ui.keyboard.englishPunctOverlayFace
 import com.kingzcheung.xime.ui.keyboard.shouldArmEnglishPunctOverlay
+import com.kingzcheung.xime.ui.keyboard.isLetterKey
 import com.kingzcheung.xime.util.FileLogger
 import com.kingzcheung.xime.viewmodel.ShiftMode
 import kotlinx.coroutines.CoroutineScope
@@ -229,10 +231,29 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 }
                 return@launch
             }
+            val layout46OverlaySwipeId = parseLayout46OverlaySwipeKey(key)
+            if (layout46OverlaySwipeId != null) {
+                handleLayout46OverlaySwipe(layout46OverlaySwipeId, state.isAsciiMode)
+                return@launch
+            }
+            val layout46OverlayId = parseLayout46OverlayKey(key)
+            if (layout46OverlayId != null) {
+                handleLayout46OverlayTap(layout46OverlayId, state.isAsciiMode)
+                return@launch
+            }
+            val layout46SwipeId = parseLayout46SymbolSwipeKey(key)
+            if (layout46SwipeId != null) {
+                handleLayout46SymbolSwipe(layout46SwipeId, state.isAsciiMode)
+                return@launch
+            }
             val layout46SymbolId = parseLayout46SymbolKey(key)
             if (layout46SymbolId != null) {
                 handleLayout46SymbolTap(layout46SymbolId, state.isAsciiMode)
                 return@launch
+            }
+            // 打字母立刻收覆盖脸，别等 Compose isComposing。
+            if (isLetterKey(key)) {
+                service.keyboardViewModel.consumeEnglishPunctOverlay()
             }
             // 中文 46 分号：有编码发 ; 进声笔组词；空闲直上屏 ；。英文盘点按是 ;，不进这里。
             // 有没有码问引擎（阻塞），不信滞后的 candidateState。
@@ -1155,6 +1176,67 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         }
     }
 
+    /**
+     * 覆盖脸点按。有码当普通 46 标点进 popping；空闲才贴英文符。
+     * 不信 Compose isComposing：两码后点 ' 仍问引擎。
+     */
+    private suspend fun handleLayout46OverlayTap(keyId: String, asciiMode: Boolean) {
+        service.keyboardViewModel.consumeEnglishPunctOverlay()
+        val rimeHasInput = service.rimeEngine.getInputBlocking().isNotEmpty()
+        if (planLayout46OverlayTap(rimeHasInput) == Layout46OverlayTapAction.PROCESS) {
+            handleLayout46SymbolTap(keyId, asciiMode)
+            return
+        }
+        val text = englishPunctOverlayFace(keyId)?.tapValue ?: return
+        withContext(Dispatchers.Main) {
+            service.commitText(text)
+        }
+    }
+
+    /**
+     * 覆盖脸上滑。有码走普通 46 上滑（字+YAML 字面）；空闲贴英文上滑符。
+     */
+    private suspend fun handleLayout46OverlaySwipe(keyId: String, asciiMode: Boolean) {
+        service.keyboardViewModel.consumeEnglishPunctOverlay()
+        val rimeHasInput = service.rimeEngine.getInputBlocking().isNotEmpty()
+        if (planLayout46OverlayTap(rimeHasInput) == Layout46OverlayTapAction.PROCESS) {
+            handleLayout46SymbolSwipe(keyId, asciiMode)
+            return
+        }
+        val text = englishPunctOverlayFace(keyId)?.swipeValue ?: return
+        withContext(Dispatchers.Main) {
+            service.commitText(text)
+        }
+    }
+
+    /**
+     * 46 底行 / , . quote46 和分号上滑。有码先交高亮候选，再贴 YAML 上滑字面
+     * （yu + 句号上滑 → 用》）。空闲仍直贴，quote46 空闲仍 ‘’。
+     * 不进 punctuator：/ 上滑是 ﹖ 不是 ？。
+     */
+    private suspend fun handleLayout46SymbolSwipe(keyId: String, asciiMode: Boolean) {
+        val gesture = KeysConfigHelper.getKeyGesture(keyId, asciiMode)
+        val idleSwipe = gesture?.idleSwipeUp?.value?.takeIf { it.isNotEmpty() }
+            ?: gesture?.idleSwipeUp?.label?.takeIf { it.isNotEmpty() }
+        val swipe = gesture?.swipeUp?.value?.takeIf { it.isNotEmpty() }
+            ?: gesture?.swipeUp?.label?.takeIf { it.isNotEmpty() }
+        val rimeHasInput = service.rimeEngine.getInputBlocking().isNotEmpty()
+        val text = layout46SymbolSwipeText(rimeHasInput, swipe, idleSwipe) ?: return
+        if (planLayout46SymbolSwipe(rimeHasInput) == Layout46SymbolSwipeAction.SELECT_THEN_COMMIT) {
+            setSbxlmWordBuffer(false)
+            val candState = service.candidateState.value
+            if (candState.candidates.isNotEmpty()) {
+                val idx = service.currentHighlightIndex().coerceIn(0, candState.candidates.lastIndex)
+                selectCandidateAsync(idx)
+            } else {
+                sendRimeKeyBlocking(0x20, 0)
+            }
+        }
+        withContext(Dispatchers.Main) {
+            service.commitText(text)
+        }
+    }
+
     private fun snapshotCommitCode(): String =
         service.candidateState.value.inputText.ifEmpty { service.rimeEngine.getInput() }
 
@@ -1820,6 +1902,9 @@ internal fun planIdleDelete(
 internal const val RIME_UPPER_PREFIX = "rime_upper:"
 internal const val RIME_PUNCT_PREFIX = "rime_punct:"
 internal const val LAYOUT46_SYMBOL_PREFIX = "layout46_symbol:"
+internal const val LAYOUT46_SYMBOL_SWIPE_PREFIX = "layout46_swipe:"
+internal const val LAYOUT46_OVERLAY_PREFIX = "layout46_overlay:"
+internal const val LAYOUT46_OVERLAY_SWIPE_PREFIX = "layout46_overlay_swipe:"
 
 internal enum class Layout46SymbolTapAction {
     PROCESS,
@@ -1829,6 +1914,46 @@ internal enum class Layout46SymbolTapAction {
 
 internal fun parseLayout46SymbolKey(key: String): String? =
     if (key.startsWith(LAYOUT46_SYMBOL_PREFIX)) key.removePrefix(LAYOUT46_SYMBOL_PREFIX) else null
+
+internal fun parseLayout46SymbolSwipeKey(key: String): String? =
+    if (key.startsWith(LAYOUT46_SYMBOL_SWIPE_PREFIX)) key.removePrefix(LAYOUT46_SYMBOL_SWIPE_PREFIX) else null
+
+internal fun parseLayout46OverlayKey(key: String): String? =
+    if (key.startsWith(LAYOUT46_OVERLAY_PREFIX) && !key.startsWith(LAYOUT46_OVERLAY_SWIPE_PREFIX)) {
+        key.removePrefix(LAYOUT46_OVERLAY_PREFIX)
+    } else null
+
+internal fun parseLayout46OverlaySwipeKey(key: String): String? =
+    if (key.startsWith(LAYOUT46_OVERLAY_SWIPE_PREFIX)) key.removePrefix(LAYOUT46_OVERLAY_SWIPE_PREFIX) else null
+
+internal enum class Layout46OverlayTapAction {
+    PROCESS,
+    COMMIT_OVERLAY,
+}
+
+/** 引擎有码当普通 46 标点；空闲才贴覆盖脸英文符。 */
+internal fun planLayout46OverlayTap(rimeHasInput: Boolean): Layout46OverlayTapAction =
+    if (rimeHasInput) Layout46OverlayTapAction.PROCESS
+    else Layout46OverlayTapAction.COMMIT_OVERLAY
+
+internal enum class Layout46SymbolSwipeAction {
+    SELECT_THEN_COMMIT,
+    COMMIT,
+}
+
+/** 引擎有码才先选词；英文 pending 字母已在屏上，只贴标点。 */
+internal fun planLayout46SymbolSwipe(rimeHasInput: Boolean): Layout46SymbolSwipeAction =
+    if (rimeHasInput) Layout46SymbolSwipeAction.SELECT_THEN_COMMIT
+    else Layout46SymbolSwipeAction.COMMIT
+
+/** 有码用 swipe_up；空闲有 idle_swipe_up 用它（quote46 ‘’）。都空返回 null。 */
+internal fun layout46SymbolSwipeText(
+    rimeHasInput: Boolean,
+    swipe: String?,
+    idleSwipe: String?,
+): String? =
+    if (rimeHasInput || idleSwipe.isNullOrEmpty()) swipe?.takeIf { it.isNotEmpty() }
+    else idleSwipe
 
 /** quote46 发 '；其余必须是单字符 ASCII，别把全角 label 当键码。 */
 internal fun layout46SymbolAsciiKey(keyId: String, tap: String): Char {

@@ -18,7 +18,10 @@ class EnglishPunctOverlayTest {
         assertEquals(">", englishPunctOverlayFace(".")?.swipeLabel)
         assertEquals("'", englishPunctOverlayFace("quote46")?.tapLabel)
         assertEquals("\"", englishPunctOverlayFace("quote46")?.swipeLabel)
+        assertEquals("/", englishPunctOverlayFace("/")?.tapLabel)
+        assertEquals("?", englishPunctOverlayFace("/")?.swipeLabel)
         assertNull(englishPunctOverlayFace("a"))
+        assertNull(englishPunctOverlayFace("；"))
     }
 
     @Test
@@ -81,5 +84,12 @@ class EnglishPunctOverlayTest {
                 composing = true,
             )
         )
+    }
+
+    @Test
+    fun `组合态不套覆盖脸`() {
+        assertFalse(shouldApplyEnglishPunctOverlay(armed = true, composing = true))
+        assertTrue(shouldApplyEnglishPunctOverlay(armed = true, composing = false))
+        assertFalse(shouldApplyEnglishPunctOverlay(armed = false, composing = false))
     }
 }

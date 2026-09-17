@@ -41,3 +41,8 @@ internal fun shouldArmEnglishPunctOverlay(
     if (englishKeyboard && asciiMode && !composing) return false
     return true
 }
+
+/** 组合态键帽和手势都不走覆盖脸；空闲才贴英文符。Compose 滞后由路由器再挡一层。 */
+internal fun shouldApplyEnglishPunctOverlay(armed: Boolean, composing: Boolean): Boolean =
+    armed && !composing
+

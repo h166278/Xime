@@ -62,7 +62,10 @@ import com.kingzcheung.xime.settings.DisplayMode
 import com.kingzcheung.xime.settings.ButtonLayout
 import com.kingzcheung.xime.settings.KeysConfigHelper
 import com.kingzcheung.xime.keyboard.GestureAction
+import com.kingzcheung.xime.service.LAYOUT46_OVERLAY_PREFIX
+import com.kingzcheung.xime.service.LAYOUT46_OVERLAY_SWIPE_PREFIX
 import com.kingzcheung.xime.service.LAYOUT46_SYMBOL_PREFIX
+import com.kingzcheung.xime.service.LAYOUT46_SYMBOL_SWIPE_PREFIX
 import com.kingzcheung.xime.service.RIME_UPPER_PREFIX
 
 /** 半角 → 全角标点映射，中文模式下键帽显示用。提交仍走半角由 Rime 处理。 */
@@ -610,7 +613,14 @@ fun KeyboardLayout(
                                         KeysConfigHelper.getKeyDisplayLabel(key, isAsciiMode)
                                     }
 
-                                    val onClick = remember(key, commitValue, onKeyPress) { { onKeyPress(commitValue) } }
+                                    val onClick = remember(key, commitValue, onKeyPress, is46Layout) {
+                                        {
+                                            if (is46Layout && isLetterKey(key)) {
+                                                viewModel.consumeEnglishPunctOverlay()
+                                            }
+                                            onKeyPress(commitValue)
+                                        }
+                                    }
                                     val onPress: (() -> Unit)? = remember(key, onKeyPressDown) { { onKeyPressDown?.invoke(key); Unit } }
                                     val onRelease: (() -> Unit)? = remember(key, onKeyRelease) { { onKeyRelease?.invoke(key); Unit } }
                                     val onSwipeDown = if (swipeDownAction != null && swipeDownLabel != null) {
@@ -1341,7 +1351,9 @@ fun ConfigDrivenSymbolKey(
     isComposing: Boolean = false,
 ) {
     val gesture = KeysConfigHelper.getKeyGesture(keyId, isAsciiMode)
-    val overlayFace = if (englishPunctOverlay) englishPunctOverlayFace(keyId) else null
+    val overlayFace = if (shouldApplyEnglishPunctOverlay(englishPunctOverlay, isComposing)) {
+        englishPunctOverlayFace(keyId)
+    } else null
 
     val tapAction = gesture?.tap?.action
     val tapValue = overlayFace?.tapValue
@@ -1406,7 +1418,7 @@ fun ConfigDrivenSymbolKey(
     ) {
         {
             if (overlayFace != null) {
-                (onCommitText ?: onKeyPress)(overlayFace.tapValue)
+                onKeyPress("$LAYOUT46_OVERLAY_PREFIX$keyId")
                 onConsumeEnglishPunct?.invoke()
             } else if (tapAction != null && tapAction != GestureAction.COMMIT) {
                 onGestureAction?.invoke(tapAction, tapValue)
@@ -1421,15 +1433,16 @@ fun ConfigDrivenSymbolKey(
     val onSwipeUp: ((String) -> Unit)? = if (swipeUpValue != null && (overlayFace != null || swipeUpAction != GestureAction.NONE)) {
         val upValue: String = swipeUpValue
         val upAction: GestureAction? = swipeUpAction
-        remember(upAction, upValue, onKeyPress, onGestureAction, onCommitText, overlayFace, onConsumeEnglishPunct) {
+        remember(upAction, upValue, keyId, onKeyPress, onGestureAction, onCommitText, overlayFace, onConsumeEnglishPunct) {
             { _: String ->
                 if (overlayFace != null) {
-                    (onCommitText ?: onKeyPress)(overlayFace.swipeValue)
+                    onKeyPress("$LAYOUT46_OVERLAY_SWIPE_PREFIX$keyId")
                     onConsumeEnglishPunct?.invoke()
                 } else if (upAction != null && upAction != GestureAction.COMMIT) {
                     onGestureAction?.invoke(upAction, upValue)
                 } else {
-                    (onCommitText ?: onKeyPress)(upValue)
+                    // 有码/空闲都进路由器：有码先交高亮再贴字面，空闲仍直贴。
+                    onKeyPress("$LAYOUT46_SYMBOL_SWIPE_PREFIX$keyId")
                 }
                 Unit
             }
@@ -1596,7 +1609,9 @@ fun KeyboardRowWithConfig(
     ) {
         keys.forEach { key ->
             val mnemonicHint = letterMnemonicHint(key, is46Layout, mnemonicHintsEnabled)
-            val overlayFace = if (englishPunctOverlay) englishPunctOverlayFace(key) else null
+            val overlayFace = if (shouldApplyEnglishPunctOverlay(englishPunctOverlay, isComposing)) {
+                englishPunctOverlayFace(key)
+            } else null
             val composingLetterSwipe = overlayFace == null &&
                 shouldComposingLetterSwipeUp(isComposing, isAsciiMode, key)
             val composingSwipeLabel = if (composingLetterSwipe) composingLetterSwipeUpLabel(key) else null
@@ -1663,12 +1678,13 @@ fun KeyboardRowWithConfig(
                 KeysConfigHelper.getKeyDisplayLabel(key, isAsciiMode)
             }
 
-            val onClick: () -> Unit = remember(key, commitValue, onKeyPress, overlayFace, onCommitText, onConsumeEnglishPunct) {
+            val onClick: () -> Unit = remember(key, commitValue, onKeyPress, overlayFace, onConsumeEnglishPunct, englishPunctOverlay) {
                 {
                     if (overlayFace != null) {
-                        (onCommitText ?: onKeyPress)(overlayFace.tapValue)
+                        onKeyPress("$LAYOUT46_OVERLAY_PREFIX$key")
                         onConsumeEnglishPunct?.invoke()
                     } else {
+                        if (englishPunctOverlay && isLetterKey(key)) onConsumeEnglishPunct?.invoke()
                         onKeyPress(commitValue)
                     }
                     Unit
@@ -1722,9 +1738,9 @@ fun KeyboardRowWithConfig(
                 swipeUpHintIcon = if (mnemonicHint != null || composingLetterSwipe) null else rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
                 mnemonicHint = mnemonicHint,
                 onSwipe = if (overlayFace != null) {
-                    remember(overlayFace, onCommitText, onKeyPress, onConsumeEnglishPunct) {
+                    remember(key, onKeyPress, onConsumeEnglishPunct) {
                         { _: String ->
-                            (onCommitText ?: onKeyPress)(overlayFace.swipeValue)
+                            onKeyPress("$LAYOUT46_OVERLAY_SWIPE_PREFIX$key")
                             onConsumeEnglishPunct?.invoke()
                             Unit
                         }
@@ -1733,6 +1749,10 @@ fun KeyboardRowWithConfig(
                     remember(key, onKeyPress) {
                         val upperKey = composingLetterSwipeUpKey(key)
                         return@remember { _: String -> onKeyPress(upperKey); Unit }
+                    }
+                } else if (is46Layout && key == ";") {
+                    remember(onKeyPress) {
+                        { _: String -> onKeyPress("$LAYOUT46_SYMBOL_SWIPE_PREFIX;"); Unit }
                     }
                 } else {
                     remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
@@ -2346,6 +2366,8 @@ private fun LandscapeKeyboardContent(
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
                     isComposing = isComposing,
+                    englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                 )
             }
             Box(
@@ -2379,12 +2401,93 @@ private fun LandscapeKeyboardContent(
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
                     isComposing = isComposing,
+                    englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                 )
             }
+            if (is46Layout) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                val overflow = 4.dp
+                val slot = maxWidth / 5f
+                val letterW = slot + overflow / 4f
+                CompactKeyboardRowWithConfig(
+                    keys = listOf("z", "x", "c", "v"),
+                    onKeyPress = onKeyPress,
+                    config = KeyboardRowConfig(
+                        keyBackgroundColor = keyBackgroundColor,
+                        keyTextColor = keyTextColor,
+                        keyboardBackgroundColor = keyboardBackgroundColor,
+                        fontSize = landscapeFontSize,
+                        swipeFontSize = landscapeSwipeFontSize,
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
+                    ),
+                    isShifted = visualIsShifted,
+                    isAsciiMode = isAsciiMode,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .offset(x = -overflow)
+                        .width(maxWidth + overflow),
+                    onKeyPressDown = onKeyPressDown,
+                    onKeyRelease = onKeyRelease,
+                    swipeDownHintsEnabled = swipeDownHintsEnabled,
+                    swipeUpHintsEnabled = swipeUpHintsEnabled,
+                    onCommitText = onCommitText,
+                    onGestureAction = onGestureAction,
+                    onSwipeStateChange = onSwipeStateChange,
+                    longPressPreferUppercase = longPressPreferUppercase,
+                    is46Layout = is46Layout,
+                    mnemonicHintsEnabled = mnemonicHintsEnabled,
+                    isComposing = isComposing,
+                    englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                    letterWidth = letterW,
+                    leadingContent = {
+                        ShiftCapsKeyButton(
+                            shiftMode = visualShiftMode,
+                            onKeyPress = onKeyPress,
+                            onKeyPressDown = onKeyPressDown,
+                            backgroundColor = specialKeyBackgroundColor,
+                            iconColor = specialKeyTextColor,
+                            modifier = Modifier
+                                .width(slot)
+                                .fillMaxHeight(),
+                            shadowEnabled = shadowEnabled,
+                            shadowElevation = shadowElevation,
+                            shadowShapeRadius = shadowShapeRadius,
+                            tabWhenComposing = isComposing,
+                            onSwipeStateChange = onSwipeStateChange,
+                            idleSwipeTogglesLongPressCase = !isComposing,
+                            longPressPreferUppercase = longPressPreferUppercase,
+                            logicalShiftMode = shiftMode,
+                            onIdleSwipeUp = { modeAtDown ->
+                                viewModel.restoreShift(modeAtDown)
+                                viewModel.toggleLongPressPreferUppercase()
+                            },
+                            onIdleSwipeCancel = { modeAtDown ->
+                                viewModel.restoreShift(modeAtDown)
+                            },
+                            composingSwipeUpLabel = composingShiftSwipeUpBubble(
+                                hasPrevPage = hasPrevPage,
+                                input = composingInput,
+                                schemaId = uiState.currentSchemaId,
+                                hasMenu = hasMenu,
+                            ),
+                            composingInput = composingInput,
+                        )
+                    },
+                )
+            }
+            } else {
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = if (is46Layout) 0.dp else staggerStep * 2),
+                    .padding(start = staggerStep * 2),
             ) {
                 CompactKeyboardRowWithConfig(
                     keys = listOf("z", "x", "c", "v"),
@@ -2412,45 +2515,10 @@ private fun LandscapeKeyboardContent(
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
                     isComposing = isComposing,
-                    leadingContent = if (is46Layout) {
-                        {
-                            ShiftCapsKeyButton(
-                                shiftMode = visualShiftMode,
-                                onKeyPress = onKeyPress,
-                                onKeyPressDown = onKeyPressDown,
-                                backgroundColor = specialKeyBackgroundColor,
-                                iconColor = specialKeyTextColor,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight(),
-                                shadowEnabled = shadowEnabled,
-                                shadowElevation = shadowElevation,
-                                shadowShapeRadius = shadowShapeRadius,
-                                tabWhenComposing = isComposing,
-                                onSwipeStateChange = onSwipeStateChange,
-                                idleSwipeTogglesLongPressCase = !isComposing,
-                                longPressPreferUppercase = longPressPreferUppercase,
-                                logicalShiftMode = shiftMode,
-                                onIdleSwipeUp = { modeAtDown ->
-                                    viewModel.restoreShift(modeAtDown)
-                                    viewModel.toggleLongPressPreferUppercase()
-                                },
-                                onIdleSwipeCancel = { modeAtDown ->
-                                    viewModel.restoreShift(modeAtDown)
-                                },
-                                composingSwipeUpLabel = composingShiftSwipeUpBubble(
-                                    hasPrevPage = hasPrevPage,
-                                    input = composingInput,
-                                    schemaId = uiState.currentSchemaId,
-                                    hasMenu = hasMenu,
-                                ),
-                                composingInput = composingInput,
-                            )
-                        }
-                    } else {
-                        {}
-                    },
+                    englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                 )
+            }
             }
             if (is46Layout) {
             BoxWithConstraints(
@@ -2724,6 +2792,8 @@ private fun LandscapeKeyboardContent(
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
                     isComposing = isComposing,
+                    englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                 )
             }
             Box(
@@ -2754,12 +2824,78 @@ private fun LandscapeKeyboardContent(
                     is46Layout = is46Layout,
                     mnemonicHintsEnabled = mnemonicHintsEnabled,
                     isComposing = isComposing,
+                    englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                 )
             }
+            if (is46Layout) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            ) {
+                val overflow = 4.dp
+                val slot = maxWidth / 5f
+                val letterW = slot + overflow / 4f
+                CompactKeyboardRowWithConfig(
+                    keys = listOf("v", "b", "n", "m"),
+                    onKeyPress = onKeyPress,
+                    config = KeyboardRowConfig(
+                        keyBackgroundColor = keyBackgroundColor,
+                        keyTextColor = keyTextColor,
+                        keyboardBackgroundColor = keyboardBackgroundColor,
+                        fontSize = landscapeFontSize,
+                        swipeFontSize = landscapeSwipeFontSize,
+                    ),
+                    isShifted = visualIsShifted,
+                    isAsciiMode = isAsciiMode,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(maxWidth + overflow),
+                    onKeyPressDown = onKeyPressDown,
+                    onKeyRelease = onKeyRelease,
+                    swipeDownHintsEnabled = swipeDownHintsEnabled,
+                    swipeUpHintsEnabled = swipeUpHintsEnabled,
+                    onCommitText = onCommitText,
+                    onGestureAction = onGestureAction,
+                    onSwipeStateChange = onSwipeStateChange,
+                    longPressPreferUppercase = longPressPreferUppercase,
+                    is46Layout = is46Layout,
+                    mnemonicHintsEnabled = mnemonicHintsEnabled,
+                    isComposing = isComposing,
+                    englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                    letterWidth = letterW,
+                    trailingContent = {
+                        SwipeableIconKeyButton(
+                            icon = rememberVectorPainter(Icons.AutoMirrored.Filled.Backspace),
+                            onClick = { onKeyPress("delete") },
+                            backgroundColor = specialKeyBackgroundColor,
+                            iconColor = specialKeyTextColor,
+                            modifier = Modifier
+                                .width(slot)
+                                .fillMaxHeight(),
+                            onLongClick = { onKeyPress("delete") },
+                            onPress = { onKeyPressDown?.invoke("delete") },
+                            onRelease = { onKeyRelease?.invoke("delete") },
+                            swipeUpLabel = "上滑清空",
+                            swipeDownLabel = "下滑撤回",
+                            onSwipeUp = { onKeyPress("clear_all") },
+                            onSwipeDown = { onKeyPress("undo_clear") },
+                            onSwipeLeft = { suppressCursorMove.value = true; onKeyPress("clear_composition") },
+                            onSwipeStateChange = onSwipeStateChange,
+                            shadowEnabled = shadowEnabled,
+                            shadowElevation = shadowElevation,
+                            shadowShapeRadius = shadowShapeRadius,
+                        )
+                    },
+                )
+            }
+            } else {
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = if (is46Layout) 0.dp else staggerStep * 2),
+                    .padding(end = staggerStep * 2),
             ) {
                 CompactKeyboardRowWithConfig(
                     keys = listOf("v", "b", "n", "m"),
@@ -2808,6 +2944,7 @@ private fun LandscapeKeyboardContent(
                         )
                     },
                 )
+            }
             }
             if (is46Layout) {
             BoxWithConstraints(
@@ -3460,21 +3597,27 @@ fun CompactKeyboardRowWithConfig(
     is46Layout: Boolean = false,
     mnemonicHintsEnabled: Boolean = false,
     isComposing: Boolean = false,
+    englishPunctOverlay: Boolean = false,
+    onConsumeEnglishPunct: (() -> Unit)? = null,
     leadingContent: @Composable RowScope.() -> Unit = {},
     trailingContent: @Composable RowScope.() -> Unit = {},
+    letterWidth: Dp? = null,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxSize(),
+        modifier = if (letterWidth != null) modifier else modifier.fillMaxSize(),
     ) {
         leadingContent()
         keys.forEach { key ->
+            val overlayFace = if (shouldApplyEnglishPunctOverlay(englishPunctOverlay, isComposing)) {
+                englishPunctOverlayFace(key)
+            } else null
             val mnemonicHint = letterMnemonicHint(key, is46Layout, mnemonicHintsEnabled)
             val composingLetterSwipe =
-                shouldComposingLetterSwipeUp(isComposing, isAsciiMode, key)
+                shouldComposingLetterSwipeUp(isComposing, isAsciiMode, key) && overlayFace == null
             val composingSwipeLabel =
                 if (composingLetterSwipe) composingLetterSwipeUpLabel(key) else null
-            val rawSwipeUpLabel = composingSwipeLabel
+            val rawSwipeUpLabel = overlayFace?.swipeLabel
+                ?: composingSwipeLabel
                 ?: KeysConfigHelper.getSwipeUpLabel(key, isAsciiMode)
             val swipeUpText = if (swipeUpHintsEnabled || composingLetterSwipe) rawSwipeUpLabel else null
             val swipeUpAction = KeysConfigHelper.getSwipeUpAction(key, isAsciiMode)
@@ -3530,8 +3673,19 @@ fun CompactKeyboardRowWithConfig(
             } else {
                 rawCommitValue
             }
-            val compactDisplayText = if (isAsciiMode) commitValue else KeysConfigHelper.getKeyDisplayLabel(key, isAsciiMode)
-            val compactOnClick = remember(key, commitValue, onKeyPress) { { onKeyPress(commitValue) } }
+            val compactDisplayText = overlayFace?.tapLabel
+                ?: if (isAsciiMode) commitValue else KeysConfigHelper.getKeyDisplayLabel(key, isAsciiMode)
+            val compactOnClick = remember(key, commitValue, onKeyPress, overlayFace, englishPunctOverlay, onConsumeEnglishPunct) {
+                {
+                    if (overlayFace != null) {
+                        onKeyPress("$LAYOUT46_OVERLAY_PREFIX$key")
+                        onConsumeEnglishPunct?.invoke()
+                    } else {
+                        if (englishPunctOverlay && isLetterKey(key)) onConsumeEnglishPunct?.invoke()
+                        onKeyPress(commitValue)
+                    }
+                }
+            }
             val compactOnPress: (() -> Unit)? = remember(key, onKeyPressDown) { { onKeyPressDown?.invoke(key); Unit } }
             val compactOnRelease: (() -> Unit)? = remember(key, onKeyRelease) { { onKeyRelease?.invoke(key); Unit } }
             val compactOnSwipeDown: ((String) -> Unit)? = if (swipeDownAction != null && swipeDownHintsEnabled && swipeDownLabel != null) {
@@ -3566,16 +3720,32 @@ fun CompactKeyboardRowWithConfig(
                 onClick = compactOnClick,
                 backgroundColor = config.keyBackgroundColor,
                 textColor = config.keyTextColor,
-                modifier = Modifier.weight(1f),
+                modifier = if (letterWidth != null) {
+                    Modifier.width(letterWidth).fillMaxHeight()
+                } else {
+                    Modifier.weight(1f)
+                },
                 swipeText = swipeUpText,
                 swipeDownText = swipeDownBubbleText,
                 swipeUpKeyLabel = swipeUpKeyLabel,
                 swipeDownKeyLabel = swipeDownKeyLabel,
                 mnemonicHint = mnemonicHint,
-                onSwipe = if (composingLetterSwipe) {
+                onSwipe = if (overlayFace != null) {
+                    remember(key, onKeyPress, onConsumeEnglishPunct) {
+                        { _: String ->
+                            onKeyPress("$LAYOUT46_OVERLAY_SWIPE_PREFIX$key")
+                            onConsumeEnglishPunct?.invoke()
+                            Unit
+                        }
+                    }
+                } else if (composingLetterSwipe) {
                     remember(key, onKeyPress) {
                         val upperKey = composingLetterSwipeUpKey(key)
                         return@remember { _: String -> onKeyPress(upperKey); Unit }
+                    }
+                } else if (is46Layout && key == ";") {
+                    remember(onKeyPress) {
+                        { _: String -> onKeyPress("$LAYOUT46_SYMBOL_SWIPE_PREFIX;"); Unit }
                     }
                 } else {
                     remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
