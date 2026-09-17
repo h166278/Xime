@@ -128,8 +128,9 @@ internal fun shiftSwipeZoneBubble(
 }
 
 /**
- * 46 横屏右半第二行：GHJKL 宽跟现在一样（面板扣 10dp 错位后再五等分），
- * 分号宽跟底行标点一样 unit*0.8。L-分号间距靠键内 2+2dp，跟 K-L 一样。
+ * 46 横屏右半第二行：GHJKL 字母宽跟 YUIOP 一样（面板五等分），
+ * G 左缘跟 Y 左缘对齐。分号宽跟底行标点一样 unit*0.8，往右溢。
+ * L-分号间距靠键内 2+2dp，跟 K-L 一样。
  */
 internal data class Landscape46SemicolonRowMetrics(
     val letterWidth: Dp,
@@ -139,11 +140,10 @@ internal data class Landscape46SemicolonRowMetrics(
 
 internal fun landscape46SemicolonRowMetrics(
     panelWidth: Dp,
-    stagger: Dp = 10.dp,
     gap: Dp = 4.dp,
     punctWeight: Float = 0.8f,
 ): Landscape46SemicolonRowMetrics {
-    val letterWidth = (panelWidth - stagger) / 5f
+    val letterWidth = panelWidth / 5f
     val unit = (panelWidth - gap * 3) / 5f
     val semicolonWidth = unit * punctWeight
     return Landscape46SemicolonRowMetrics(

@@ -2707,7 +2707,9 @@ private fun LandscapeKeyboardContent(
             }
             if (is46Layout) {
             BoxWithConstraints(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
                 val metrics = landscape46SemicolonRowMetrics(maxWidth)
                 CompactKeyboardRowWithConfig(
