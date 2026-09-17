@@ -2002,6 +2002,28 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         clearInputState()
         recentClipboardItemsState.value = emptyList()
     }
+
+    override fun onUpdateSelection(
+        oldSelStart: Int,
+        oldSelEnd: Int,
+        newSelStart: Int,
+        newSelEnd: Int,
+        candidatesStart: Int,
+        candidatesEnd: Int,
+    ) {
+        super.onUpdateSelection(
+            oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd,
+        )
+        if (ignoreHostComposingLoss) return
+        if (!previewStolenByHost(
+                SettingsPreferences.isCommitPreview(this),
+                hasInputBoxComposing() && candidateState.value.isComposing,
+                candidatesStart,
+                candidatesEnd,
+            )
+        ) return
+        sessionController.abandonPreviewStolenByHost()
+    }
     
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
@@ -2105,9 +2127,29 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
      */
     private var inputBoxComposingActive = false
 
+    /** IME 自己 finish/清空 composing 时 onUpdateSelection 也会变成 -1，别当成宿主偷走。 */
+    private var ignoreHostComposingLoss = false
+
     /** 标记刚向输入框写入了 composing 文本（showInputBoxComposition / 语音 partial）。 */
     internal fun markInputBoxComposing() {
         inputBoxComposingActive = true
+    }
+
+    /** 写预览 composing，短暂挡住 onUpdateSelection，避免中间态 span=-1 被当成宿主偷走。 */
+    internal fun writeInputBoxComposing(text: String) {
+        val ic = currentInputConnection ?: return
+        markInputBoxComposing()
+        ignoreHostComposingLoss = true
+        try {
+            ic.beginBatchEdit()
+            try {
+                ic.setComposingText(text, 1)
+            } finally {
+                ic.endBatchEdit()
+            }
+        } finally {
+            ignoreHostComposingLoss = false
+        }
     }
 
     internal fun hasInputBoxComposing(): Boolean = inputBoxComposingActive
@@ -2122,15 +2164,20 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
      * 否则只调用 finishComposingText（无 composing 时是无害空操作，仅兜底清理残留 span）。
      */
     internal fun endComposingInputBox() {
-        currentInputConnection?.let {
-            if (inputBoxComposingActive) {
-                it.setComposingText("", 0)
-                it.finishComposingText()
-            } else {
-                it.finishComposingText()
+        ignoreHostComposingLoss = true
+        try {
+            currentInputConnection?.let {
+                if (inputBoxComposingActive) {
+                    it.setComposingText("", 0)
+                    it.finishComposingText()
+                } else {
+                    it.finishComposingText()
+                }
             }
+        } finally {
+            ignoreHostComposingLoss = false
+            inputBoxComposingActive = false
         }
-        inputBoxComposingActive = false
     }
 
     /**
@@ -2138,8 +2185,37 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
      * 没标记过 composing 时 finish 是空操作。
      */
     internal fun finishInputBoxComposing() {
-        currentInputConnection?.finishComposingText()
+        ignoreHostComposingLoss = true
+        try {
+            currentInputConnection?.finishComposingText()
+        } finally {
+            ignoreHostComposingLoss = false
+            inputBoxComposingActive = false
+        }
+    }
+
+    /** 预览已被宿主读走，只丢标记，不 finish、不写回。 */
+    internal fun dropInputBoxComposingMark() {
         inputBoxComposingActive = false
+    }
+
+    /**
+     * 宿主把预览变成已提交文本留在输入框（QQ 发送常见）。
+     * 光标前刚好是这段预览才删，避免误删用户已上屏的字。
+     */
+    internal fun deleteLeftoverPreview(preview: String) {
+        if (preview.isEmpty()) return
+        val ic = currentInputConnection ?: return
+        val before = runCatching {
+            ic.getTextBeforeCursor(preview.length, 0)?.toString()
+        }.getOrNull()
+        if (before != preview) return
+        ignoreHostComposingLoss = true
+        try {
+            ic.deleteSurroundingText(preview.length, 0)
+        } finally {
+            ignoreHostComposingLoss = false
+        }
     }
 
     /** 高亮改了立刻改输入框预览，不重跑引擎。 */

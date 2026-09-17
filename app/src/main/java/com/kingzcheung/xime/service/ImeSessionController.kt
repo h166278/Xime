@@ -193,6 +193,47 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
     }
 
     /**
+     * QQ 发送键把 composing 读走、span 变成 -1，键盘还开着。
+     * 不 finish（会把字钉在输入框），不二次 commitText，只记用户词并清引擎。
+     * 若宿主把预览留成已提交文本，删掉这段后缀。
+     */
+    internal fun abandonPreviewStolenByHost() {
+        if (!SettingsPreferences.isCommitPreview(service)) return
+        if (service.uiState.value.toolPanelInputFocused) return
+        val cs = service.candidateState.value
+        val t9Prefix = service.t9PartialSegments.joinToString("") { it.text }
+        if (!cs.isComposing && t9Prefix.isEmpty()) return
+        val planned = planInputBoxComposing(
+            SettingsPreferences.INPUT_TEXT_COMMIT_PREVIEW,
+            cs.preeditText.ifEmpty { cs.inputText },
+            cs.candidates,
+            service.currentHighlightIndex(),
+            cs.isComposing || t9Prefix.isNotEmpty(),
+        )
+        val text = composingTextWithT9Prefix(planned, t9Prefix).orEmpty()
+        service.dropInputBoxComposingMark()
+        if (text.isNotEmpty()) service.deleteLeftoverPreview(text)
+        if (text.isNotEmpty()) {
+            service.armCommitCode(cs.inputText)
+            service.recordCommitWithoutSending(text)
+        }
+        memorizePreviewAndClearEngine(cs, text)
+        service.candidateState.value = cs.copy(
+            candidates = emptyList(),
+            candidateComments = emptyList(),
+            associationCandidates = emptyList(),
+            pendingEnglishText = "",
+            inputText = "",
+            preeditText = "",
+            isComposing = false,
+            candidateActions = emptyList(),
+        )
+        service.t9PartialSegments.clear()
+        service.keyRouter.setSbxlmWordBuffer(false)
+        service.resetHighlightIndex()
+    }
+
+    /**
      * 藏键盘/结束输入：预览上屏把输入框里漂的词交出去，并静默走引擎选词记用户词。
      * 返回 true 表示已经 finish，调用方不要再抹空 composing。
      */
@@ -212,13 +253,17 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         val text = composingTextWithT9Prefix(planned, t9Prefix) ?: return false
         if (text.isEmpty() || !service.hasInputBoxComposing()) return false
         service.finishInputBoxComposing()
-        val code = cs.inputText
+        service.armCommitCode(cs.inputText)
+        service.recordCommitWithoutSending(text)
+        memorizePreviewAndClearEngine(cs, text)
+        return true
+    }
+
+    private fun memorizePreviewAndClearEngine(cs: CandidateState, text: String) {
         val highlight = service.currentHighlightIndex()
         val action = cs.candidateActions.getOrNull(highlight)
         val comment = cs.candidateComments.getOrNull(highlight).orEmpty()
         val isT9 = isT9Schema(service.uiState.value.currentSchemaId)
-        service.armCommitCode(code)
-        service.recordCommitWithoutSending(text)
         if (isT9) {
             val pinyin = buildString {
                 service.t9PartialSegments.forEachIndexed { i, seg ->
@@ -251,7 +296,6 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         } else {
             service.rimeEngine.clearComposition()
         }
-        return true
     }
 
     /** 在输入框模式向编辑器写入编码或预览文本。 */
@@ -261,13 +305,7 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         // 标记输入框存在 composing 区域：endComposingInputBox 仅在此标记下执行 setComposingText("") 清空，
         // 否则该调用会在光标处插入空串，光标处有选中文字时等于删除选区。
         if (ic == null) return
-        service.markInputBoxComposing()
-        ic.beginBatchEdit()
-        try {
-            ic.setComposingText(displayText, 1)
-        } finally {
-            ic.endBatchEdit()
-        }
+        service.writeInputBoxComposing(displayText)
     }
 
     internal fun updateUIWithResult(

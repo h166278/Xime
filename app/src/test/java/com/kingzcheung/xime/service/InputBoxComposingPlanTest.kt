@@ -149,6 +149,42 @@ class InputBoxComposingPlanTest {
     }
 
     @Test
+    fun `预览被宿主拿走只在 span 消失时成立`() {
+        assertTrue(
+            previewStolenByHost(
+                commitPreview = true,
+                previewComposingActive = true,
+                composingStart = -1,
+                composingEnd = -1,
+            ),
+        )
+        assertFalse(
+            previewStolenByHost(
+                commitPreview = true,
+                previewComposingActive = true,
+                composingStart = 0,
+                composingEnd = 2,
+            ),
+        )
+        assertFalse(
+            previewStolenByHost(
+                commitPreview = false,
+                previewComposingActive = true,
+                composingStart = -1,
+                composingEnd = -1,
+            ),
+        )
+        assertFalse(
+            previewStolenByHost(
+                commitPreview = true,
+                previewComposingActive = false,
+                composingStart = -1,
+                composingEnd = -1,
+            ),
+        )
+    }
+
+    @Test
     fun `预览档 composing 拼 T9 前缀`() {
         assertEquals(
             "你好世界",
