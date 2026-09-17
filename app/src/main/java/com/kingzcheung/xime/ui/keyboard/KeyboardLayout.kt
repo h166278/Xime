@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -2670,6 +2671,45 @@ private fun LandscapeKeyboardContent(
                     onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                 )
             }
+            if (is46Layout) {
+            BoxWithConstraints(
+                modifier = Modifier.weight(1f)
+            ) {
+                val metrics = landscape46SemicolonRowMetrics(maxWidth)
+                CompactKeyboardRowWithConfig(
+                    keys = listOf("g", "h", "j", "k", "l", ";"),
+                    onKeyPress = onKeyPress,
+                    config = KeyboardRowConfig(
+                        keyBackgroundColor = keyBackgroundColor,
+                        keyTextColor = keyTextColor,
+                        keyboardBackgroundColor = keyboardBackgroundColor,
+                        fontSize = landscapeFontSize,
+                        swipeFontSize = landscapeSwipeFontSize,
+                    ),
+                    isShifted = visualIsShifted,
+                    isAsciiMode = isAsciiMode,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .requiredWidth(metrics.rowWidth),
+                    onKeyPressDown = onKeyPressDown,
+                    onKeyRelease = onKeyRelease,
+                    swipeDownHintsEnabled = swipeDownHintsEnabled,
+                    swipeUpHintsEnabled = swipeUpHintsEnabled,
+                    onCommitText = onCommitText,
+                    onGestureAction = onGestureAction,
+                    onSwipeStateChange = onSwipeStateChange,
+                    longPressPreferUppercase = longPressPreferUppercase,
+                    is46Layout = is46Layout,
+                    mnemonicHintsEnabled = mnemonicHintsEnabled,
+                    isComposing = isComposing,
+                    englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
+                    letterWidth = metrics.letterWidth,
+                    punctWidth = metrics.semicolonWidth,
+                )
+            }
+            } else {
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -2702,6 +2742,7 @@ private fun LandscapeKeyboardContent(
                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
                     onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                 )
+            }
             }
             if (is46Layout) {
             BoxWithConstraints(
@@ -3479,6 +3520,7 @@ fun CompactKeyboardRowWithConfig(
     leadingContent: @Composable RowScope.() -> Unit = {},
     trailingContent: @Composable RowScope.() -> Unit = {},
     letterWidth: Dp? = null,
+    punctWidth: Dp? = null,
 ) {
     Row(
         modifier = if (letterWidth != null) modifier else modifier.fillMaxSize(),
@@ -3601,10 +3643,10 @@ fun CompactKeyboardRowWithConfig(
                 onClick = compactOnClick,
                 backgroundColor = config.keyBackgroundColor,
                 textColor = config.keyTextColor,
-                modifier = if (letterWidth != null) {
-                    Modifier.width(letterWidth).fillMaxHeight()
-                } else {
-                    Modifier.weight(1f)
+                modifier = when {
+                    punctWidth != null && key == ";" -> Modifier.width(punctWidth).fillMaxHeight()
+                    letterWidth != null -> Modifier.width(letterWidth).fillMaxHeight()
+                    else -> Modifier.weight(1f)
                 },
                 swipeText = swipeUpText,
                 swipeDownText = swipeDownBubbleText,

@@ -1,5 +1,6 @@
 package com.kingzcheung.xime.ui.keyboard
 
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kingzcheung.xime.service.RIME_UPPER_PREFIX
 
@@ -124,4 +125,30 @@ internal fun shiftSwipeZoneBubble(
     ShiftSwipeZone.ACTION -> actionLabel.takeIf { it.isNotEmpty() }
     ShiftSwipeZone.TAP -> if (reachedAction) tapLabel else null
     ShiftSwipeZone.DOWN -> null
+}
+
+/**
+ * 46 横屏右半第二行：GHJKL 宽跟现在一样（面板扣 10dp 错位后再五等分），
+ * 分号宽跟底行标点一样 unit*0.8。L-分号间距靠键内 2+2dp，跟 K-L 一样。
+ */
+internal data class Landscape46SemicolonRowMetrics(
+    val letterWidth: Dp,
+    val semicolonWidth: Dp,
+    val rowWidth: Dp,
+)
+
+internal fun landscape46SemicolonRowMetrics(
+    panelWidth: Dp,
+    stagger: Dp = 10.dp,
+    gap: Dp = 4.dp,
+    punctWeight: Float = 0.8f,
+): Landscape46SemicolonRowMetrics {
+    val letterWidth = (panelWidth - stagger) / 5f
+    val unit = (panelWidth - gap * 3) / 5f
+    val semicolonWidth = unit * punctWeight
+    return Landscape46SemicolonRowMetrics(
+        letterWidth = letterWidth,
+        semicolonWidth = semicolonWidth,
+        rowWidth = letterWidth * 5 + semicolonWidth,
+    )
 }
