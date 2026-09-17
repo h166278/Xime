@@ -1,5 +1,5 @@
 diff --git a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayout.kt b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayout.kt
-index 6235137..300926e 100644
+index 6235137..3f73196 100644
 --- a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayout.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayout.kt
 @@ -4,6 +4,7 @@ import android.annotation.SuppressLint
@@ -1927,7 +1927,7 @@ index 6235137..300926e 100644
                      onKeyPressDown = onKeyPressDown,
                      onKeyRelease = onKeyRelease,
                      swipeDownHintsEnabled = swipeDownHintsEnabled,
-@@ -1472,155 +2771,401 @@ private fun LandscapeKeyboardContent(
+@@ -1472,156 +2771,402 @@ private fun LandscapeKeyboardContent(
                      onCommitText = onCommitText,
                      onGestureAction = onGestureAction,
                      onSwipeStateChange = onSwipeStateChange,
@@ -2420,6 +2420,7 @@ index 6235137..300926e 100644
 -                    shadowShapeRadius = shadowShapeRadius,
 +            }
 +        }
++        }
 +        if (is46Layout && isVoiceMode && !isVoiceSticky) {
 +            Box(
 +                modifier = Modifier
@@ -2438,10 +2439,11 @@ index 6235137..300926e 100644
                  )
              }
          }
+-    }
 +        }
      }
-     }
  }
+ 
 @@ -1639,12 +3184,16 @@ fun SwipeableKeyButtonLandscape(
      swipeDownText: String? = null,
      swipeUpKeyLabel: String? = null,

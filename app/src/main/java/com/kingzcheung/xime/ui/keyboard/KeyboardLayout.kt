@@ -3147,6 +3147,7 @@ private fun LandscapeKeyboardContent(
                 }
             }
         }
+        }
         if (is46Layout && isVoiceMode && !isVoiceSticky) {
             Box(
                 modifier = Modifier
@@ -3166,7 +3167,6 @@ private fun LandscapeKeyboardContent(
             }
         }
         }
-    }
     }
 }
 
