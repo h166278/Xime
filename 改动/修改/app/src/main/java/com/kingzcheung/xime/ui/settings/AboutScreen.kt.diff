@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/ui/settings/AboutScreen.kt b
 index c60a891..63967de 100644
 --- a/app/src/main/java/com/kingzcheung/xime/ui/settings/AboutScreen.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/ui/settings/AboutScreen.kt
-@@ -76,11 +76,11 @@ object AppInfo {
-     
-     val dependencies = listOf(
+@@ -78,7 +78,7 @@ object AppInfo {
          LicenseItem(
              name = "曦码",
              license = "GPL-3.0",
@@ -13,11 +11,7 @@ index c60a891..63967de 100644
          ),
          LicenseItem(
              name = "librime",
-             license = "BSD-3-Clause",
-             url = "https://github.com/rime/librime"
-@@ -224,11 +224,11 @@ fun AboutContent(
-                         Spacer(modifier = Modifier.height(12.dp))
-                         
+@@ -226,7 +226,7 @@ fun AboutContent(
                          Row(
                              modifier = Modifier
                                  .fillMaxWidth()
@@ -26,11 +20,7 @@ index c60a891..63967de 100644
                              horizontalArrangement = Arrangement.Center,
                              verticalAlignment = Alignment.CenterVertically
                          ) {
-                             Icon(
-                                 imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-@@ -266,27 +266,27 @@ fun AboutContent(
-                         )
-                         Spacer(modifier = Modifier.height(12.dp))
+@@ -268,7 +268,7 @@ fun AboutContent(
                          Row(
                              modifier = Modifier
                                  .fillMaxWidth()
@@ -39,10 +29,7 @@ index c60a891..63967de 100644
                              verticalAlignment = Alignment.CenterVertically
                          ) {
                              Icon(
-                                 imageVector = Icons.TwoTone.PersonOutline,
-                                 contentDescription = null,
-                                 tint = MaterialTheme.colorScheme.primary
-                             )
+@@ -279,12 +279,12 @@ fun AboutContent(
                              Spacer(modifier = Modifier.width(12.dp))
                              Column(modifier = Modifier.weight(1f)) {
                                  Text(
@@ -57,11 +44,7 @@ index c60a891..63967de 100644
                                      fontSize = 12.sp,
                                      color = MaterialTheme.colorScheme.onSurfaceVariant
                                  )
-                             }
-                             Icon(
-@@ -304,11 +304,11 @@ fun AboutContent(
-             item {
-                 Card(
+@@ -306,7 +306,7 @@ fun AboutContent(
                      modifier = Modifier
                          .fillMaxWidth()
                          .clickable {
@@ -70,11 +53,7 @@ index c60a891..63967de 100644
                          },
                      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                  ) {
-                     Row(
-                         modifier = Modifier
-@@ -327,11 +327,11 @@ fun AboutContent(
-                                 text = "源代码",
-                                 fontSize = 16.sp,
+@@ -329,7 +329,7 @@ fun AboutContent(
                                  fontWeight = FontWeight.Medium
                              )
                              Text(
@@ -83,5 +62,3 @@ index c60a891..63967de 100644
                                  fontSize = 12.sp,
                                  color = MaterialTheme.colorScheme.onSurfaceVariant
                              )
-                         }
-                         Icon(

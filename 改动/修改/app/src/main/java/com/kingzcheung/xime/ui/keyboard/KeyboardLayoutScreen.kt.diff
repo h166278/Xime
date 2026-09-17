@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayoutSc
 index 42eea84..6061ef6 100644
 --- a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayoutScreen.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayoutScreen.kt
-@@ -85,10 +85,14 @@ fun KeyboardLayoutScreen(
-                 FileLogger.i("XimeKeyboard", "earth key toggle_ascii tapped, ui ascii=${uiState.isAsciiMode}")
-                 viewModel.resetShift()
+@@ -87,6 +87,10 @@ fun KeyboardLayoutScreen(
                  callbacks.onKeyPress("ime_switch", uiState.isAsciiMode)
              }
  
@@ -15,11 +13,7 @@ index 42eea84..6061ef6 100644
              else -> callbacks.onGestureAction?.invoke(action, value) ?: Unit
          }
      }
- 
- // 系统手势（如三指截图）截走触摸流时，Compose 手势检测器不会被 ACTION_CANCEL 取消，
-@@ -121,10 +125,17 @@ fun KeyboardLayoutScreen(
-                         viewModel = viewModel,
-                         callbacks = callbacks,
+@@ -123,6 +127,13 @@ fun KeyboardLayoutScreen(
                          uiState = uiState,
                          isAsciiMode = false,
                          modifier = modifier,
@@ -33,11 +27,7 @@ index 42eea84..6061ef6 100644
                      )
                  }
              }
- 
-             is KeyboardLayoutState.English -> {
-@@ -150,10 +161,17 @@ fun KeyboardLayoutScreen(
-                         viewModel = viewModel,
-                         callbacks = callbacks,
+@@ -152,6 +163,13 @@ fun KeyboardLayoutScreen(
                          uiState = uiState,
                          isAsciiMode = true,
                          modifier = modifier,
@@ -51,5 +41,3 @@ index 42eea84..6061ef6 100644
                      )
                  }
              }
- 
-             is KeyboardLayoutState.Number -> {

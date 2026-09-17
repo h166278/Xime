@@ -2,9 +2,7 @@ diff --git a/.github/workflows/nightly.yml b/.github/workflows/nightly.yml
 index 7a9e697..dd4f8fa 100644
 --- a/.github/workflows/nightly.yml
 +++ b/.github/workflows/nightly.yml
-@@ -79,10 +79,13 @@ jobs:
-           java-version: '17'
-           cache: 'gradle'
+@@ -81,6 +81,9 @@ jobs:
  
        - name: Setup Android SDK
          uses: android-actions/setup-android@v4
@@ -14,5 +12,3 @@ index 7a9e697..dd4f8fa 100644
  
        - name: Install NDK
          run: |
-           sdkmanager "ndk;29.0.14206865"
-           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV

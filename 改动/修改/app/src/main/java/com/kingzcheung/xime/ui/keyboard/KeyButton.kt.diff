@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyButton.kt b/a
 index 879caa1..cd3a13b 100644
 --- a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyButton.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyButton.kt
-@@ -41,13 +41,16 @@ import androidx.compose.ui.graphics.painter.Painter
- import androidx.compose.ui.input.pointer.pointerInput
- import androidx.compose.ui.layout.boundsInRoot
+@@ -43,9 +43,12 @@ import androidx.compose.ui.layout.boundsInRoot
  import androidx.compose.ui.layout.onGloballyPositioned
  import androidx.compose.ui.platform.LocalDensity
  import androidx.compose.ui.platform.LocalView
@@ -17,11 +15,7 @@ index 879caa1..cd3a13b 100644
  import androidx.compose.ui.unit.Dp
  import androidx.compose.ui.unit.dp
  import androidx.compose.ui.unit.sp
- import kotlin.math.abs
- import kotlinx.coroutines.delay
-@@ -86,10 +89,32 @@ internal fun adaptiveBubbleScale(contentScale: Float): Float =
- 
- /** 主字符放大时同步拉开上下提示，手机尺寸下保持原来的 14dp 间距。 */
+@@ -88,6 +91,28 @@ internal fun adaptiveBubbleScale(contentScale: Float): Float =
  internal fun adaptiveHintOffsetDp(contentScale: Float): Float =
      (14f + (contentScale - 1f) * 25f).coerceIn(14f, 24f)
  
@@ -50,11 +44,7 @@ index 879caa1..cd3a13b 100644
  data class SwipeState(
      val isSwiping: Boolean = false,
      val swipeText: String? = null,
-     val isSwipeDown: Boolean = false,
-     val charInfos: List<CharInfo> = emptyList(),
-@@ -391,12 +416,19 @@ fun SwipeableKeyButton(
-     swipeDownText: String? = null,
-     /** 下滑文本显示在按键上（气泡为空，用于 display:key） */
+@@ -393,8 +418,15 @@ fun SwipeableKeyButton(
      swipeDownKeyLabel: String? = null,
      /** 上滑文本显示在按键上（气泡则为空，用于 display:bubble） */
      swipeUpKeyLabel: String? = null,
@@ -70,11 +60,7 @@ index 879caa1..cd3a13b 100644
      onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
      onPress: (() -> Unit)? = null,
      onRelease: (() -> Unit)? = null,
-     onLongPressSelect: ((String) -> Unit)? = null,
-     longPressItems: List<String>? = null,
-@@ -406,15 +438,40 @@ fun SwipeableKeyButton(
-     fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
-     swipeFontSize: androidx.compose.ui.unit.TextUnit = 9.sp,
+@@ -408,11 +440,36 @@ fun SwipeableKeyButton(
      shadowEnabled: Boolean = true,
      shadowElevation: Dp = 1.dp,
      shadowShapeRadius: Dp = 8.dp,
@@ -111,11 +97,7 @@ index 879caa1..cd3a13b 100644
      var dragOffsetX by remember { mutableStateOf(0f) }
      var isSwiping by remember { mutableStateOf(false) }
      var isSwipeDown by remember { mutableStateOf(false) }
-     var buttonBounds by remember { mutableStateOf(Rect(0f, 0f, 0f, 0f)) }
-     var dragActivated by remember { mutableStateOf(false) }
-@@ -422,25 +479,35 @@ fun SwipeableKeyButton(
-     val currentText by rememberUpdatedState(text)
-     val currentSwipeText by rememberUpdatedState(swipeText)
+@@ -424,6 +481,8 @@ fun SwipeableKeyButton(
      val currentSwipeDownText by rememberUpdatedState(swipeDownText)
      val currentOnSwipe by rememberUpdatedState(onSwipe)
      val currentOnSwipeDown by rememberUpdatedState(onSwipeDown)
@@ -124,7 +106,7 @@ index 879caa1..cd3a13b 100644
      val currentOnSwipeStateChange by rememberUpdatedState(onSwipeStateChange)
      val currentOnPress by rememberUpdatedState(onPress)
      val currentOnRelease by rememberUpdatedState(onRelease)
-     val currentOnClick by rememberUpdatedState(onClick)
+@@ -431,14 +490,22 @@ fun SwipeableKeyButton(
      val currentOnLongPressSelect by rememberUpdatedState(onLongPressSelect)
      val currentLongPressItems by rememberUpdatedState(longPressItems)
      val currentLongPressDrawableIds by rememberUpdatedState(longPressDrawableIds)
@@ -150,11 +132,7 @@ index 879caa1..cd3a13b 100644
      // 水平位移超过该值视为横向手势（如键盘区滑动移动光标），不再触发点击。
      // 与 KeyboardView 光标手势激活阈值（activationThresholdPx = 60dp）对齐，
      // 消除 30~60dp 位移区间"点击被取消但光标手势未激活"的死区（打字吃键）。
-     val horizontalClickCancelThreshold = with(density) { 60.dp.toPx() }
- 
-@@ -475,24 +542,38 @@ fun SwipeableKeyButton(
-                         isPressed = true
-                         dragOffsetX = 0f
+@@ -477,13 +544,25 @@ fun SwipeableKeyButton(
                          dragOffsetY = 0f
                          hasTriggeredSwipeUp = false
                          hasTriggeredSwipeDown = false
@@ -183,7 +161,7 @@ index 879caa1..cd3a13b 100644
                          }
                          isPressed = false
                          currentOnRelease?.invoke()
-                         dragOffsetX = 0f
+@@ -491,6 +570,8 @@ fun SwipeableKeyButton(
                          dragOffsetY = 0f
                          hasTriggeredSwipeUp = false
                          hasTriggeredSwipeDown = false
@@ -192,11 +170,7 @@ index 879caa1..cd3a13b 100644
                          isSwiping = false
                          isSwipeDown = false
                          dragActivated = false
-                         currentOnSwipeStateChange?.invoke(SwipeState(false, null, false, emptyList(), false, null), buttonBounds)
-                     },
-@@ -501,44 +582,110 @@ fun SwipeableKeyButton(
-                         currentOnRelease?.invoke()
-                         dragOffsetX = 0f
+@@ -503,6 +584,8 @@ fun SwipeableKeyButton(
                          dragOffsetY = 0f
                          hasTriggeredSwipeUp = false
                          hasTriggeredSwipeDown = false
@@ -205,8 +179,7 @@ index 879caa1..cd3a13b 100644
                          isSwiping = false
                          isSwipeDown = false
                          dragActivated = false
-                         currentOnSwipeStateChange?.invoke(SwipeState(false, null, false, emptyList(), false, null), buttonBounds)
-                     },
+@@ -511,32 +594,96 @@ fun SwipeableKeyButton(
                      onDrag = { change, dragAmount ->
                          dragOffsetX += dragAmount.x
                          dragOffsetY += dragAmount.y
@@ -311,11 +284,7 @@ index 879caa1..cd3a13b 100644
                                  val swipeDownTextValue = currentSwipeDownText
                                  val onSwipeDownValue = currentOnSwipeDown
                                  if (dragOffsetY > swipeDownThreshold && !hasTriggeredSwipeDown && onSwipeDownValue != null) {
-                                     hasTriggeredSwipeDown = true
-                                     onSwipeDownValue(swipeDownTextValue ?: "")
-@@ -546,41 +693,53 @@ fun SwipeableKeyButton(
-                             }
-                         }
+@@ -548,12 +695,19 @@ fun SwipeableKeyButton(
                      }
                  )
              }
@@ -337,9 +306,7 @@ index 879caa1..cd3a13b 100644
                              currentOnPress?.invoke()
                              val released = tryAwaitRelease()
                              if (released || !dragActivated) {
-                                 isPressed = false
-                                 currentOnRelease?.invoke()
-                                 currentOnSwipeStateChange?.invoke(SwipeState(false, null, false, emptyList(), false, null), buttonBounds)
+@@ -563,7 +717,7 @@ fun SwipeableKeyButton(
                              }
                          },
                          onTap = {
@@ -348,9 +315,7 @@ index 879caa1..cd3a13b 100644
                          }
                      )
                      return@pointerInput
-                 }
-                 
-                 awaitEachGesture {
+@@ -573,12 +727,17 @@ fun SwipeableKeyButton(
                      val down = awaitFirstDown(requireUnconsumed = false)
                      isPressed = true
                      var localLongPressTriggered = false
@@ -370,11 +335,7 @@ index 879caa1..cd3a13b 100644
                      )
                      currentOnPress?.invoke()
                      
-                     val longPressJob = scope.launch {
-                         delay(400L)
-@@ -589,11 +748,11 @@ fun SwipeableKeyButton(
-                         currentOnSwipeStateChange?.invoke(
-                             SwipeState(
+@@ -591,7 +750,7 @@ fun SwipeableKeyButton(
                                  isPressed = true,
                                  isLongPress = true,
                                  longPressItems = items,
@@ -383,11 +344,7 @@ index 879caa1..cd3a13b 100644
                                  longPressDrawableIds = currentLongPressDrawableIds ?: emptyList()
                              ),
                              buttonBounds
-                         )
-                     }
-@@ -615,17 +774,68 @@ fun SwipeableKeyButton(
-                                 val deltaX = change.position.x - downX
-                                 val deltaY = change.position.y - downY
+@@ -617,13 +776,64 @@ fun SwipeableKeyButton(
                                  if (kotlin.math.abs(deltaX) > cancelThresholdPx || kotlin.math.abs(deltaY) > cancelThresholdPx) {
                                      swipeDetected = true
                                      longPressJob.cancel()
@@ -453,11 +410,7 @@ index 879caa1..cd3a13b 100644
                                      .coerceIn(0, items.size - 1)
                                  
                                  if (selectedIdx != lastReportedIdx) {
-                                     lastReportedIdx = selectedIdx
-                                     currentOnSwipeStateChange?.invoke(
-@@ -675,18 +885,26 @@ fun SwipeableKeyButton(
-             .background(
-                 if (isPressed) backgroundColor.copy(alpha = 0.7f)
+@@ -677,14 +887,22 @@ fun SwipeableKeyButton(
                  else if (isHighlighted) backgroundColor.copy(alpha = 0.8f)
                  else backgroundColor
              ),
@@ -482,11 +435,7 @@ index 879caa1..cd3a13b 100644
              Box(modifier = Modifier.fillMaxSize()) {
                  if (icon != null) {
                      Icon(
-                         painter = icon,
-                         contentDescription = text,
-@@ -717,12 +935,19 @@ fun SwipeableKeyButton(
-                         .align(Alignment.TopEnd)
-                         .fillMaxHeight()
+@@ -719,8 +937,15 @@ fun SwipeableKeyButton(
                          .padding(top = 4.dp, end = 4.dp, bottom = 2.dp),
                      horizontalAlignment = Alignment.End
                  ) {
@@ -504,11 +453,7 @@ index 879caa1..cd3a13b 100644
                          val displayText = if (swipeUpHint.length <= 2) swipeUpHint else swipeUpHint.take(2)
                          Text(
                              text = displayText,
-                             color = textColor.copy(alpha = 0.6f),
-                             fontSize = effectiveSwipeFontSize,
-@@ -776,21 +1001,42 @@ fun SwipeableKeyButton(
-                     maxLines = 1,
-                     fontFamily = keyFontFamily
+@@ -778,17 +1003,38 @@ fun SwipeableKeyButton(
                  )
              }
  
@@ -552,11 +497,7 @@ index 879caa1..cd3a13b 100644
                      fontFamily = keyLabelFontFamily
                  )
              }
- 
-             if (!swipeDownKeyLabel.isNullOrEmpty()) {
-@@ -820,10 +1066,42 @@ fun SwipeableKeyButton(
-                         .align(Alignment.TopEnd)
-                         .padding(top = 6.dp, end = 6.dp)
+@@ -822,6 +1068,38 @@ fun SwipeableKeyButton(
                  )
              }
          }
@@ -594,6 +535,3 @@ index 879caa1..cd3a13b 100644
 +        }
      }
  }
- 
- @Composable
- fun KeyboardRow(

@@ -1,10 +1,8 @@
 diff --git a/app/src/test/java/com/kingzcheung/xime/settings/KeyboardGestureConfigTest.kt b/app/src/test/java/com/kingzcheung/xime/settings/KeyboardGestureConfigTest.kt
-index a11b755..7cff547 100644
+index a11b755..d058d2e 100644
 --- a/app/src/test/java/com/kingzcheung/xime/settings/KeyboardGestureConfigTest.kt
 +++ b/app/src/test/java/com/kingzcheung/xime/settings/KeyboardGestureConfigTest.kt
-@@ -4,10 +4,11 @@ import com.charleskorn.kaml.Yaml
- import com.kingzcheung.xime.keyboard.GestureAction
- import org.junit.Assert.assertEquals
+@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
  import org.junit.Assert.assertNotNull
  import org.junit.Assert.assertNotEquals
  import org.junit.Assert.assertNull
@@ -12,11 +10,7 @@ index a11b755..7cff547 100644
  import org.junit.Test
  
  class KeyboardGestureConfigTest {
- 
-     @Test
-@@ -430,23 +431,29 @@ class KeyboardGestureConfigTest {
-         return result
-     }
+@@ -432,19 +433,25 @@ class KeyboardGestureConfigTest {
  
      private fun parseKeyGestureConfig(map: com.charleskorn.kaml.YamlMap): KeyGestureConfig {
          var tap: GestureDef? = null
@@ -43,11 +37,7 @@ index a11b755..7cff547 100644
      }
  
      private fun parseLongPress(node: com.charleskorn.kaml.YamlNode): LongPressConfig? {
-         if (node is com.charleskorn.kaml.YamlList) {
-             val values = node.items.map { parseGestureNode(it) }
-@@ -663,6 +670,480 @@ keyboard:
-         assertEquals(1, en.size)
-         assertNotNull(zh["w"])
+@@ -665,4 +672,479 @@ keyboard:
          assertNull(en["w"])
      }
  
@@ -454,13 +444,14 @@ index a11b755..7cff547 100644
 +    @Test
 +    fun `46键斜杠空闲顿号组合斜杠长按斜杠`() {
 +        val zh = parseKeys("""
-+            "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "﹖", value: "﹖" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
++            "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "？", value: "？" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
 +        """.trimIndent())["/"]!!
 +        assertEquals("/", zh.tap!!.value)
 +        assertEquals("、", zh.idle!!.label)
 +        assertEquals("、", zh.idle!!.value)
 +        assertEquals(GestureAction.COMMIT, zh.idle!!.action)
-+        assertEquals("﹖", zh.swipeUp!!.label)
++        assertEquals("？", zh.swipeUp!!.label)
++        assertEquals("？", zh.swipeUp!!.value)
 +        assertEquals("key", zh.longPress!!.display)
 +        assertEquals("/", zh.longPress!!.values[0].label)
 +        assertEquals(GestureAction.COMMIT, zh.longPress!!.values[0].action)

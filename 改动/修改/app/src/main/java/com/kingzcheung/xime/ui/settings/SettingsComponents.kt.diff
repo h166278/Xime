@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/ui/settings/SettingsComponen
 index 65f5cc8..1d54e99 100644
 --- a/app/src/main/java/com/kingzcheung/xime/ui/settings/SettingsComponents.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/ui/settings/SettingsComponents.kt
-@@ -36,11 +36,14 @@ import androidx.compose.runtime.Composable
- import androidx.compose.ui.Alignment
- import androidx.compose.ui.Modifier
+@@ -38,7 +38,10 @@ import androidx.compose.ui.Modifier
  import androidx.compose.ui.draw.clip
  import androidx.compose.ui.graphics.Color
  import androidx.compose.ui.graphics.vector.ImageVector
@@ -15,11 +13,7 @@ index 65f5cc8..1d54e99 100644
  import androidx.compose.ui.unit.dp
  import androidx.compose.ui.unit.sp
  import androidx.compose.ui.tooling.preview.Preview
- import com.kingzcheung.xime.settings.SchemaInfo
- import com.kingzcheung.xime.settings.BackgroundConfig
-@@ -559,11 +562,12 @@ fun ThemeCard(
- fun CodeDisplayCard(
-     title: String,
+@@ -561,7 +564,8 @@ fun CodeDisplayCard(
      isSelected: Boolean,
      showCodeInInputBox: Boolean,
      onClick: () -> Unit,
@@ -29,11 +23,7 @@ index 65f5cc8..1d54e99 100644
  ) {
      val primary = MaterialTheme.colorScheme.primary
      val onSurface = MaterialTheme.colorScheme.onSurface
-     val selectedBg = primary.copy(alpha = 0.15f)
- 
-@@ -616,14 +620,14 @@ fun CodeDisplayCard(
-                                     RoundedCornerShape(4.dp)
-                                 )
+@@ -618,10 +622,10 @@ fun CodeDisplayCard(
                                  .padding(horizontal = 8.dp),
                              contentAlignment = Alignment.CenterStart
                          ) {
@@ -46,11 +36,7 @@ index 65f5cc8..1d54e99 100644
                                          fontSize = 12.sp,
                                          color = onSurface,
                                          maxLines = 1
-                                     )
-                                     Spacer(modifier = Modifier.width(1.dp))
-@@ -736,10 +740,27 @@ fun CodeDisplayCardPreview_NotSelectedNoCode() {
-                 .height(160.dp)
-         )
+@@ -738,6 +742,23 @@ fun CodeDisplayCardPreview_NotSelectedNoCode() {
      }
  }
  
@@ -74,11 +60,7 @@ index 65f5cc8..1d54e99 100644
  @Composable
  fun CommentDisplayCard(
      title: String,
-     isSelected: Boolean,
-     showComment: Boolean,
-@@ -845,10 +866,235 @@ fun CommentDisplayCard(
-             }
-         }
+@@ -847,6 +868,231 @@ fun CommentDisplayCard(
      }
  }
  
@@ -310,11 +292,7 @@ index 65f5cc8..1d54e99 100644
  @Preview(name = "CommentDisplayCard - 显示注释", heightDp = 120)
  @Composable
  fun CommentDisplayCardPreview_Show() {
-     XimeTheme {
-         CommentDisplayCard(
-@@ -879,11 +1125,10 @@ fun CommentDisplayCardPreview_Hide() {
-                 .padding(10.dp)
-         )
+@@ -881,7 +1127,6 @@ fun CommentDisplayCardPreview_Hide() {
      }
  }
  
@@ -322,5 +300,3 @@ index 65f5cc8..1d54e99 100644
  @Composable
  fun KeyboardThemeCard(
      theme: KeyboardColorScheme,
-     isSelected: Boolean,
-     onClick: () -> Unit,

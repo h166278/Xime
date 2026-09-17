@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/settings/SettingsPreferences
 index 499156e..da3bde1 100644
 --- a/app/src/main/java/com/kingzcheung/xime/settings/SettingsPreferences.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/settings/SettingsPreferences.kt
-@@ -43,10 +43,29 @@ object SettingsPreferences {
-     var defaultDarkMode: Int = 2
-     
+@@ -45,6 +45,25 @@ object SettingsPreferences {
      const val KEY_SWIPE_UP_HINTS_ENABLED = "swipe_up_hints_enabled"
      const val KEY_SWIPE_DOWN_HINTS_ENABLED = "swipe_down_hints_enabled"
      const val KEY_SHOW_PRESS_BUBBLE = "show_press_bubble"
@@ -30,11 +28,7 @@ index 499156e..da3bde1 100644
  
      private const val KEY_MODE_CHANGE_TARGET = "mode_change_target"
  
-     fun getModeChangeTargetIsNumber(context: Context): Boolean {
-         return getPrefs(context).getBoolean(KEY_MODE_CHANGE_TARGET, false)
-@@ -79,16 +98,21 @@ object SettingsPreferences {
-     private const val KEY_SCHEMA_IMPORT_WARNING_DISMISSED = "schema_import_warning_dismissed"
- 
+@@ -81,12 +100,17 @@ object SettingsPreferences {
      private const val KEY_INSTALLED_MARKET_IDS = "installed_market_ids"
      private const val KEY_COMPACT_MODE = "compact_mode"
      private const val KEY_SHOW_CANDIDATE_COMMENTS = "show_candidate_comments"
@@ -53,11 +47,7 @@ index 499156e..da3bde1 100644
  
      fun isCompactModeEnabled(context: Context): Boolean {
          return getPrefs(context).getBoolean(KEY_COMPACT_MODE, true)
-     }
- 
-@@ -102,18 +126,35 @@ object SettingsPreferences {
- 
-     fun setShowCandidateComments(context: Context, show: Boolean) {
+@@ -104,6 +128,15 @@ object SettingsPreferences {
          getPrefs(context).edit().putBoolean(KEY_SHOW_CANDIDATE_COMMENTS, show).apply()
      }
  
@@ -73,8 +63,7 @@ index 499156e..da3bde1 100644
      fun getInputTextLocation(context: Context): String {
          return getPrefs(context).getString(KEY_INPUT_TEXT_LOCATION, INPUT_TEXT_CANDIDATE_BAR) ?: INPUT_TEXT_CANDIDATE_BAR
      }
- 
-     fun setInputTextLocation(context: Context, location: String) {
+@@ -112,6 +145,14 @@ object SettingsPreferences {
          getPrefs(context).edit().putString(KEY_INPUT_TEXT_LOCATION, location).apply()
      }
  
@@ -89,11 +78,7 @@ index 499156e..da3bde1 100644
      private fun getPrefs(context: Context): SharedPreferences {
          return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
      }
-     
-     fun getPrefsPublic(context: Context): SharedPreferences {
-@@ -491,11 +532,11 @@ object SettingsPreferences {
-     }
- 
+@@ -493,7 +534,7 @@ object SettingsPreferences {
      fun setShowPressBubble(context: Context, show: Boolean) {
          getPrefs(context).edit().putBoolean(KEY_SHOW_PRESS_BUBBLE, show).apply()
      }
@@ -102,5 +87,3 @@ index 499156e..da3bde1 100644
      /** 获取方案偏好的键盘布局，默认全键盘 */
      fun getLayoutPreference(context: Context, schemaId: String): String {
          return getPrefs(context).getString("$KEY_LAYOUT_PREFIX$schemaId", "full") ?: "full"
-     }
-     

@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/rime/RimeConfigHelper.kt b/a
 index 5d99a14..22b5986 100644
 --- a/app/src/main/java/com/kingzcheung/xime/rime/RimeConfigHelper.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/rime/RimeConfigHelper.kt
-@@ -25,10 +25,12 @@ object RimeConfigHelper {
- 
-     /** 市场索引中随 app 发布的内置默认方案集条目 id（见 rimes/index.yaml 的 `builtin`）。 */
+@@ -27,6 +27,8 @@ object RimeConfigHelper {
      private const val BUILTIN_MARKET_ID = "builtin"
      /** 内置方案集的初始占位版本：`0.0.0` 保证不等于任何真实 git tag，从而在市场提示「更新」。 */
      private const val BUILTIN_PLACEHOLDER_VERSION = "0.0.0"
@@ -13,11 +11,7 @@ index 5d99a14..22b5986 100644
  
      /** 部署互斥：Application 预初始化与输入法服务初始化可能并发触发部署，串行化避免重复/并发全量编译。 */
      private val deploymentLock = Any()
-     
-     suspend fun initializeRimeDataAsync(context: Context): Pair<String, String> {
-@@ -325,29 +327,181 @@ object RimeConfigHelper {
-         val pageSize = SettingsPreferences.getPageSize(context).coerceAtLeast(1)
-         try {
+@@ -327,25 +329,177 @@ object RimeConfigHelper {
              if (!target.exists()) {
                  copyAssetFile(context, ASSETS_DEFAULT_CUSTOM, target)
                  // 模板基线（20）与用户设置不一致时（如 slider 调过）以设置为准
@@ -202,5 +196,3 @@ index 5d99a14..22b5986 100644
       * 无需变化时返回 null。
       */
      internal fun patchDefaultCustomContent(text: String, pageSize: Int): String? {
-         val sep = if (text.contains("\r\n")) "\r\n" else "\n"
-         val lines = text.lines()

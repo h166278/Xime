@@ -2,9 +2,7 @@ diff --git a/app/src/main/jni/librime_jni/rime_jni.cc b/app/src/main/jni/librime
 index b7b1655..29a5a48 100644
 --- a/app/src/main/jni/librime_jni/rime_jni.cc
 +++ b/app/src/main/jni/librime_jni/rime_jni.cc
-@@ -734,26 +734,49 @@ public:
-             LOGI("Updated last_build_time to %d", now);
-             rime->config_close(&config);
+@@ -736,6 +736,23 @@ public:
          }
      }
  
@@ -28,7 +26,7 @@ index b7b1655..29a5a48 100644
      // 把记住的每页候选数覆盖值注入引擎（值来自 app 设置页，非 cpp 写死）：
      // 1) 修改方案配置缓存：schema_open 打开的 ConfigData 由组件按 id 弱引用共享，
      //    此处写入后，之后构造的所有 Schema 都会读到覆盖值；
-     // 2) 当前会话正在使用该方案时，幂等重构造 Schema 立即生效——Schema 仅在
+@@ -743,15 +760,21 @@ public:
      //    构造时读取 menu/page_size（FetchUsefulConfigItems），只改配置对已构造的
      //    Schema 无效。旧实现只有第 1 步，部署/会话重建后无人再调 setPageSize 时
      //    候选数漂移回方案自带值（内置/第三方方案多为 PC 默认 5，不适配手机）。
@@ -54,11 +52,7 @@ index b7b1655..29a5a48 100644
          if (!session_id_) return;
          auto session = rime::Service::instance().GetSession(
              static_cast<rime::SessionId>(session_id_));
-         if (!session) return;
-         auto schema = session->schema();
-@@ -922,11 +945,13 @@ private:
-     RimeSessionId session_id_ = 0;
-     std::string user_data_dir_;
+@@ -924,7 +947,9 @@ private:
      std::string shared_data_dir_;
      bool initialized_ = false;
      // app 设置的每页候选数覆盖值（<=0 表示未设置）；会话重建后由
@@ -68,6 +62,3 @@ index b7b1655..29a5a48 100644
 +    // 以外的手机默认 20 盖掉。
      int page_size_override_ = 0;
  };
- 
- extern "C" {
- 

@@ -1,17 +1,17 @@
 # 相对上游的专属改动
 
-- 本仓 HEAD：`3e1a36a`（main）
+- 本仓 HEAD：`83f8306`（main，含工作区未提交）
 - 上游 HEAD：`277eebe Merge pull request #886 from kingzcheung/main`
-- 分叉点：`2751c9c2adad`
-- 专属提交：83 个
-- 新增 25 个文件，修改 34 个，删除 0 个
+- 分叉点：`2751c9c2adad680100d9ae232d5cecf2651a989a`
+- 专属提交：86 个（未计入未提交工作树）
+- 新增 26 个文件，修改 34 个，删除 0 个
 
 对照仓库：
 
 - 本仓 https://github.com/h166278/Xime
 - 上游 https://github.com/ximeiorg/Xime
 
-`新增/` 是专属新文件全文。`修改/` 是相对分叉点的 unified diff（改动处，不是整文件）。
+`新增/` 是专属新文件全文。`修改/` 是相对分叉点的 unified diff（改动处，不是整文件）。工作树未提交改动已打进对应文件。
 
 ## 新增
 
@@ -38,6 +38,7 @@
 - `app/src/test/java/com/kingzcheung/xime/ui/keyboard/EnglishPunctOverlayTest.kt`
 - `app/src/test/java/com/kingzcheung/xime/ui/keyboard/FeiKeyHintTest.kt`
 - `app/src/test/java/com/kingzcheung/xime/ui/keyboard/IdleSymbolTapTest.kt`
+- `app/src/test/java/com/kingzcheung/xime/ui/keyboard/Landscape46SemicolonRowTest.kt`
 - `app/src/test/java/com/kingzcheung/xime/ui/keyboard/LongPressDefaultIndexTest.kt`
 - `app/src/test/java/com/kingzcheung/xime/ui/keyboard/ShiftSwipeZoneTest.kt`
 

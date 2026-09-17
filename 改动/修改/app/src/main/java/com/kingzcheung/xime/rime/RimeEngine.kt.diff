@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/rime/RimeEngine.kt b/app/src
 index 88e78c8..5adbd5d 100644
 --- a/app/src/main/java/com/kingzcheung/xime/rime/RimeEngine.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/rime/RimeEngine.kt
-@@ -281,10 +281,36 @@ class RimeEngine {
-                 return@tryLocked RimeProcessResult(false, "", "", "", emptyArray(), false, false, false)
-             nativeProcessKeyAndGetResult(keycode, mask)
+@@ -283,6 +283,32 @@ class RimeEngine {
          }
      }
  
@@ -37,11 +35,7 @@ index 88e78c8..5adbd5d 100644
      fun getProcessResult(processed: Boolean): RimeProcessResult {
          if (!isInitialized) return RimeProcessResult(false, "", "", "", emptyArray(), false, false, false)
          // 必须持 rimeLock：nativeGetProcessResult 内部 RimeGetContext → Menu::Prepare
-         // 会惰性生成候选页（遍历 translations），与 t9FlushRimeInput（set_input → Reset，
-         // 释放旧 translations）并发会导致悬空 → ScriptTranslation::Peek 空指针崩溃。
-@@ -427,16 +453,20 @@ class RimeEngine {
-         }
-     }
+@@ -429,12 +455,16 @@ class RimeEngine {
  
      fun setOption(option: String, value: Boolean) {
          if (!nativeHasSession()) return
@@ -60,5 +54,3 @@ index 88e78c8..5adbd5d 100644
      }
  
      fun setPageSize(schemaId: String, pageSize: Int) {
-         if (!isInitialized) return
-         nativeSetPageSize(schemaId, pageSize)

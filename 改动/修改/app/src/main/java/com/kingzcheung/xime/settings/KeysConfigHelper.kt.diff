@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/settings/KeysConfigHelper.kt
 index 4e9b9e7..c139c5f 100644
 --- a/app/src/main/java/com/kingzcheung/xime/settings/KeysConfigHelper.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/settings/KeysConfigHelper.kt
-@@ -67,13 +67,18 @@ data class LongPressConfig(
-     val values: List<GestureDef> = emptyList(),
- )
+@@ -69,9 +69,14 @@ data class LongPressConfig(
  
  data class KeyGestureConfig(
      val tap: GestureDef? = null,
@@ -19,11 +17,7 @@ index 4e9b9e7..c139c5f 100644
  )
  
  data class KeyboardConfig(
-     val keys: Map<String, KeyGestureConfig> = emptyMap(),
- )
-@@ -168,23 +173,29 @@ private fun parseKeyboardConfig(raw: com.charleskorn.kaml.YamlMap?): KeyboardCon
-     return KeyboardConfig(keys)
- }
+@@ -170,19 +175,25 @@ private fun parseKeyboardConfig(raw: com.charleskorn.kaml.YamlMap?): KeyboardCon
  
  private fun parseKeyGestureConfig(map: com.charleskorn.kaml.YamlMap): KeyGestureConfig {
      var tap: GestureDef? = null
@@ -50,11 +44,7 @@ index 4e9b9e7..c139c5f 100644
  }
  
  /**
-  * 解析 long_press，支持两种格式：
-  *   新格式（推荐）：{ display: "bubble", values: ["q", "Q"] }
-@@ -225,10 +236,11 @@ private fun parseGestureNode(node: com.charleskorn.kaml.YamlNode): GestureDef {
-         var label = ""
-         var labels: List<String> = emptyList()
+@@ -227,6 +238,7 @@ private fun parseGestureNode(node: com.charleskorn.kaml.YamlNode): GestureDef {
          var action: GestureAction? = GestureAction.COMMIT
          var value = ""
          var display = "key"
@@ -62,11 +52,7 @@ index 4e9b9e7..c139c5f 100644
          for ((k, v) in node.entries) {
              val key = (k as? com.charleskorn.kaml.YamlScalar)?.content ?: continue
              when (key) {
-                 "label" -> {
-                     if (v is YamlList) {
-@@ -249,14 +261,18 @@ private fun parseGestureNode(node: com.charleskorn.kaml.YamlNode): GestureDef {
-                 }
-                 "display" -> {
+@@ -251,10 +263,14 @@ private fun parseGestureNode(node: com.charleskorn.kaml.YamlNode): GestureDef {
                      val vStr = (v as? YamlScalar)?.content ?: continue
                      display = vStr
                  }
@@ -83,11 +69,7 @@ index 4e9b9e7..c139c5f 100644
          return GestureDef(label = cleanLabel, labels = labels, action = action, value = value, icon = icon, display = DisplayMode.fromValue(display))
      }
      return GestureDef()
- }
- 
-@@ -686,13 +702,47 @@ object KeysConfigHelper {
-             customZh = assetText?.let { parseKeyboardYamlSection(it, "qwerty") }
-             customEn = assetText?.let { parseKeyboardYamlSection(it, "qwerty_en") }
+@@ -688,9 +704,43 @@ object KeysConfigHelper {
          }
          val zh = if (customZh != null) defaultZh + customZh else defaultZh
          val en = if (customEn != null) defaultEn + customEn else defaultEn
@@ -131,11 +113,7 @@ index 4e9b9e7..c139c5f 100644
      /** 从 xime.yaml + xime.custom.yaml 合并解析键盘颜色配置（字段级一路 fallback）。 */
      private fun parseKeyboardColorsFromAssets(context: Context): KeyboardColorsConfig {
          val builtIn = readAssetText(context, XIME_CONFIG_FILE)
-             ?.let { parseKeyboardColorsYamlText(it) }
-         val custom = readCustomText(context)?.let { parseKeyboardColorsYamlText(it) }
-@@ -1295,10 +1345,11 @@ object KeysConfigHelper {
-         val kc = config[key.lowercase()] ?: return null
-         return when (gesture) {
+@@ -1297,6 +1347,7 @@ object KeysConfigHelper {
              "tap" -> kc.tap?.label
              "swipe_up" -> kc.swipeUp?.label
              "swipe_down" -> kc.swipeDown?.label
@@ -143,11 +121,7 @@ index 4e9b9e7..c139c5f 100644
              "long_press" -> kc.longPress?.values?.firstOrNull()?.label
              else -> null
          }
-     }
- 
-@@ -1366,17 +1417,25 @@ object KeysConfigHelper {
-     fun getSwipeUpDisplay(key: String, isAsciiMode: Boolean = false): DisplayMode {
-         val configMap = if (isAsciiMode) _keyGestureConfigEn.value else _keyGestureConfig.value
+@@ -1368,13 +1419,21 @@ object KeysConfigHelper {
          return configMap[key.lowercase()]?.swipeUp?.display ?: DisplayMode.BOTH
      }
  
@@ -170,5 +144,3 @@ index 4e9b9e7..c139c5f 100644
      )
      
      private fun getDefaultSwipeDownEnglish(): Map<String, String> = mapOf(
-         "q" to "Q", "w" to "W", "e" to "E", "r" to "R", "t" to "T",
-         "y" to "Y", "u" to "U", "i" to "I", "o" to "O", "p" to "P",

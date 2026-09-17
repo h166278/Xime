@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/viewmodel/KeyboardViewModel.
 index 2c2e70c..0115b1c 100644
 --- a/app/src/main/java/com/kingzcheung/xime/viewmodel/KeyboardViewModel.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/viewmodel/KeyboardViewModel.kt
-@@ -106,10 +106,47 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
-     val isShifted: StateFlow<Boolean> = _isShifted.asStateFlow()
- 
+@@ -108,6 +108,43 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
      private val _shiftMode = MutableStateFlow(ShiftMode.OFF)
      val shiftMode: StateFlow<ShiftMode> = _shiftMode.asStateFlow()
  
@@ -48,11 +46,7 @@ index 2c2e70c..0115b1c 100644
      private val _keyboardState = MutableStateFlow<KeyboardLayoutState>(KeyboardLayoutState.Chinese)
      val keyboardState: StateFlow<KeyboardLayoutState> = _keyboardState.asStateFlow()
  
-     /** 最近一次停留的主键盘布局（中文/英文全键盘、九键、笔画）；
-      *  数字面板据此判断进入来源，决定「返回/符号」键的位置自适应 */
-@@ -492,21 +529,24 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
-             )
-             _syncViewState()
+@@ -494,17 +531,20 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
          }
      }
  
@@ -76,11 +70,7 @@ index 2c2e70c..0115b1c 100644
      }
  
      /** Level 3: 关闭覆盖页面，回到背后页面 */
-     fun closeOverlay() {
-         val current = _page.value
-@@ -517,10 +557,11 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
-     }
- 
+@@ -519,6 +559,7 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
      fun resetKeyboard(isAsciiMode: Boolean, schemaId: String = "") {
          _isShifted.value = false
          _shiftMode.value = ShiftMode.OFF
@@ -88,5 +78,3 @@ index 2c2e70c..0115b1c 100644
          _keyboardState.value = initialKeyboardLayoutState(isAsciiMode, schemaId)
          if (_page.value !is KeyboardPage.Main) {
              _page.value = KeyboardPage.Main(MainType.FULL)
-         }
-         // 必须重新推导 viewState：否则 _viewState 停留在旧的面板/覆盖值，

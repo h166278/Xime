@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/keyboard/GestureAction.kt b/
 index c5c487e..e32fc17 100644
 --- a/app/src/main/java/com/kingzcheung/xime/keyboard/GestureAction.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/keyboard/GestureAction.kt
-@@ -103,14 +103,21 @@ enum class GestureAction(val value: String) {
-         override fun execute(context: ActionExecutor, value: String) {
-             context.sendKeyEvent(KeyEvent.KEYCODE_MOVE_END)
+@@ -105,10 +105,17 @@ enum class GestureAction(val value: String) {
          }
      },
  
@@ -24,11 +22,7 @@ index c5c487e..e32fc17 100644
          }
      },
  
-     /** 仅显示，无操作。 */
-     NONE("none") {
-@@ -142,10 +149,27 @@ enum class GestureAction(val value: String) {
-     },
- 
+@@ -144,6 +151,23 @@ enum class GestureAction(val value: String) {
      /** 切换符号键盘。由 UI 层拦截处理。 */
      TOGGLE_SYMBOLS("toggle_symbols") {
          override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
@@ -52,5 +46,3 @@ index c5c487e..e32fc17 100644
      };
  
      /**
-      * 执行本动作。
-      * @param context 执行上下文，提供 InputConnection 等能力

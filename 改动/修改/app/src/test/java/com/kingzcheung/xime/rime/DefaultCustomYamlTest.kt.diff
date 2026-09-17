@@ -2,9 +2,7 @@ diff --git a/app/src/test/java/com/kingzcheung/xime/rime/DefaultCustomYamlTest.k
 index f0e281a..5fa29bf 100644
 --- a/app/src/test/java/com/kingzcheung/xime/rime/DefaultCustomYamlTest.kt
 +++ b/app/src/test/java/com/kingzcheung/xime/rime/DefaultCustomYamlTest.kt
-@@ -15,10 +15,12 @@ import org.junit.Test
-  * - 与 [SchemaManager.replaceSchemaListBlock]（setEnabledSchemas 只替换 schema_list 块）
-  *   的组合：启停方案后 menu 等其余 patch 必须保留。
+@@ -17,6 +17,8 @@ import org.junit.Test
   *
   * 每页候选数的最终生效在 JNI 层 setPageSize 直接注入引擎
   * （rime_jni.cc，配置缓存 + 会话幂等刷新），不依赖本文件内容。
@@ -13,11 +11,7 @@ index f0e281a..5fa29bf 100644
   */
  class DefaultCustomYamlTest {
  
-     private val builtinTemplate = """
-         patch:
-@@ -128,6 +130,130 @@ class DefaultCustomYamlTest {
-         val patched = RimeConfigHelper.patchDefaultCustomContent(legacyShell, 20)!!
-         val result = SchemaManager.replaceSchemaListBlock(patched, listOf("pinyin_simp"))
+@@ -130,4 +132,128 @@ class DefaultCustomYamlTest {
          assertEquals(20, extractPageSize(result))
          assertTrue(result.contains("  - schema: pinyin_simp"))
      }

@@ -2,7 +2,7 @@ diff --git a/app/src/test/java/com/kingzcheung/xime/ui/keyboard/KeyboardResponsi
 index f5293ba..bc890b2 100644
 --- a/app/src/test/java/com/kingzcheung/xime/ui/keyboard/KeyboardResponsiveSizingTest.kt
 +++ b/app/src/test/java/com/kingzcheung/xime/ui/keyboard/KeyboardResponsiveSizingTest.kt
-@@ -1,7 +1,9 @@
+@@ -1,5 +1,7 @@
  package com.kingzcheung.xime.ui.keyboard
  
 +import androidx.compose.foundation.layout.calculateEndPadding
@@ -10,11 +10,7 @@ index f5293ba..bc890b2 100644
  import org.junit.Assert.assertEquals
  import org.junit.Test
  
- class KeyboardResponsiveSizingTest {
-     private val tolerance = 0.0001f
-@@ -24,6 +26,21 @@ class KeyboardResponsiveSizingTest {
-     @Test
-     fun smallerKeysAreNotShrunkAndLargeKeysAreClamped() {
+@@ -26,4 +28,19 @@ class KeyboardResponsiveSizingTest {
          assertEquals(1f, adaptiveKeyContentScale(keyHeightDp = 20f), tolerance)
          assertEquals(1.5f, adaptiveKeyContentScale(keyHeightDp = 120f), tolerance)
      }

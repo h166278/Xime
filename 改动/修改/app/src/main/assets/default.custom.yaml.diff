@@ -2,9 +2,7 @@ diff --git a/app/src/main/assets/default.custom.yaml b/app/src/main/assets/defau
 index 015324d..088d7e4 100644
 --- a/app/src/main/assets/default.custom.yaml
 +++ b/app/src/main/assets/default.custom.yaml
-@@ -31,37 +31,36 @@ patch:
-   # commit_code   已输入的编码字符上屏并切换至英文输入模式
-   # -----------------------------------------------
+@@ -33,22 +33,18 @@ patch:
    # 参考链接： https://gist.github.com/lotem/2981316
  
    ascii_composer:
@@ -33,7 +31,7 @@ index 015324d..088d7e4 100644
        # 上下翻页 [ ]
        - { when: has_menu, accept: bracketleft, send: Page_Up }
        - { when: has_menu, accept: bracketright, send: Page_Down }
- 
+@@ -56,10 +52,13 @@ patch:
        # 上下翻页 - =
        - { when: has_menu, accept: minus, send: Page_Up }
        - { when: has_menu, accept: equal, send: Page_Down }
@@ -50,11 +48,7 @@ index 015324d..088d7e4 100644
  
        # 回车清码
        #- { when: composing, accept: Return, send: Escape }
- 
-       # emacs key bindings, copy from https://github.com/rime/rime-prelude/blob/master/key_bindings.yaml
-@@ -83,11 +82,11 @@ patch:
-     full_shape: # 全角符号
-       " ": {commit: "　"}
+@@ -85,7 +84,7 @@ patch:
        "!": {commit: "！"}
        "\"": {pair: ["“", "”"]}
        "#": ["＃", "⌘"]
@@ -63,11 +57,7 @@ index 015324d..088d7e4 100644
        "%": "％"
        "&": "＆"
        "'": {pair: ["‘", "’"]}
-       "(": "（"
-       ")": "）"
-@@ -105,22 +104,22 @@ patch:
-       "?": {commit: "？"}
-       "@": "＠"
+@@ -107,9 +106,9 @@ patch:
        "[": ["「", "【", "〔", "［"]
        "\\": ["、", "＼"]
        "]": ["」", "】", "〕", "］"]
@@ -79,8 +69,7 @@ index 015324d..088d7e4 100644
        "{": ["『", "〖", "｛"]
        "|": ["·", "｜", "§", "¦"]
        "}": ["』", "〗", "｝"]
-       "~": "～"
-     half_shape: # 半角符号
+@@ -118,7 +117,7 @@ patch:
        "!": {commit: "！"}
        "\"": {pair: ["“", "”"]}
        "#": "#"
@@ -89,11 +78,7 @@ index 015324d..088d7e4 100644
        "%": ["%", "％", "°", "℃"]
        "&": "&"
        "'": {pair: ["‘", "’"]}
-       "(": "（"
-       ")": "）"
-@@ -138,13 +137,13 @@ patch:
-       "?": {commit: "？"}
-       "@": "@"
+@@ -140,9 +139,9 @@ patch:
        "[": {commit: "【"}
        "\\": {commit: "、"}
        "]": {commit: "】"}
@@ -105,5 +90,3 @@ index 015324d..088d7e4 100644
        "{": "「"
        "|": "|"
        "}": "」"
-       "~": "~"
-   recognizer:

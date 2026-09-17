@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardView.kt 
 index b5ac8ed..fa3f085 100644
 --- a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardView.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardView.kt
-@@ -62,10 +62,11 @@ import com.kingzcheung.xime.keyboard.ToolbarAction
- import com.kingzcheung.xime.keyboard.ToolbarButton
- import com.kingzcheung.xime.keyboard.ToolbarButtonItem
+@@ -64,6 +64,7 @@ import com.kingzcheung.xime.keyboard.ToolbarButtonItem
  import com.kingzcheung.xime.keyboard.resolveToolbarButtonItem
  import com.kingzcheung.xime.rime.T9InputController
  import com.kingzcheung.xime.service.CandidateState
@@ -12,11 +10,7 @@ index b5ac8ed..fa3f085 100644
  import com.kingzcheung.xime.settings.KeysConfigHelper
  import com.kingzcheung.xime.settings.SettingsPreferences
  import com.kingzcheung.xime.ui.menubar.ClipboardView
- import com.kingzcheung.xime.ui.menubar.SchemaListView
- import com.kingzcheung.xime.ui.menubar.ToolbarCustomizeView
-@@ -614,11 +615,17 @@ fun KeyboardView(
-                                         KeyboardLayoutAction.SwitchToCommonSymbol, state.isAsciiMode
-                                     ))
+@@ -616,7 +617,13 @@ fun KeyboardView(
                                  }
                                  "emoji" -> viewModel.showOverlay(OverlayRoute.Emoji)
                                  else -> {
@@ -31,5 +25,3 @@ index b5ac8ed..fa3f085 100644
                                      viewModel.onCharacterTyped()
                                  }
                              }
-                         }
-                         val numberOnKeyPress: (String) -> Unit = { key ->

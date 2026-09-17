@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/service/ImeKeyboardCallbacks
 index 489f133..abe410c 100644
 --- a/app/src/main/java/com/kingzcheung/xime/service/ImeKeyboardCallbacks.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/service/ImeKeyboardCallbacks.kt
-@@ -199,45 +199,24 @@ internal fun rememberImeKeyboardCallbacks(
-                 }
-             },
+@@ -201,41 +201,20 @@ internal fun rememberImeKeyboardCallbacks(
              onPageDown = { service.keyRouter.pageDown() },
              onPageUp = { service.keyRouter.pageUp() },
              onCursorMove = { direction ->
@@ -57,11 +55,7 @@ index 489f133..abe410c 100644
              onGestureAction = { action, value ->
                  action.execute(service, value)
              },
-             onUpdateToolbarButtons = { buttons ->
-                 SettingsPreferences.setToolbarButtons(service, buttons)
-@@ -310,12 +289,14 @@ internal fun rememberImeKeyboardCallbacks(
-                 }
-             },
+@@ -312,8 +291,10 @@ internal fun rememberImeKeyboardCallbacks(
              onT9RightCommitUndone = { count ->
                  // 半提交文本在 composing 区域时无法用 deleteSurroundingText 删除，
                  // 需通过 endComposingInputBox 清空，交由后续 applyComposition 重建。
@@ -74,11 +68,7 @@ index 489f133..abe410c 100644
                      service.endComposingInputBox()
                  } else {
                      service.deleteBeforeCursor(count)
-                 }
-                 // undo 联动：撤销 right commit 段时回滚用户词典调频。
-@@ -354,15 +335,19 @@ internal fun rememberImeKeyboardCallbacks(
-                 } else if (!isT9Schema(service.uiState.value.currentSchemaId)
-                     && cs.isComposing) {
+@@ -356,11 +337,15 @@ internal fun rememberImeKeyboardCallbacks(
                      if (cs.candidates.isNotEmpty()) {
                          if (service.rimeEngine.selectCandidate(0)) {
                              val text = service.rimeEngine.commit()
@@ -95,11 +85,7 @@ index 489f133..abe410c 100644
                          service.commitText(cs.inputText)
                          service.rimeEngine.clearComposition()
                      }
-                 }
-             },
-@@ -442,5 +427,43 @@ internal fun rememberImeKeyboardCallbacks(
-                 }
-             },
+@@ -444,3 +429,41 @@ internal fun rememberImeKeyboardCallbacks(
          )
      }
  }

@@ -1,10 +1,8 @@
 diff --git a/app/src/main/assets/xime.yaml b/app/src/main/assets/xime.yaml
-index eb17182..7cd3dbc 100644
+index eb17182..681df09 100644
 --- a/app/src/main/assets/xime.yaml
 +++ b/app/src/main/assets/xime.yaml
-@@ -347,11 +347,12 @@ color_schemes:
- # 每个手势的值格式：
- #   - 字符串 "a" → 上屏该文本，显示也是它
+@@ -349,7 +349,8 @@ color_schemes:
  #   - { label, action, value }
  #     label:  按键上显示的文字
  #     action: commit（上屏）, command（内置命令，value 为命令名）, select_all, copy, cut,
@@ -14,11 +12,7 @@ index eb17182..7cd3dbc 100644
  #     command 可用命令：
  #       clear_composition - 清空当前输入编码和候选词
  #     value:  上屏时的输出文本（不指定则用 label）
- #
- # long_press 示例（弹出多个选项供滑动选择）：
-@@ -436,20 +437,35 @@ keyboard:
-       u: { tap: "u", swipe_up: "7", swipe_down: { label: "立六辛冫丬门疒丷䒑", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["u", "U", "ù", "ú", "û", "ü"] } }
-       i: { tap: "i", swipe_up: "8", swipe_down: { label: "水氵小氺头𭕄⺌", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["i", "I", "ì", "í", "î", "ï"] } }
+@@ -438,6 +439,18 @@ keyboard:
        o: { tap: "o", swipe_up: "9", swipe_down: { label: "火灬米", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["o", "O", "ò", "ó", "ô", "õ", "ö", "ø"] } }
        p: { tap: "p", swipe_up: "0", swipe_down: { label: "之辶冖宀廴礻", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["p", "P"] } }
  
@@ -37,9 +31,7 @@ index eb17182..7cd3dbc 100644
        # ── 第二行 ──
        a: { tap: "a", swipe_up: { label: "～", value: "~" }, swipe_down: { label: "工匚戈艹廿龷七弋戈", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["a", "A", "à", "á", "â", "ã", "ä", "å", "æ"] } }
        s: { tap: "s", swipe_up: { label: "／", value: "/" }, swipe_down: { label: "木丁西", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["s", "S", "ß"] } }
-       d: { tap: "d", swipe_up: { label: "：", value: ":" }, swipe_down: { label: "大犬三古龵镸石厂丆", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["d", "D"] } }
-       f: { tap: "f", swipe_up: { label: "；", value: ";" }, swipe_down: { label: "土士二干十寸雨", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["f", "F"] } }
-       g: { tap: "g", swipe_up: { label: "“", value: "“" }, swipe_down: { label: "王龶五一戋", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["g", "G"] } }
+@@ -447,7 +460,10 @@ keyboard:
        h: { tap: "h", swipe_up: { label: "”", value: "”" }, swipe_down: { label: "目丨卜⺊上止龰", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["h", "H"] } }
        j: { tap: "j", swipe_up: { label: "－", value: "-" }, swipe_down: { label: "日曰早廾刂虫丿Ⅱ", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["j", "J"] } }
        k: { tap: "k", swipe_up: { label: "（", value: "(" }, swipe_down: { label: "口Ⅲ川", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["k", "K"] } }
@@ -51,11 +43,7 @@ index eb17182..7cd3dbc 100644
        # ── 第三行 ──
        z: { tap: "z", swipe_up: { label: "＊", value: "*" }, swipe_down: { label: "", action: "none", display: "key" }, long_press: { display: "bubble", values: [ "z","Z"] } }
        x: { tap: "x", swipe_up: { label: "＠", value: "@" }, swipe_down: { label: "弓匕纟幺弓𠤎", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["x", "X"] } }
-       c: { tap: "c", swipe_up: { label: "、", value: "、" }, swipe_down: { label: "又巴马厶龴ス", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["c", "C", "ç"] } }
-       v: { tap: "v", swipe_up: { label: "？", value: "?" }, swipe_down: { label: "女刀九臼巛彐", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["v", "V"] } }
-@@ -459,11 +475,75 @@ keyboard:
-       # ── 第四行: 暂时不受layout控制 ──
-       #  逗号键，label 为中文显示，value 为英文显示+提交值
+@@ -461,7 +477,71 @@ keyboard:
        "'": { tap: { label: "，", value: "," }, swipe_up: { label: "。", value: "." } , long_press: { display: "bubble", values: [ ",","."] }}
        # 中/英切换键，label 为按键显示文字
        earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
@@ -66,11 +54,11 @@ index eb17182..7cd3dbc 100644
 +      # 分号键点按已改全角直上屏，不在这组。
 +      # 上滑书名号：空闲直上屏；有码先交高亮再贴字面（yu + 句号上滑 → 用》），不进 punctuator。
 +      # 逗号/句号长按气泡：〈<>≤≥，选中走 commit 直上屏（别走 Rime，< 会被 punctuator 交成《）。
-+      # /：中文空闲点按顿号、上滑 ﹖、长按松手直上屏 /。quote46 空闲点按 “”、上滑 ‘’（光标进中间）；有码上滑 “”（先交高亮，光标进中间），不是 "。键帽右上仍 "。
++      # /：中文空闲点按顿号、上滑 ？（全角问号，不是 Big5 小问号 ﹖）、长按松手直上屏 /。quote46 空闲点按 “”、上滑 ‘’（光标进中间）；有码上滑 “”（先交高亮，光标进中间），不是 "。键帽右上仍 "。
 +      # 分号上滑 ： 同样：有码交高亮再贴，空闲直贴。
 +      # 拉丁上屏后五个键改英文脸：组合态不套脸；覆盖脸点按仍问引擎，有码进 popping，空闲才贴 '。
 +      # 两码后点 ' 偶尔直上屏，就是覆盖脸没清、Compose isComposing 滞后。
-+      "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "﹖", value: "﹖" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
++      "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "？", value: "？" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
 +      ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
 +      ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
 +      quote46: { tap: { label: "'", value: "'" }, idle: "“”", swipe_up: { label: "\"", value: "“”" }, idle_swipe_up: { label: "\"", value: "‘’" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
@@ -128,11 +116,7 @@ index eb17182..7cd3dbc 100644
    # 英文键盘布局
    qwerty_en:
      # ── 按键布局模式 ──
-     # standard: 默认布局（主文字居中，下滑提示在底部）
-     # compact: 紧凑布局（主文字在左上，下滑提示占满键帽中部）
-@@ -483,20 +563,35 @@ keyboard:
-       y: { tap: "y", swipe_up: "6", long_press: { display: "bubble", values: ["y", "Y"] } }
-       u: { tap: "u", swipe_up: "7", long_press: { display: "bubble", values: ["u", "U"] } }
+@@ -485,6 +565,19 @@ keyboard:
        i: { tap: "i", swipe_up: "8", long_press: { display: "bubble", values: ["i", "I"] } }
        o: { tap: "o", swipe_up: "9", long_press: { display: "bubble", values: ["o", "O"] } }
        p: { tap: "p", swipe_up: "0", long_press: { display: "bubble", values: ["p", "P"] } }
@@ -152,10 +136,7 @@ index eb17182..7cd3dbc 100644
        # ── 第二行 ──
        a: { tap: "a", swipe_up: "~", long_press: { display: "bubble", values: ["a", "A"] } }
        s: { tap: "s", swipe_up: "/", long_press: { display: "bubble", values: ["s", "S"] } }
-       d: { tap: "d", swipe_up: ":", long_press: { display: "bubble", values: ["d", "D"] } }
-       f: { tap: "f", swipe_up: ";", long_press: { display: "bubble", values: ["f", "F"] } }
-       g: { tap: "g", swipe_up: "\"", long_press: { display: "bubble", values: ["g", "G"] } }
-       h: { tap: "h", swipe_up: "\"", long_press: { display: "bubble", values: ["h", "H"] } }
+@@ -495,6 +588,8 @@ keyboard:
        j: { tap: "j", swipe_up: "-", long_press: { display: "bubble", values: ["j", "J"] } }
        k: { tap: "k", swipe_up: "(", long_press: { display: "bubble", values: ["k", "K"] } }
        l: { tap: "l", swipe_up: ")", long_press: { display: "bubble", values: ["l", "L"] } }
@@ -164,11 +145,7 @@ index eb17182..7cd3dbc 100644
        # ";": { tap: ";", shift: ":" }
  
        # ── 第三行 ──
-       z: { tap: "z", swipe_up: "*", long_press: { display: "bubble", values: ["z", "Z"] } }
-       x: { tap: "x", swipe_up: "@", long_press: { display: "bubble", values: ["x", "X"] } }
-@@ -505,13 +600,69 @@ keyboard:
-       b: { tap: "b", swipe_up: "!", long_press: { display: "bubble", values: ["b", "B"] } }
-       n: { tap: "n", swipe_up: "%", long_press: { display: "bubble", values: ["n", "N"] } }
+@@ -507,9 +602,65 @@ keyboard:
        m: { tap: "m", swipe_up: "#", long_press: { display: "bubble", values: ["m", "M"] } }
        #  逗号键，label 为中文显示，value 为英文显示+提交值
        "'": { tap: { label: ".", value: "." }, swipe_up: { label: ",", value: "," } }
@@ -234,5 +211,3 @@ index eb17182..7cd3dbc 100644
    # 九键（T9）键盘配置
    t9:
      # ── 左侧快捷符号栏（空闲态显示；列表长度不限，超过 4 个时可上下滑动）──
-     # 用户在 xime.custom.yaml 的同路径覆盖整个列表，未配置时使用内置默认值
-     side_symbols:

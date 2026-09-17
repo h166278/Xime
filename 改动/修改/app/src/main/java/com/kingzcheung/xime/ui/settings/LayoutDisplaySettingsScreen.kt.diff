@@ -2,7 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/ui/settings/LayoutDisplaySet
 index 2c50ddf..d06629e 100644
 --- a/app/src/main/java/com/kingzcheung/xime/ui/settings/LayoutDisplaySettingsScreen.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/ui/settings/LayoutDisplaySettingsScreen.kt
-@@ -1,17 +1,28 @@
+@@ -1,7 +1,12 @@
  package com.kingzcheung.xime.ui.settings
  
  import androidx.compose.foundation.background
@@ -15,7 +15,7 @@ index 2c50ddf..d06629e 100644
  import androidx.compose.foundation.layout.Column
  import androidx.compose.foundation.layout.Row
  import androidx.compose.foundation.layout.Spacer
- import androidx.compose.foundation.layout.fillMaxSize
+@@ -9,7 +14,13 @@ import androidx.compose.foundation.layout.fillMaxSize
  import androidx.compose.foundation.layout.fillMaxWidth
  import androidx.compose.foundation.layout.height
  import androidx.compose.foundation.layout.padding
@@ -29,11 +29,7 @@ index 2c50ddf..d06629e 100644
  import androidx.compose.foundation.lazy.LazyColumn
  import androidx.compose.material.icons.Icons
  import androidx.compose.material.icons.automirrored.filled.ArrowBack
- import androidx.compose.material.icons.twotone.Straighten
- import androidx.compose.material3.ExperimentalMaterial3Api
-@@ -118,11 +129,11 @@ fun LayoutDisplaySettingsContent(
-                         style = MaterialTheme.typography.bodyLarge,
-                         fontWeight = FontWeight.Medium,
+@@ -120,7 +131,7 @@ fun LayoutDisplaySettingsContent(
                          modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
                      )
                      Text(
@@ -42,11 +38,7 @@ index 2c50ddf..d06629e 100644
                          style = MaterialTheme.typography.bodySmall,
                          color = MaterialTheme.colorScheme.onSurfaceVariant,
                          modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
-                     )
- 
-@@ -153,10 +164,62 @@ fun LayoutDisplaySettingsContent(
-                             },
-                             modifier = Modifier.weight(1f)
+@@ -155,6 +166,58 @@ fun LayoutDisplaySettingsContent(
                          )
                      }
  
@@ -105,11 +97,7 @@ index 2c50ddf..d06629e 100644
                      Spacer(modifier = Modifier.height(8.dp))
  
                      HorizontalDivider(
-                         modifier = Modifier.padding(start = 16.dp),
-                         thickness = 0.5.dp,
-@@ -172,22 +235,22 @@ fun LayoutDisplaySettingsContent(
-                         style = MaterialTheme.typography.bodyLarge,
-                         fontWeight = FontWeight.Medium,
+@@ -174,7 +237,7 @@ fun LayoutDisplaySettingsContent(
                          modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
                      )
                      Text(
@@ -118,10 +106,7 @@ index 2c50ddf..d06629e 100644
                          style = MaterialTheme.typography.bodySmall,
                          color = MaterialTheme.colorScheme.onSurfaceVariant,
                          modifier = Modifier.padding(start = 16.dp, bottom = 12.dp)
-                     )
- 
-                     Row(
-                         modifier = Modifier
+@@ -185,7 +248,7 @@ fun LayoutDisplaySettingsContent(
                              .fillMaxWidth()
                              .height(150.dp)
                              .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -130,11 +115,7 @@ index 2c50ddf..d06629e 100644
                      ) {
                          CodeDisplayCard(
                              title = "显示在输入框",
-                             isSelected = inputTextLocation == SettingsPreferences.INPUT_TEXT_INPUT_BOX,
-                             showCodeInInputBox = true,
-@@ -205,10 +268,24 @@ fun LayoutDisplaySettingsContent(
-                                 inputTextLocation = SettingsPreferences.INPUT_TEXT_CANDIDATE_BAR
-                                 SettingsPreferences.setInputTextLocation(context, SettingsPreferences.INPUT_TEXT_CANDIDATE_BAR)
+@@ -207,6 +270,20 @@ fun LayoutDisplaySettingsContent(
                              },
                              modifier = Modifier.weight(1f)
                          )
@@ -155,11 +136,7 @@ index 2c50ddf..d06629e 100644
                      }
  
                      Spacer(modifier = Modifier.height(8.dp))
- 
-                     HorizontalDivider(
-@@ -261,10 +338,54 @@ fun LayoutDisplaySettingsContent(
-                         )
-                     }
+@@ -263,6 +340,50 @@ fun LayoutDisplaySettingsContent(
                  })
              }
  
@@ -210,11 +187,7 @@ index 2c50ddf..d06629e 100644
              item {
                  SettingsSection(title = "按键手势", content = {
                      var swipeUpEnabled by remember {
-                         mutableStateOf(SettingsPreferences.isSwipeUpHintsEnabled(context))
-                     }
-@@ -365,5 +486,106 @@ fun LayoutDisplaySettingsContent(
-                 })
-             }
+@@ -367,3 +488,104 @@ fun LayoutDisplaySettingsContent(
          }
      }
  }

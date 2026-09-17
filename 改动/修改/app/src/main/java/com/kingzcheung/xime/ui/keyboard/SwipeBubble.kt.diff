@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/SwipeBubble.kt b
 index c75a285..59dd142 100644
 --- a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/SwipeBubble.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/SwipeBubble.kt
-@@ -130,10 +130,11 @@ fun rememberSwipeBubbleDrawData(
-     val showPressBubble = SettingsPreferences.shouldShowPressBubble(context)
-     if (!swipeState.isSwiping && !(showPressBubble && swipeState.isPressed) && !swipeState.isLongPress) return null
+@@ -132,6 +132,7 @@ fun rememberSwipeBubbleDrawData(
  
      val isLongPressMode = swipeState.isLongPress && swipeState.longPressItems.isNotEmpty()
      val displayText = if (isLongPressMode) null
@@ -12,5 +10,3 @@ index c75a285..59dd142 100644
          else if (swipeState.isPressed) swipeState.pressedText
          else swipeState.swipeText
      if (!isLongPressMode && displayText.isNullOrEmpty()) return null
- 
-     val density = LocalDensity.current

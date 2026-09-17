@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/MenuBar.kt b/app
 index ad6d67e..3cdf0a1 100644
 --- a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/MenuBar.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/MenuBar.kt
-@@ -3,14 +3,14 @@ package com.kingzcheung.xime.ui.keyboard
- import androidx.compose.foundation.background
- import androidx.compose.foundation.clickable
+@@ -5,10 +5,10 @@ import androidx.compose.foundation.clickable
  import androidx.compose.foundation.layout.Arrangement
  import androidx.compose.foundation.layout.Box
  import androidx.compose.foundation.layout.Column
@@ -17,11 +15,7 @@ index ad6d67e..3cdf0a1 100644
  import androidx.compose.foundation.layout.fillMaxWidth
  import androidx.compose.foundation.layout.height
  import androidx.compose.foundation.layout.padding
- import androidx.compose.foundation.layout.size
- import androidx.compose.foundation.pager.HorizontalPager
-@@ -149,10 +149,11 @@ fun MenuBar(
-         ).filterNotNull()
-     }
+@@ -151,6 +151,7 @@ fun MenuBar(
      Column(
          modifier = modifier
              .fillMaxWidth()
@@ -29,11 +23,7 @@ index ad6d67e..3cdf0a1 100644
              .background(state.backgroundColor),
          horizontalAlignment = Alignment.CenterHorizontally
      ) {
-         Row(
-             modifier = Modifier
-@@ -224,43 +225,55 @@ fun MenuBar(
-             Column(
-                 modifier = Modifier
+@@ -226,39 +227,51 @@ fun MenuBar(
                      .fillMaxWidth()
                      .weight(1f),
                  horizontalAlignment = Alignment.CenterHorizontally,
@@ -104,11 +94,7 @@ index ad6d67e..3cdf0a1 100644
                          horizontalArrangement = Arrangement.spacedBy(6.dp),
                          verticalAlignment = Alignment.CenterVertically
                      ) {
-                         repeat(pages.size) { index ->
-                             Box(
-@@ -272,10 +285,11 @@ fun MenuBar(
-                                         else textColor.copy(alpha = 0.3f)
-                                     )
+@@ -274,6 +287,7 @@ fun MenuBar(
                              )
                          }
                      }
@@ -116,11 +102,7 @@ index ad6d67e..3cdf0a1 100644
                      Spacer(modifier = Modifier.height(8.dp))
                  }
              }
-         }
-     }
-@@ -289,11 +303,11 @@ fun MenuItemButton(
-     modifier: Modifier = Modifier,
-     isLandscape: Boolean = false
+@@ -291,7 +305,7 @@ fun MenuItemButton(
  ) {
      Column(
          modifier = modifier
@@ -129,5 +111,3 @@ index ad6d67e..3cdf0a1 100644
              .clip(RoundedCornerShape(12.dp))
              .background(bgColor)
              .clickable { item.action() }
-             .padding(4.dp),
-         horizontalAlignment = Alignment.CenterHorizontally,

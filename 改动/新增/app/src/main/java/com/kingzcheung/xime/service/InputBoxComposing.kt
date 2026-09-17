@@ -38,6 +38,20 @@ internal fun isCommitPreview(location: String): Boolean =
     location == SettingsPreferences.INPUT_TEXT_COMMIT_PREVIEW
 
 /**
+ * 宿主把 composing 拿走了（QQ 发送键常见：读走预览词，span 变成 -1），
+ * 键盘还开着。这时不能再 setComposingText 写回去，也不能 finish 把字钉死在输入框。
+ */
+internal fun previewStolenByHost(
+    commitPreview: Boolean,
+    previewComposingActive: Boolean,
+    composingStart: Int,
+    composingEnd: Int,
+): Boolean {
+    if (!commitPreview || !previewComposingActive) return false
+    return composingStart < 0 && composingEnd < 0
+}
+
+/**
  * 预览上屏才把 T9 半提交拼到高亮词前面。
  * 编码在输入框时 displayText 已经含半提交，不能再拼。
  * 半提交展示态候选就是末段，[t9Prefix] 已经以它结尾，不要再加一遍。

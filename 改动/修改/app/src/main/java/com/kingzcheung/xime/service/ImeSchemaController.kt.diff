@@ -2,9 +2,7 @@ diff --git a/app/src/main/java/com/kingzcheung/xime/service/ImeSchemaController.
 index ca10918..e6aa8a3 100644
 --- a/app/src/main/java/com/kingzcheung/xime/service/ImeSchemaController.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/service/ImeSchemaController.kt
-@@ -11,18 +11,29 @@ import com.kingzcheung.xime.keyboard.HANDWRITING_SCHEMA_ID
- import com.kingzcheung.xime.settings.KeysConfigHelper
- import com.kingzcheung.xime.settings.SchemaConfigHelper
+@@ -13,6 +13,7 @@ import com.kingzcheung.xime.settings.SchemaConfigHelper
  import com.kingzcheung.xime.settings.SchemaManager
  import com.kingzcheung.xime.rime.RimeConfigHelper
  import com.kingzcheung.xime.settings.SettingsPreferences
@@ -12,8 +10,7 @@ index ca10918..e6aa8a3 100644
  import com.kingzcheung.xime.ui.theme.KeyboardThemes
  import com.kingzcheung.xime.util.FileLogger
  import java.io.File
- import kotlin.math.roundToInt
- import kotlinx.coroutines.Dispatchers
+@@ -21,6 +22,16 @@ import kotlinx.coroutines.Dispatchers
  import kotlinx.coroutines.launch
  import kotlinx.coroutines.withContext
  
@@ -30,11 +27,7 @@ index ca10918..e6aa8a3 100644
  /**
   * 方案管理与输入模式切换。
   *
-  * 承载方案切换（switchSchema/applyPageSizeSetting）、部署（reloadConfig/deploy/deploySchema/downloadSchema）、
-  * 中英切换（switchInputMethod）、工具栏编辑动作、键盘高度与浮动模式调整。
-@@ -260,13 +271,22 @@ internal class ImeSchemaController(private val service: XimeInputMethodService)
-         }
-     }
+@@ -262,9 +273,18 @@ internal class ImeSchemaController(private val service: XimeInputMethodService)
  
      internal fun applyPageSizeSetting(schemaId: String) {
          val userPageSize = SettingsPreferences.getPageSize(service)
@@ -55,11 +48,7 @@ index ca10918..e6aa8a3 100644
      }
  
      internal fun switchSchema(schemaId: String) {
-         if (schemaId == HANDWRITING_SCHEMA_ID) {
-             // 检查手写模型文件是否已下载
-@@ -398,11 +418,16 @@ internal class ImeSchemaController(private val service: XimeInputMethodService)
-         val screenW = service.resources.configuration.screenWidthDp
-         val screenH = service.resources.configuration.screenHeightDp
+@@ -400,7 +420,12 @@ internal class ImeSchemaController(private val service: XimeInputMethodService)
          val portraitWidth = minOf(screenW, screenH)
          val cardWidth = (portraitWidth * 0.85f).roundToInt()
          val halfMargin = maxOf(0, (screenW - cardWidth) / 2)
@@ -73,5 +62,3 @@ index ca10918..e6aa8a3 100644
          val clampedX = loadedX.coerceIn(-halfMargin, halfMargin)
          service.uiState.value = service.uiState.value.copy(
              isFloatingMode = enabled,
-             floatingOffsetX = clampedX,
-             floatingOffsetY = 0,
