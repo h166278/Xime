@@ -185,6 +185,87 @@ class InputBoxComposingPlanTest {
     }
 
     @Test
+    fun `IME自己上屏的负一只吞有限次`() {
+        assertTrue(
+            shouldSwallowImeCommitComposingLoss(
+                commitPreview = true,
+                remaining = 3,
+                composingStart = -1,
+                composingEnd = -1,
+            ),
+        )
+        assertFalse(
+            shouldSwallowImeCommitComposingLoss(
+                commitPreview = true,
+                remaining = 0,
+                composingStart = -1,
+                composingEnd = -1,
+            ),
+        )
+        assertFalse(
+            shouldSwallowImeCommitComposingLoss(
+                commitPreview = false,
+                remaining = 3,
+                composingStart = -1,
+                composingEnd = -1,
+            ),
+        )
+        assertFalse(
+            shouldSwallowImeCommitComposingLoss(
+                commitPreview = true,
+                remaining = 3,
+                composingStart = 0,
+                composingEnd = 2,
+            ),
+        )
+        assertEquals(3, IME_COMMIT_COMPOSING_LOSS_SWALLOW)
+    }
+
+    @Test
+    fun `截胡后过期刷新不写回同一串码`() {
+        assertTrue(
+            shouldDropStalePreviewWrite(
+                previewAbandoned = true,
+                abandonedInput = "ni",
+                incomingInput = "ni",
+                incomingComposing = true,
+            ),
+        )
+        assertFalse(
+            shouldDropStalePreviewWrite(
+                previewAbandoned = true,
+                abandonedInput = "ni",
+                incomingInput = "hao",
+                incomingComposing = true,
+            ),
+        )
+        assertFalse(
+            shouldDropStalePreviewWrite(
+                previewAbandoned = true,
+                abandonedInput = "ni",
+                incomingInput = "ni",
+                incomingComposing = false,
+            ),
+        )
+        assertFalse(
+            shouldDropStalePreviewWrite(
+                previewAbandoned = false,
+                abandonedInput = "ni",
+                incomingInput = "ni",
+                incomingComposing = true,
+            ),
+        )
+    }
+
+    @Test
+    fun `刚上屏的字不当截胡残留删`() {
+        assertFalse(shouldDeleteLeftoverPreview("你好", "你好"))
+        assertTrue(shouldDeleteLeftoverPreview("你好", "世界"))
+        assertTrue(shouldDeleteLeftoverPreview("你好", ""))
+        assertFalse(shouldDeleteLeftoverPreview("", "你好"))
+    }
+
+    @Test
     fun `预览档 composing 拼 T9 前缀`() {
         assertEquals(
             "你好世界",

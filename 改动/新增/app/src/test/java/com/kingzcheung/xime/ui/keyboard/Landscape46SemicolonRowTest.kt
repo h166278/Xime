@@ -8,9 +8,9 @@ class Landscape46SemicolonRowTest {
     private val tolerance = 0.0001f
 
     @Test
-    fun `字母宽等于面板扣10dp后五等分`() {
+    fun `字母宽等于面板五等分跟Y同宽`() {
         val m = landscape46SemicolonRowMetrics(panelWidth = 360.dp)
-        assertEquals(70f, m.letterWidth.value, tolerance)
+        assertEquals(72f, m.letterWidth.value, tolerance)
     }
 
     @Test
@@ -24,6 +24,6 @@ class Landscape46SemicolonRowTest {
     fun `行宽是五字母加分号字母宽距不变`() {
         val m = landscape46SemicolonRowMetrics(panelWidth = 360.dp)
         assertEquals(m.letterWidth.value * 5 + m.semicolonWidth.value, m.rowWidth.value, tolerance)
-        assertEquals(70f * 5 + m.semicolonWidth.value, m.rowWidth.value, tolerance)
+        assertEquals(72f * 5 + m.semicolonWidth.value, m.rowWidth.value, tolerance)
     }
 }

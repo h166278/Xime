@@ -1,8 +1,17 @@
 diff --git a/app/src/main/java/com/kingzcheung/xime/service/ImeSessionController.kt b/app/src/main/java/com/kingzcheung/xime/service/ImeSessionController.kt
-index c1fd371..7ec5143 100644
+index c1fd371..5626d9d 100644
 --- a/app/src/main/java/com/kingzcheung/xime/service/ImeSessionController.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/service/ImeSessionController.kt
-@@ -25,7 +25,7 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
+@@ -19,13 +19,16 @@ import kotlinx.coroutines.withContext
+  * 方案名称/开关刷新与切换、T9 切离提交等逻辑。共享状态通过 service 引用访问。
+  */
+ internal class ImeSessionController(private val service: XimeInputMethodService) {
++    /** 刚被宿主截胡清掉的那串码。过期 UI 刷新对上就丢掉，别把预览贴回去。 */
++    private var abandonedPreviewInput = ""
++
+     internal fun applyComposition(
+         composition: com.kingzcheung.xime.rime.RimeComposition,
+         pluginActions: List<CandidateAction> = emptyList(),
          t9PluginInjections: List<T9CandidateInjection> = emptyList(),
      ) {
          val inputText = composition.input
@@ -11,7 +20,29 @@ index c1fd371..7ec5143 100644
          val preeditText = composition.preedit
          val candidatesWithComments = composition.candidates.toList()
          val isAsciiMode = composition.isAsciiMode
-@@ -153,29 +153,159 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
+@@ -114,6 +117,21 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
+             isComposing = inputText.isNotEmpty()
+         }
+ 
++        val incomingInput = if (isT9Schema) displayText else inputText
++        if (shouldDropStalePreviewWrite(
++                previewAbandoned = abandonedPreviewInput.isNotEmpty(),
++                abandonedInput = abandonedPreviewInput,
++                incomingInput = incomingInput,
++                incomingComposing = isComposing,
++            )
++        ) {
++            abandonedPreviewInput = ""
++            return
++        }
++        if (incomingInput.isEmpty() || incomingInput != abandonedPreviewInput) {
++            abandonedPreviewInput = ""
++        }
++
+         // 用户开始实际输入时，清除候选栏中残留的 inline suggestions
+         if (displayText.isNotEmpty() || displayCandidates.isNotEmpty()) {
+             service.dismissInlineSuggestions()
+@@ -153,29 +171,160 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
              }
          }
  
@@ -97,6 +128,7 @@ index c1fd371..7ec5143 100644
 +        service.t9PartialSegments.clear()
 +        service.keyRouter.setSbxlmWordBuffer(false)
 +        service.resetHighlightIndex()
++        abandonedPreviewInput = cs.inputText
 +    }
 +
 +    /**
@@ -155,10 +187,10 @@ index c1fd371..7ec5143 100644
 +                    cs.candidates.getOrNull(highlight),
 +                    service.rimeEngine.getCandidates().toList(),
 +                )
-             }
++            }
 +            if (service.rimeEngine.selectCandidate(rimeIndex)) {
 +                service.rimeEngine.commit()
-+            }
+             }
 +            service.rimeEngine.clearComposition()
 +        } else {
 +            service.rimeEngine.clearComposition()
@@ -185,7 +217,7 @@ index c1fd371..7ec5143 100644
      }
  
      internal fun updateUIWithResult(
-@@ -184,6 +314,7 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
+@@ -184,6 +333,7 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
      ) {
          val isAsciiMode = result.isAsciiMode
          val candidatesWithComments = result.candidates
@@ -193,7 +225,29 @@ index c1fd371..7ec5143 100644
  
          val pendingEnglish = service.candidateState.value.pendingEnglishText
  
-@@ -269,14 +400,13 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
+@@ -234,6 +384,21 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
+             isComposing = result.inputText.isNotEmpty()
+         }
+ 
++        val newInput = if (isT9Schema) displayText else result.inputText
++        if (shouldDropStalePreviewWrite(
++                previewAbandoned = abandonedPreviewInput.isNotEmpty(),
++                abandonedInput = abandonedPreviewInput,
++                incomingInput = newInput,
++                incomingComposing = isComposing,
++            )
++        ) {
++            abandonedPreviewInput = ""
++            return
++        }
++        if (newInput.isEmpty() || newInput != abandonedPreviewInput) {
++            abandonedPreviewInput = ""
++        }
++
+         // 用户开始实际输入时，清除候选栏中残留的 inline suggestions
+         if (displayText.isNotEmpty() || displayCandidates.isNotEmpty()) {
+             service.dismissInlineSuggestions()
+@@ -269,14 +434,12 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
              }
          }
  
@@ -204,7 +258,6 @@ index c1fd371..7ec5143 100644
 -            } else {
 -                service.endComposingInputBox()
 -            }
-+        val newInput = if (isT9Schema) displayText else result.inputText
 +        if (newInput != prevInput) {
 +            service.resetHighlightIndex()
 +        } else {
