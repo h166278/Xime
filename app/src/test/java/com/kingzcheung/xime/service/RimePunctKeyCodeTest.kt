@@ -88,7 +88,7 @@ class RimePunctKeyCodeTest {
         assertEquals(listOf("", "叉积", "粗乘", "罗马", "下标", "小写"), TIMES_CANDIDATE_COMMENTS)
         assertEquals(TIMES_CANDIDATE_COMMENTS, injectedPunctCommentsFor("${RIME_PUNCT_PREFIX}x", 6))
         assertEquals(DIVISION_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}÷"))
-        assertEquals(listOf("÷", "⊘", " Tor"), DIVISION_CANDIDATES)
+        assertEquals(listOf("÷", "⊘", "⟌"), DIVISION_CANDIDATES)
         assertTrue(isRimePunctKey("${RIME_PUNCT_PREFIX}÷"))
         assertEquals(null, rimePunctCandidates("${RIME_PUNCT_PREFIX}~"))
         assertEquals(null, rimePunctCandidates("${RIME_PUNCT_PREFIX}+"))
