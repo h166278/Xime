@@ -2128,8 +2128,12 @@ private fun LandscapeKeyboardContent(
     val shadowShapeRadius = kbShadow.shapeRadius.dp
     val schemaName = uiState.schemaName
     val enterKeyText = uiState.enterKeyText
+    val isSttEnabled = uiState.isSttEnabled
+    val isVoiceMode = uiState.isVoiceMode
+    val isVoiceSticky = uiState.voiceSticky
     val onKeyPressDown = callbacks.onKeyPressDown
     val onKeyRelease = callbacks.onKeyRelease
+    val onVoiceModeChange = callbacks.onVoiceModeChange
     val onCommitText = callbacks.onCommitText
     val onGestureAction: (GestureAction, String) -> Unit = { action, value ->
         when (action) {
@@ -2170,6 +2174,7 @@ private fun LandscapeKeyboardContent(
             vertical = kbKey.spacingFor("qwerty").second?.dp ?: 2.dp,
         )
     ) {
+        Box(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
@@ -2206,6 +2211,13 @@ private fun LandscapeKeyboardContent(
                         onCommitText = onCommitText,
                         onGestureAction = onGestureAction,
                         onSwipeStateChange = onSwipeStateChange,
+                        longPressPreferUppercase = longPressPreferUppercase,
+                        is46Layout = is46Layout,
+                        mnemonicHintsEnabled = mnemonicHintsEnabled,
+                        isComposing = isComposing,
+                        englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                        onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                        onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                     )
                 }
             }
@@ -2504,18 +2516,33 @@ private fun LandscapeKeyboardContent(
                         swipeDownHintsEnabled = swipeDownHintsEnabled,
                         swipeUpHintTopEnd = true,
                     )
-                    SplitSpaceKey(
-                        onClick = { onKeyPress("space") },
-                        backgroundColor = keyBackgroundColor,
-                        textColor = keyTextColor,
-                        schemaName = if (isAsciiMode) "English" else schemaName,
-                        modifier = Modifier
-                            .width(unit * 2.2f + shift)
-                            .fillMaxHeight(),
-                        onPress = { onKeyPressDown?.invoke("space") },
+                    SpaceKey(
+                        schemaName = schemaName,
+                        isAsciiMode = isAsciiMode,
+                        isSttEnabled = isSttEnabled,
+                        isVoiceMode = isVoiceMode,
+                        voiceSticky = isVoiceSticky,
+                        keyBackgroundColor = keyBackgroundColor,
+                        keyTextColor = keyTextColor,
                         shadowEnabled = shadowEnabled,
                         shadowElevation = shadowElevation,
                         shadowShapeRadius = shadowShapeRadius,
+                        modifier = Modifier
+                            .width(unit * 2.2f + shift)
+                            .fillMaxHeight(),
+                        onKeyPress = onKeyPress,
+                        onKeyPressDown = onKeyPressDown,
+                        onKeyRelease = onKeyRelease,
+                        onVoiceModeChange = onVoiceModeChange,
+                        onGestureAction = onGestureAction,
+                        swipeUpLabel = when {
+                            isComposing -> "造词"
+                            isAsciiMode -> "中文"
+                            else -> "English"
+                        },
+                        onSwipeStateChange = onSwipeStateChange,
+                        rimeArrowsWhenComposing = isComposing,
+                        onCursorMove = callbacks.onEditorCursorMove ?: callbacks.onCursorMove,
                     )
                 }
             }
@@ -2636,6 +2663,13 @@ private fun LandscapeKeyboardContent(
                         onCommitText = onCommitText,
                         onGestureAction = onGestureAction,
                         onSwipeStateChange = onSwipeStateChange,
+                        longPressPreferUppercase = longPressPreferUppercase,
+                        is46Layout = is46Layout,
+                        mnemonicHintsEnabled = mnemonicHintsEnabled,
+                        isComposing = isComposing,
+                        englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
+                        onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                        onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                     )
                 }
             }
@@ -2685,6 +2719,9 @@ private fun LandscapeKeyboardContent(
                         keyboardBackgroundColor = keyboardBackgroundColor,
                         fontSize = landscapeFontSize,
                         swipeFontSize = landscapeSwipeFontSize,
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
                     ),
                     isShifted = visualIsShifted,
                     isAsciiMode = isAsciiMode,
@@ -2762,6 +2799,9 @@ private fun LandscapeKeyboardContent(
                         keyboardBackgroundColor = keyboardBackgroundColor,
                         fontSize = landscapeFontSize,
                         swipeFontSize = landscapeSwipeFontSize,
+                        shadowEnabled = shadowEnabled,
+                        shadowElevation = shadowElevation,
+                        shadowShapeRadius = shadowShapeRadius,
                     ),
                     isShifted = visualIsShifted,
                     isAsciiMode = isAsciiMode,
@@ -2792,6 +2832,8 @@ private fun LandscapeKeyboardContent(
                             modifier = Modifier
                                 .width(slot)
                                 .fillMaxHeight(),
+                            swipeText = "清空",
+                            onSwipe = { onKeyPress("clear_composition") },
                             onLongClick = { onKeyPress("delete") },
                             onPress = { onKeyPressDown?.invoke("delete") },
                             onRelease = { onKeyRelease?.invoke("delete") },
@@ -2878,18 +2920,33 @@ private fun LandscapeKeyboardContent(
                         .width(maxWidth + shift),
                     horizontalArrangement = Arrangement.spacedBy(gap),
                 ) {
-                    SplitSpaceKey(
-                        onClick = { onKeyPress("space") },
-                        backgroundColor = keyBackgroundColor,
-                        textColor = keyTextColor,
-                        schemaName = if (isAsciiMode) "English" else "",
-                        modifier = Modifier
-                            .width(unit * 2.2f + shift)
-                            .fillMaxHeight(),
-                        onPress = { onKeyPressDown?.invoke("space") },
+                    SpaceKey(
+                        schemaName = "",
+                        isAsciiMode = isAsciiMode,
+                        isSttEnabled = isSttEnabled,
+                        isVoiceMode = isVoiceMode,
+                        voiceSticky = isVoiceSticky,
+                        keyBackgroundColor = keyBackgroundColor,
+                        keyTextColor = keyTextColor,
                         shadowEnabled = shadowEnabled,
                         shadowElevation = shadowElevation,
                         shadowShapeRadius = shadowShapeRadius,
+                        modifier = Modifier
+                            .width(unit * 2.2f + shift)
+                            .fillMaxHeight(),
+                        onKeyPress = onKeyPress,
+                        onKeyPressDown = onKeyPressDown,
+                        onKeyRelease = onKeyRelease,
+                        onVoiceModeChange = onVoiceModeChange,
+                        onGestureAction = onGestureAction,
+                        swipeUpLabel = when {
+                            isComposing -> "造词"
+                            isAsciiMode -> "中文"
+                            else -> "English"
+                        },
+                        onSwipeStateChange = onSwipeStateChange,
+                        rimeArrowsWhenComposing = isComposing,
+                        onCursorMove = callbacks.onEditorCursorMove ?: callbacks.onCursorMove,
                     )
                     ConfigDrivenSymbolKey(
                         keyId = ".",
@@ -3089,6 +3146,25 @@ private fun LandscapeKeyboardContent(
                     )
                 }
             }
+        }
+        if (is46Layout && isVoiceMode && !isVoiceSticky) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    ) {},
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = "语音输入",
+                    tint = keyTextColor.copy(alpha = 0.6f),
+                    modifier = Modifier.size(64.dp)
+                )
+            }
+        }
         }
     }
     }
@@ -3638,65 +3714,101 @@ fun CompactKeyboardRowWithConfig(
                 Unit
             } }
 
-            SwipeableKeyButtonLandscape(
-                text = compactDisplayText,
-                onClick = compactOnClick,
-                backgroundColor = config.keyBackgroundColor,
-                textColor = config.keyTextColor,
-                modifier = when {
-                    punctWidth != null && key == ";" -> Modifier.width(punctWidth).fillMaxHeight()
-                    letterWidth != null -> Modifier.width(letterWidth).fillMaxHeight()
-                    else -> Modifier.weight(1f)
-                },
-                swipeText = swipeUpText,
-                swipeDownText = swipeDownBubbleText,
-                swipeUpKeyLabel = swipeUpKeyLabel,
-                swipeDownKeyLabel = swipeDownKeyLabel,
-                mnemonicHint = mnemonicHint,
-                onSwipe = if (overlayFace != null) {
-                    remember(key, onKeyPress, onConsumeEnglishPunct) {
-                        { _: String ->
-                            onKeyPress("$LAYOUT46_OVERLAY_SWIPE_PREFIX$key")
-                            onConsumeEnglishPunct?.invoke()
-                            Unit
-                        }
+            val compactKeyModifier = when {
+                punctWidth != null && key == ";" -> Modifier.width(punctWidth).fillMaxHeight()
+                letterWidth != null -> Modifier.width(letterWidth).fillMaxHeight()
+                else -> Modifier.weight(1f)
+            }
+            val compactOnSwipe = if (overlayFace != null) {
+                remember(key, onKeyPress, onConsumeEnglishPunct) {
+                    { _: String ->
+                        onKeyPress("$LAYOUT46_OVERLAY_SWIPE_PREFIX$key")
+                        onConsumeEnglishPunct?.invoke()
+                        Unit
                     }
-                } else if (composingLetterSwipe) {
-                    remember(key, onKeyPress) {
-                        val upperKey = composingLetterSwipeUpKey(key)
-                        return@remember { _: String -> onKeyPress(upperKey); Unit }
-                    }
-                } else if (is46Layout && key == ";") {
-                    remember(onKeyPress) {
-                        { _: String -> onKeyPress("$LAYOUT46_SYMBOL_SWIPE_PREFIX;"); Unit }
-                    }
-                } else {
-                    remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
-                        swipeUpClick(
-                            swipeUpAction,
-                            KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
-                            rawSwipeUpLabel,
-                            onKeyPress,
-                            onGestureAction,
-                            onCommitText,
-                        )
-                    }
-                },
-                onSwipeDown = compactOnSwipeDown,
-                onSwipeRight = compactOnSwipeRight,
-                swipeRightText = swipeRightText,
-                onSwipeStateChange = onSwipeStateChange,
-                onPress = compactOnPress,
-                onRelease = compactOnRelease,
-                onLongPressSelect = compactOnLongPressSelect,
-                longPressItems = longPressLabels,
-                longPressDefaultIndex = longPressDefaultIndex(longPressLabels, longPressPreferUppercase),
-                fontSize = config.fontSize,
-                swipeFontSize = config.swipeFontSize,
-                shadowEnabled = config.shadowEnabled,
-                shadowElevation = config.shadowElevation,
-                shadowShapeRadius = config.shadowShapeRadius,
-            )
+                }
+            } else if (composingLetterSwipe) {
+                remember(key, onKeyPress) {
+                    val upperKey = composingLetterSwipeUpKey(key)
+                    return@remember { _: String -> onKeyPress(upperKey); Unit }
+                }
+            } else if (is46Layout && key == ";") {
+                remember(onKeyPress) {
+                    { _: String -> onKeyPress("$LAYOUT46_SYMBOL_SWIPE_PREFIX;"); Unit }
+                }
+            } else {
+                remember(key, swipeUpAction, swipeUpCommitValue, rawSwipeUpLabel, onKeyPress, onGestureAction, onCommitText) {
+                    swipeUpClick(
+                        swipeUpAction,
+                        KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.swipeUp?.value.orEmpty(),
+                        rawSwipeUpLabel,
+                        onKeyPress,
+                        onGestureAction,
+                        onCommitText,
+                    )
+                }
+            }
+            if (is46Layout) {
+                SwipeableKeyButton(
+                    layoutMode = KeysConfigHelper.getButtonLayout(isAsciiMode),
+                    text = compactDisplayText,
+                    onClick = compactOnClick,
+                    backgroundColor = config.keyBackgroundColor,
+                    textColor = config.keyTextColor,
+                    modifier = compactKeyModifier,
+                    swipeText = swipeUpText,
+                    swipeDownText = swipeDownBubbleText,
+                    swipeUpKeyLabel = swipeUpKeyLabel,
+                    swipeDownKeyLabel = swipeDownKeyLabel,
+                    swipeUpHintTopEnd = true,
+                    swipeUpHintIcon = if (mnemonicHint != null || composingLetterSwipe) null
+                    else rememberSwipeUpHintPainter(KeysConfigHelper.getSwipeUpIcon(key, isAsciiMode)),
+                    mnemonicHint = mnemonicHint,
+                    onSwipe = compactOnSwipe,
+                    onSwipeDown = compactOnSwipeDown,
+                    onSwipeRight = compactOnSwipeRight,
+                    swipeRightText = swipeRightText,
+                    onSwipeStateChange = onSwipeStateChange,
+                    onPress = compactOnPress,
+                    onRelease = compactOnRelease,
+                    onLongPressSelect = compactOnLongPressSelect,
+                    longPressItems = longPressLabels,
+                    longPressDefaultIndex = longPressDefaultIndex(longPressLabels, longPressPreferUppercase),
+                    fontSize = config.fontSize,
+                    swipeFontSize = config.swipeFontSize,
+                    shadowEnabled = config.shadowEnabled,
+                    shadowElevation = config.shadowElevation,
+                    shadowShapeRadius = config.shadowShapeRadius,
+                )
+            } else {
+                SwipeableKeyButtonLandscape(
+                    text = compactDisplayText,
+                    onClick = compactOnClick,
+                    backgroundColor = config.keyBackgroundColor,
+                    textColor = config.keyTextColor,
+                    modifier = compactKeyModifier,
+                    swipeText = swipeUpText,
+                    swipeDownText = swipeDownBubbleText,
+                    swipeUpKeyLabel = swipeUpKeyLabel,
+                    swipeDownKeyLabel = swipeDownKeyLabel,
+                    mnemonicHint = mnemonicHint,
+                    onSwipe = compactOnSwipe,
+                    onSwipeDown = compactOnSwipeDown,
+                    onSwipeRight = compactOnSwipeRight,
+                    swipeRightText = swipeRightText,
+                    onSwipeStateChange = onSwipeStateChange,
+                    onPress = compactOnPress,
+                    onRelease = compactOnRelease,
+                    onLongPressSelect = compactOnLongPressSelect,
+                    longPressItems = longPressLabels,
+                    longPressDefaultIndex = longPressDefaultIndex(longPressLabels, longPressPreferUppercase),
+                    fontSize = config.fontSize,
+                    swipeFontSize = config.swipeFontSize,
+                    shadowEnabled = config.shadowEnabled,
+                    shadowElevation = config.shadowElevation,
+                    shadowShapeRadius = config.shadowShapeRadius,
+                )
+            }
         }
         trailingContent()
     }
