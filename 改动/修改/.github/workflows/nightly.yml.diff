@@ -1,0 +1,18 @@
+diff --git a/.github/workflows/nightly.yml b/.github/workflows/nightly.yml
+index 7a9e697..dd4f8fa 100644
+--- a/.github/workflows/nightly.yml
++++ b/.github/workflows/nightly.yml
+@@ -79,10 +79,13 @@ jobs:
+           java-version: '17'
+           cache: 'gradle'
+ 
+       - name: Setup Android SDK
+         uses: android-actions/setup-android@v4
++        with:
++          # Google 已下架过时的 `tools` 包，默认 packages 会让 sdkmanager 直接失败。
++          packages: platform-tools
+ 
+       - name: Install NDK
+         run: |
+           sdkmanager "ndk;29.0.14206865"
+           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV

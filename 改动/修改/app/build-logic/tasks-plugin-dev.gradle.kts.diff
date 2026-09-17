@@ -1,0 +1,30 @@
+diff --git a/app/build-logic/tasks-plugin-dev.gradle.kts b/app/build-logic/tasks-plugin-dev.gradle.kts
+index 7bded01..604abe4 100644
+--- a/app/build-logic/tasks-plugin-dev.gradle.kts
++++ b/app/build-logic/tasks-plugin-dev.gradle.kts
+@@ -14,11 +14,11 @@ fun executeCommand(command: String): String {
+ tasks.register("clearPlugins", DefaultTask::class) {
+     group = "plugin-dev"
+     description = "Clear all plugin data from device (requires connected device with adb)"
+ 
+     doLast {
+-        val packageName = "com.kingzcheung.xime"
++        val packageName = "com.shengbitt.xime"
+         val pluginsDir = "/data/data/$packageName/files/plugins"
+ 
+         println("=== Clearing Xime plugin data ===")
+ 
+         val devicesCheck = executeCommand("adb devices")
+@@ -41,11 +41,11 @@ tasks.register("clearPlugins", DefaultTask::class) {
+ tasks.register("uninstallApp", DefaultTask::class) {
+     group = "plugin-dev"
+     description = "Completely uninstall Xime app (clear all data)"
+ 
+     doLast {
+-        val packageName = "com.kingzcheung.xime"
++        val packageName = "com.shengbitt.xime"
+ 
+         println("=== Completely uninstalling Xime app ===")
+ 
+         val devicesCheck = executeCommand("adb devices")
+         if (!devicesCheck.contains("device")) {

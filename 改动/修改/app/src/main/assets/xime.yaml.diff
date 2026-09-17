@@ -1,0 +1,238 @@
+diff --git a/app/src/main/assets/xime.yaml b/app/src/main/assets/xime.yaml
+index eb17182..7cd3dbc 100644
+--- a/app/src/main/assets/xime.yaml
++++ b/app/src/main/assets/xime.yaml
+@@ -347,11 +347,12 @@ color_schemes:
+ # 每个手势的值格式：
+ #   - 字符串 "a" → 上屏该文本，显示也是它
+ #   - { label, action, value }
+ #     label:  按键上显示的文字
+ #     action: commit（上屏）, command（内置命令，value 为命令名）, select_all, copy, cut,
+-#             paste, line_start, line_end, undo, none, repeat
++#             paste, line_start, line_end, undo, redo, none, repeat
++#     undo/redo：IME 上屏栈，撤/重做上一笔本键盘送出去的字；不发 Ctrl+Z。
+ #     command 可用命令：
+ #       clear_composition - 清空当前输入编码和候选词
+ #     value:  上屏时的输出文本（不指定则用 label）
+ #
+ # long_press 示例（弹出多个选项供滑动选择）：
+@@ -436,20 +437,35 @@ keyboard:
+       u: { tap: "u", swipe_up: "7", swipe_down: { label: "立六辛冫丬门疒丷䒑", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["u", "U", "ù", "ú", "û", "ü"] } }
+       i: { tap: "i", swipe_up: "8", swipe_down: { label: "水氵小氺头𭕄⺌", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["i", "I", "ì", "í", "î", "ï"] } }
+       o: { tap: "o", swipe_up: "9", swipe_down: { label: "火灬米", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["o", "O", "ò", "ó", "ô", "õ", "ö", "ø"] } }
+       p: { tap: "p", swipe_up: "0", swipe_down: { label: "之辶冖宀廴礻", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["p", "P"] } }
+ 
++      # ── 数字行（设置「数字行」开关打开时显示在 QWERTY 上方）──
++      "1": { tap: "1", swipe_up: "!", long_press: { display: "bubble", values: ["½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
++      "2": { tap: "2", swipe_up: "@", long_press: { display: "bubble", values: ["⅔", "⅖"] } }
++      "3": { tap: "3", swipe_up: "#", long_press: { display: "bubble", values: ["¾", "⅗", "⅜"] } }
++      "4": { tap: "4", swipe_up: "$", long_press: { display: "bubble", values: ["⅘"] } }
++      "5": { tap: "5", swipe_up: "%", long_press: { display: "bubble", values: ["⅚", "⅝"] } }
++      "6": { tap: "6", swipe_up: "^", long_press: { display: "bubble", values: ["⅚"] } }
++      "7": { tap: "7", swipe_up: "&", long_press: { display: "bubble", values: ["⅞"] } }
++      "8": { tap: "8", swipe_up: "*", long_press: { display: "bubble", values: ["⅛", "⅜", "⅝", "⅞"] } }
++      "9": { tap: "9", swipe_up: "(" }
++      "0": { tap: "0", swipe_up: ")" }
++
+       # ── 第二行 ──
+       a: { tap: "a", swipe_up: { label: "～", value: "~" }, swipe_down: { label: "工匚戈艹廿龷七弋戈", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["a", "A", "à", "á", "â", "ã", "ä", "å", "æ"] } }
+       s: { tap: "s", swipe_up: { label: "／", value: "/" }, swipe_down: { label: "木丁西", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["s", "S", "ß"] } }
+       d: { tap: "d", swipe_up: { label: "：", value: ":" }, swipe_down: { label: "大犬三古龵镸石厂丆", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["d", "D"] } }
+       f: { tap: "f", swipe_up: { label: "；", value: ";" }, swipe_down: { label: "土士二干十寸雨", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["f", "F"] } }
+       g: { tap: "g", swipe_up: { label: "“", value: "“" }, swipe_down: { label: "王龶五一戋", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["g", "G"] } }
+       h: { tap: "h", swipe_up: { label: "”", value: "”" }, swipe_down: { label: "目丨卜⺊上止龰", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["h", "H"] } }
+       j: { tap: "j", swipe_up: { label: "－", value: "-" }, swipe_down: { label: "日曰早廾刂虫丿Ⅱ", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["j", "J"] } }
+       k: { tap: "k", swipe_up: { label: "（", value: "(" }, swipe_down: { label: "口Ⅲ川", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["k", "K"] } }
+-      l: { tap: "l", swipe_up: { label: "）", value: ")" }, swipe_down: { label: "田甲囗四罒车皿力", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["l", "L"] } }
++      l: { tap: "l", swipe_up: { label: "）", value: ")" }, swipe_down: { label: "田甲囗四罒车皿力", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["l", "L"] } }
++      # 分号键：仅 46 键布局使用（L 右侧补位）。
++      # 点按空闲直上屏 ；；有编码路由器改发 ; 进声笔组词。上滑/长按 ：。
++      ";": { tap: "；", swipe_up: "：", long_press: { display: "key", values: [ { label: "：", value: "：" } ] } }
+       # ── 第三行 ──
+       z: { tap: "z", swipe_up: { label: "＊", value: "*" }, swipe_down: { label: "", action: "none", display: "key" }, long_press: { display: "bubble", values: [ "z","Z"] } }
+       x: { tap: "x", swipe_up: { label: "＠", value: "@" }, swipe_down: { label: "弓匕纟幺弓𠤎", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["x", "X"] } }
+       c: { tap: "c", swipe_up: { label: "、", value: "、" }, swipe_down: { label: "又巴马厶龴ス", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["c", "C", "ç"] } }
+       v: { tap: "v", swipe_up: { label: "？", value: "?" }, swipe_down: { label: "女刀九臼巛彐", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["v", "V"] } }
+@@ -459,11 +475,75 @@ keyboard:
+       # ── 第四行: 暂时不受layout控制 ──
+       #  逗号键，label 为中文显示，value 为英文显示+提交值
+       "'": { tap: { label: "，", value: "," }, swipe_up: { label: "。", value: "." } , long_press: { display: "bubble", values: [ ",","."] }}
+       # 中/英切换键，label 为按键显示文字
+       earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
+-    
++
++      # ── 46 键布局专用底行符号键（默认布局不显示，仅布局选 46 键时启用）──
++      # tap.value 必须半角：组词时进声笔加码（, . / '）。/ 空闲走 idle 直上屏顿号，组合仍 tap /。
++      # 分号键点按已改全角直上屏，不在这组。
++      # 上滑书名号：空闲直上屏；有码先交高亮再贴字面（yu + 句号上滑 → 用》），不进 punctuator。
++      # 逗号/句号长按气泡：〈<>≤≥，选中走 commit 直上屏（别走 Rime，< 会被 punctuator 交成《）。
++      # /：中文空闲点按顿号、上滑 ﹖、长按松手直上屏 /。quote46 空闲点按 “”、上滑 ‘’（光标进中间）；有码上滑 “”（先交高亮，光标进中间），不是 "。键帽右上仍 "。
++      # 分号上滑 ： 同样：有码交高亮再贴，空闲直贴。
++      # 拉丁上屏后五个键改英文脸：组合态不套脸；覆盖脸点按仍问引擎，有码进 popping，空闲才贴 '。
++      # 两码后点 ' 偶尔直上屏，就是覆盖脸没清、Compose isComposing 滞后。
++      "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "﹖", value: "﹖" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
++      ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
++      ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
++      quote46: { tap: { label: "'", value: "'" }, idle: "“”", swipe_up: { label: "\"", value: "“”" }, idle_swipe_up: { label: "\"", value: "‘’" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
++
++  # ── 46 键布局专属手势覆盖段（中文）──
++  # 与 qwerty 逐键合并（本段优先），仅在「布局选择 = 46 键」时生效。
++  # 规则：字母键上滑 = 符号，长按 = 字母；tap 沿用 qwerty。
++  # 下滑气泡在 46 键由代码换成飞系字根；N 上滑切助记键帽。
++  qwerty_46:
++    keys:
++      # ── 数字行：中文上滑半角直上屏；长按英符走 Rime+分数。
++      # 1/9/0 例外：上滑中文标点，长按半角直上屏（! ( ) 走 Rime 会被 punctuator 直接交成全角）。
++      # 6 例外：上滑全角省略号……，长按半角…注入省略号变体。
++      "1": { swipe_up: "！", long_press: { display: "bubble", values: ["!", "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
++      "2": { swipe_up: "@", long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
++      "3": { swipe_up: "#", long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
++      "4": { swipe_up: "$", long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
++      "5": { swipe_up: "%", long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
++      "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "rime_punct:^" }, "⅚"] } }
++      "7": { swipe_up: "&", long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
++      "8": { swipe_up: "*", long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
++      "9": { swipe_up: "（", long_press: { display: "bubble", values: ["("] } }
++      "0": { swipe_up: "）", long_press: { display: "bubble", values: [")"] } }
++      # ── 字母：空闲上滑直上屏中文符号；长按气泡英符+字母变体（无中文符号）；选中英符走 Rime。
++      # 组合态字母上滑仍由代码拦截走 rime_upper，本段不管。g–m 编辑动作保留。
++      q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
++      w: { swipe_up: "～", long_press: { display: "bubble", values: [{ label: "~", action: "process_rime_key", value: "~" }, "w", "W"] } }
++      e: { swipe_up: "＋", long_press: { display: "bubble", values: [{ label: "+", action: "process_rime_key", value: "+" }, "e", "E", "è", "é", "ê", "ë"] } }
++      r: { swipe_up: "－", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "rime_punct:-" }, "r", "R"] } }
++      t: { swipe_up: "＝", long_press: { display: "bubble", values: [{ label: "=", action: "process_rime_key", value: "rime_punct:=" }, "t", "T"] } }
++      y: { swipe_up: "＿", long_press: { display: "bubble", values: [{ label: "_", action: "process_rime_key", value: "rime_punct:_" }, "y", "Y", "ÿ"] } }
++      u: { swipe_up: "『", long_press: { display: "bubble", values: [{ label: "『", action: "process_rime_key", value: "{" }, "u", "U", "ù", "ú", "û", "ü"] } }
++      i: { swipe_up: "』", long_press: { display: "bubble", values: [{ label: "』", action: "process_rime_key", value: "}" }, "i", "I", "ì", "í", "î", "ï"] } }
++      o: { swipe_up: "「", long_press: { display: "bubble", values: [{ label: "[", action: "process_rime_key", value: "[" }, "o", "O", "ò", "ó", "ô", "õ", "ö", "ø"] } }
++      p: { swipe_up: "」", long_press: { display: "bubble", values: [{ label: "]", action: "process_rime_key", value: "]" }, "p", "P"] } }
++      # A：键帽 \。上滑不直上屏，跟长按选 \ 一样走 Rime。
++      a: { swipe_up: { label: "\\", action: "process_rime_key", value: "\\" }, long_press: { display: "bubble", values: [{ label: "\\", action: "process_rime_key", value: "\\" }, "a", "A", "à", "á", "â", "ã", "ä", "å", "æ"] } }
++      s: { swipe_up: "｜", long_press: { display: "bubble", values: [{ label: "|", action: "process_rime_key", value: "|" }, "s", "S", "ß"] } }
++      d: { swipe_up: "×", long_press: { display: "bubble", values: [{ label: "×", action: "process_rime_key", value: "rime_punct:x" }, "d", "D"] } }
++      f: { swipe_up: "÷", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:÷" }, "f", "F"] } }
++      g: { swipe_up: "←", long_press: { display: "bubble", values: [{ label: "g", value: "g" }, { label: "G", value: "G" }, { label: "行首", action: "line_start" }] } }
++      h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
++      j: { swipe_up: { label: "↶", action: "undo", display: "both" }, long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
++      # K：空闲上滑贴 ↷；右滑重做。组合态上滑仍组词。
++      k: { swipe_up: "↷", swipe_right: { label: "↷", action: "redo", display: "bubble" }, long_press: { display: "bubble", values: ["k", "K", { label: "重做", action: "redo" }] } }
++      l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter", display: "both" }, long_press: { display: "bubble", values: ["l", "L"] } }
++      z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
++      x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }
++      c: { swipe_up: { label: "复制", action: "copy", icon: "copy", display: "both" }, long_press: { display: "bubble", values: ["c", "C", "ç"] } }
++      v: { swipe_up: { label: "粘贴", action: "paste", icon: "paste", display: "both" }, long_press: { display: "bubble", values: ["v", "V"] } }
++      b: { swipe_up: { label: "剪贴板", action: "switch_route", value: "clipboard", icon: "clipboard", display: "both" }, long_press: { display: "bubble", values: ["b", "B"] } }
++      n: { swipe_up: { label: "助记", action: "toggle_mnemonic", display: "both" }, long_press: { display: "bubble", values: ["n", "N", "ñ"] } }
++      m: { swipe_up: { label: "收起", action: "command", value: "hide_keyboard", display: "both" }, long_press: { display: "bubble", values: ["m", "M"] } }
++
+   # 英文键盘布局
+   qwerty_en:
+     # ── 按键布局模式 ──
+     # standard: 默认布局（主文字居中，下滑提示在底部）
+     # compact: 紧凑布局（主文字在左上，下滑提示占满键帽中部）
+@@ -483,20 +563,35 @@ keyboard:
+       y: { tap: "y", swipe_up: "6", long_press: { display: "bubble", values: ["y", "Y"] } }
+       u: { tap: "u", swipe_up: "7", long_press: { display: "bubble", values: ["u", "U"] } }
+       i: { tap: "i", swipe_up: "8", long_press: { display: "bubble", values: ["i", "I"] } }
+       o: { tap: "o", swipe_up: "9", long_press: { display: "bubble", values: ["o", "O"] } }
+       p: { tap: "p", swipe_up: "0", long_press: { display: "bubble", values: ["p", "P"] } }
++
++      # ── 数字行（设置「数字行」开关打开时显示在 QWERTY 上方）──
++      "1": { tap: "1", swipe_up: "!", long_press: { display: "bubble", values: ["½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
++      "2": { tap: "2", swipe_up: "@", long_press: { display: "bubble", values: ["⅔", "⅖"] } }
++      "3": { tap: "3", swipe_up: "#", long_press: { display: "bubble", values: ["¾", "⅗", "⅜"] } }
++      "4": { tap: "4", swipe_up: "$", long_press: { display: "bubble", values: ["⅘"] } }
++      "5": { tap: "5", swipe_up: "%", long_press: { display: "bubble", values: ["⅚", "⅝"] } }
++      "6": { tap: "6", swipe_up: "^", long_press: { display: "bubble", values: ["⅚"] } }
++      "7": { tap: "7", swipe_up: "&", long_press: { display: "bubble", values: ["⅞"] } }
++      "8": { tap: "8", swipe_up: "*", long_press: { display: "bubble", values: ["⅛", "⅜", "⅝", "⅞"] } }
++      "9": { tap: "9", swipe_up: "(" }
++      "0": { tap: "0", swipe_up: ")" }
++
+       # ── 第二行 ──
+       a: { tap: "a", swipe_up: "~", long_press: { display: "bubble", values: ["a", "A"] } }
+       s: { tap: "s", swipe_up: "/", long_press: { display: "bubble", values: ["s", "S"] } }
+       d: { tap: "d", swipe_up: ":", long_press: { display: "bubble", values: ["d", "D"] } }
+       f: { tap: "f", swipe_up: ";", long_press: { display: "bubble", values: ["f", "F"] } }
+       g: { tap: "g", swipe_up: "\"", long_press: { display: "bubble", values: ["g", "G"] } }
+       h: { tap: "h", swipe_up: "\"", long_press: { display: "bubble", values: ["h", "H"] } }
+       j: { tap: "j", swipe_up: "-", long_press: { display: "bubble", values: ["j", "J"] } }
+       k: { tap: "k", swipe_up: "(", long_press: { display: "bubble", values: ["k", "K"] } }
+       l: { tap: "l", swipe_up: ")", long_press: { display: "bubble", values: ["l", "L"] } }
++      # 分号键：仅 46 键布局使用（第三行补位）
++      ";": { tap: { label: ";", value: ";" }, swipe_up: { label: ":", value: ":" }, long_press: { display: "key", values: [ { label: ":", value: ":" } ] } }
+       # ";": { tap: ";", shift: ":" }
+ 
+       # ── 第三行 ──
+       z: { tap: "z", swipe_up: "*", long_press: { display: "bubble", values: ["z", "Z"] } }
+       x: { tap: "x", swipe_up: "@", long_press: { display: "bubble", values: ["x", "X"] } }
+@@ -505,13 +600,69 @@ keyboard:
+       b: { tap: "b", swipe_up: "!", long_press: { display: "bubble", values: ["b", "B"] } }
+       n: { tap: "n", swipe_up: "%", long_press: { display: "bubble", values: ["n", "N"] } }
+       m: { tap: "m", swipe_up: "#", long_press: { display: "bubble", values: ["m", "M"] } }
+       #  逗号键，label 为中文显示，value 为英文显示+提交值
+       "'": { tap: { label: ".", value: "." }, swipe_up: { label: ",", value: "," } }
++      # ── 46 键布局专用底行符号键（英文）──
++      # 逗号/句号：键帽右上和上滑 < >；长按气泡仍 〈<>≤≥，选中直上屏。
++      # /：空闲点按半角顿号 ､、上滑 ?、长按松手直上屏 /。组合仍 tap /。
++      "/": { tap: { label: "/", value: "/" }, idle: "､", swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
++      ",": { tap: { label: ",", value: "," }, swipe_up: { label: "<", value: "<" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
++      ".": { tap: { label: ".", value: "." }, swipe_up: { label: ">", value: ">" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
++      quote46: { tap: { label: "'", value: "'" }, swipe_up: { label: "\"", value: "\"" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
+       # 中/英切换键，label 为按键显示文字
+       earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
+ 
++  # ── 46 键布局专属手势覆盖段（英文）──
++  # 上滑仍英符直上屏。长按气泡和选中动作跟中文 46：英符走 Rime。
++  # Q/R/T/Y 候选仍注入（` - = _），只改气泡。g–m 编辑动作保留。
++  qwerty_en_46:
++    keys:
++      # ── 数字行：英文上滑全角直上屏；长按半角英符走 Rime+分数。
++      # 1 上滑半角、长按 ! 走 Rime。9/0 上滑半角，长按全角括号直上屏。
++      # 6：上滑半角省略号…，长按注入省略号变体。
++      "1": { swipe_up: "!", long_press: { display: "bubble", values: [{ label: "!", action: "process_rime_key", value: "!" }, "½", "⅓", "¼", "⅕", "⅙", "⅐", "⅛", "⅑", "⅒"] } }
++      "2": { swipe_up: "＠", long_press: { display: "bubble", values: [{ label: "@", action: "process_rime_key", value: "@" }, "⅔", "⅖"] } }
++      "3": { swipe_up: "＃", long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
++      "4": { swipe_up: "＄", long_press: { display: "bubble", values: [{ label: "$", action: "process_rime_key", value: "$" }, "⅘"] } }
++      "5": { swipe_up: "％", long_press: { display: "bubble", values: [{ label: "%", action: "process_rime_key", value: "%" }, "⅚", "⅝"] } }
++      "6": { swipe_up: "…", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "rime_punct:^" }, "⅚"] } }
++      "7": { swipe_up: "＆", long_press: { display: "bubble", values: [{ label: "&", action: "process_rime_key", value: "&" }, "⅞"] } }
++      "8": { swipe_up: "＊", long_press: { display: "bubble", values: [{ label: "*", action: "process_rime_key", value: "*" }, "⅛", "⅜", "⅝", "⅞"] } }
++      "9": { swipe_up: "(", long_press: { display: "bubble", values: ["（"] } }
++      "0": { swipe_up: ")", long_press: { display: "bubble", values: ["）"] } }
++      # ── 字母：空闲上滑英符直上屏；长按气泡英符跟中文 46。Q/R/T/Y 仍注入。
++      q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
++      w: { swipe_up: "~", long_press: { display: "bubble", values: [{ label: "~", action: "process_rime_key", value: "~" }, "w", "W"] } }
++      e: { swipe_up: "+", long_press: { display: "bubble", values: [{ label: "+", action: "process_rime_key", value: "+" }, "e", "E", "è", "é", "ê", "ë"] } }
++      r: { swipe_up: "-", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "rime_punct:-" }, "r", "R"] } }
++      t: { swipe_up: "=", long_press: { display: "bubble", values: [{ label: "=", action: "process_rime_key", value: "rime_punct:=" }, "t", "T"] } }
++      y: { swipe_up: "_", long_press: { display: "bubble", values: [{ label: "_", action: "process_rime_key", value: "rime_punct:_" }, "y", "Y", "ÿ"] } }
++      u: { swipe_up: "{", long_press: { display: "bubble", values: [{ label: "{", action: "process_rime_key", value: "{" }, "u", "U", "ù", "ú", "û", "ü"] } }
++      i: { swipe_up: "}", long_press: { display: "bubble", values: [{ label: "}", action: "process_rime_key", value: "}" }, "i", "I", "ì", "í", "î", "ï"] } }
++      o: { swipe_up: "[", long_press: { display: "bubble", values: [{ label: "[", action: "process_rime_key", value: "[" }, "o", "O", "ò", "ó", "ô", "õ", "ö", "ø"] } }
++      p: { swipe_up: "]", long_press: { display: "bubble", values: [{ label: "]", action: "process_rime_key", value: "]" }, "p", "P"] } }
++      # A：键帽 /。上滑直上屏 /，长按仍 \。
++      a: { swipe_up: "/", long_press: { display: "bubble", values: [{ label: "\\", action: "process_rime_key", value: "\\" }, "a", "A", "à", "á", "â", "ã", "ä", "å", "æ"] } }
++      s: { swipe_up: "|", long_press: { display: "bubble", values: [{ label: "|", action: "process_rime_key", value: "|" }, "s", "S", "ß"] } }
++      # D/F：键帽和上滑跟中文 46，× ÷ 直上屏。长按仍注入。
++      d: { swipe_up: "×", long_press: { display: "bubble", values: [{ label: "×", action: "process_rime_key", value: "rime_punct:x" }, "d", "D"] } }
++      f: { swipe_up: "÷", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:÷" }, "f", "F"] } }
++      g: { swipe_up: "←", long_press: { display: "bubble", values: ["g", "G", { label: "行首", action: "line_start" }] } }
++      h: { swipe_up: "→", long_press: { display: "bubble", values: ["h", "H", { label: "行尾", action: "line_end" }] } }
++      j: { swipe_up: { label: "↶", action: "undo", display: "both" }, long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
++      # K：空闲上滑贴 ↷；右滑重做。组合态上滑仍组词。
++      k: { swipe_up: "↷", swipe_right: { label: "↷", action: "redo", display: "bubble" }, long_press: { display: "bubble", values: ["k", "K", { label: "重做", action: "redo" }] } }
++      l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter", display: "both" }, long_press: { display: "bubble", values: ["l", "L"] } }
++      z: { swipe_up: { label: "全选", action: "select_all", icon: "select_all", display: "both" }, long_press: { display: "bubble", values: ["z", "Z"] } }
++      x: { swipe_up: { label: "剪切", action: "cut", icon: "cut", display: "both" }, long_press: { display: "bubble", values: ["x", "X"] } }
++      c: { swipe_up: { label: "复制", action: "copy", icon: "copy", display: "both" }, long_press: { display: "bubble", values: ["c", "C", "ç"] } }
++      v: { swipe_up: { label: "粘贴", action: "paste", icon: "paste", display: "both" }, long_press: { display: "bubble", values: ["v", "V"] } }
++      b: { swipe_up: { label: "剪贴板", action: "switch_route", value: "clipboard", icon: "clipboard", display: "both" }, long_press: { display: "bubble", values: ["b", "B"] } }
++      n: { swipe_up: { label: "助记", action: "toggle_mnemonic", display: "both" }, long_press: { display: "bubble", values: ["n", "N", "ñ"] } }
++      m: { swipe_up: { label: "收起", action: "command", value: "hide_keyboard", display: "both" }, long_press: { display: "bubble", values: ["m", "M"] } }
++
+   # 九键（T9）键盘配置
+   t9:
+     # ── 左侧快捷符号栏（空闲态显示；列表长度不限，超过 4 个时可上下滑动）──
+     # 用户在 xime.custom.yaml 的同路径覆盖整个列表，未配置时使用内置默认值
+     side_symbols:

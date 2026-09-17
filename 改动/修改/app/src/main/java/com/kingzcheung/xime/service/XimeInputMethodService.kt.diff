@@ -1,0 +1,437 @@
+diff --git a/app/src/main/java/com/kingzcheung/xime/service/XimeInputMethodService.kt b/app/src/main/java/com/kingzcheung/xime/service/XimeInputMethodService.kt
+index a3ade02..e3472d1 100644
+--- a/app/src/main/java/com/kingzcheung/xime/service/XimeInputMethodService.kt
++++ b/app/src/main/java/com/kingzcheung/xime/service/XimeInputMethodService.kt
+@@ -240,10 +240,21 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+     internal var isTrackingVoiceButtons = false
+     internal var voiceRecordingStarted = false
+     private var pendingVoiceAction: (() -> Unit)? = null
+     internal var composeViewRef: View? = null
+     internal var lastClearedText: String = ""
++    /** 上次清空是组合态（编码+候选），撤回应 setInput 还原而不是当普通文字贴回。 */
++    internal var lastClearedWasComposition: Boolean = false
++    /** 本键盘上屏栈。J/K 撤销重做只用这个，不发 Ctrl+Z。 */
++    internal val commitStack = CommitStack()
++    /**
++     * 下一笔 [commitTextSilently] 要记的 Rime 编码。上屏后立刻清空。
++     * 选词/顶屏前由路由 [armCommitCode]；直上屏符号保持空串。
++     */
++    internal var pendingCommitCode: String = ""
++    /** 重做贴回时跳过记账，避免自己记自己。 */
++    internal var suppressCommitRecord: Boolean = false
+     /** 累积的 partial commit 段列表（多段选词场景下逐段追加，文本+拼音同源，供调频/回滚） */
+     internal val t9PartialSegments = mutableListOf<T9PartialSegment>()
+     /** 键盘回调引用，用于在 RIME selectCandidate 前同步通知 T9 控制器 */
+     internal var keyboardCallbacks: KeyboardCallbacks? = null
+     internal var isChineseMode = true
+@@ -374,11 +385,12 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+     
+     private fun registerSharedPrefsListener() {
+         val prefs = SettingsPreferences.getPrefsPublic(this)
+         sharedPrefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+             when (key) {
+-                "dark_mode", "keyboard_theme", "show_bottom_buttons", "keyboard_height_dp", "keyboard_bottom_padding_dp" -> {
++                "dark_mode", "keyboard_theme", "show_bottom_buttons", "keyboard_height_dp", "keyboard_bottom_padding_dp",
++                SettingsPreferences.KEY_KEYBOARD_LAYOUT -> {
+                     loadDarkModePreference()
+                     applyWindowBackground()
+                 }
+                 "floating_mode", "floating_mode_landscape" -> {
+                     loadDarkModePreference()
+@@ -1142,11 +1154,17 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+             composeViewRef = this
+             setContent {
+                 val cand = candidateState.value
+                 val state = uiState.value
+                 val page by keyboardViewModel.page.collectAsState(com.kingzcheung.xime.keyboard.KeyboardPage.Main(com.kingzcheung.xime.keyboard.MainType.FULL))
++                val kbLayoutState by keyboardViewModel.keyboardState.collectAsState(com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState.Chinese)
+                 val isHandwritingMode = (page as? com.kingzcheung.xime.keyboard.KeyboardPage.Main)?.type == com.kingzcheung.xime.keyboard.MainType.HANDWRITING
++                val numberRowExtra = if (!isHandwritingMode &&
++                    SettingsPreferences.isLayout46Enabled(this@XimeInputMethodService) &&
++                    (kbLayoutState is com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState.Chinese ||
++                        kbLayoutState is com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState.English)
++                ) SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP else 0
+                 val isDarkTheme = isDarkTheme()
+                 val screenHeightDp = resources.configuration.screenHeightDp
+                 val physicalScreenDp = (resources.displayMetrics.heightPixels / resources.displayMetrics.density).roundToInt()
+                 val statusBarHeightDp = tryGetStatusBarHeightDp(this@XimeInputMethodService, window.window)
+                 val navBarHeightDp = tryGetNavBarHeightDp(this@XimeInputMethodService, window.window)
+@@ -1177,12 +1195,13 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+                 } else if (isHandwritingMode) {
+                     screenHeightDp / 2
+                 } else {
+                     displayHeight
+                 }
++                val keyboardHeightWithRow = keyboardHeight + numberRowExtra
+                 val floatScale = if (state.isFloatingMode) 0.85f else 1f
+-                val effectiveKeyboardHeight = (keyboardHeight * floatScale).toInt()
++                val effectiveKeyboardHeight = (keyboardHeightWithRow * floatScale).toInt()
+                 val floatingDragBarHeight = if (state.isFloatingMode) 18 else 0
+                 val floatingCardContentHeight = effectiveKeyboardHeight + floatingDragBarHeight
+                 
+                 val density = LocalDensity.current
+                 // 统一使用 View 层多类型检测的 insets，避免 Compose
+@@ -1232,11 +1251,11 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+                             // 容器高度变化 → View 层 relayout → traversal → onComputeInsets
+                             // 自动以新高度重算并上报（ViewRootImpl 每次 traversal 都 dispatch
+                             // OnComputeInternalInsetsListener，值变化即 setInsets），
+                             // 无需 +1dp hack 强制造型变化。
+                             keyboardContainer.updateHeight(totalDp)
+-                            currentEffectiveKeyboardHeight = if (state.isFloatingMode) keyboardHeight + floatingDragBarHeight + 50 + state.keyboardBottomPaddingDp
++                            currentEffectiveKeyboardHeight = if (state.isFloatingMode) keyboardHeightWithRow + floatingDragBarHeight + 50 + state.keyboardBottomPaddingDp
+                                 else if (state.isCompact) HARDWARE_CANDIDATE_BAR_HEIGHT
+                                 else effectiveKeyboardHeight + overlayPanelExtra
+                         }
+                         val kbColors = KeysConfigHelper.getKeyboardColors()
+                         val longToColor: (Long) -> androidx.compose.ui.graphics.Color = { if (it == 0L)  { androidx.compose.ui.graphics.Color(0xE61E1E1E) } else if (it > 0xFFFFFF) { androidx.compose.ui.graphics.Color(it) } else { androidx.compose.ui.graphics.Color(0xFF000000 or it) } }
+@@ -1478,18 +1497,25 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+                 // 按偏好高度预设首帧真实几何，之后仍由 SideEffect 统一维护。
+                 val isLandscape =
+                     resources.configuration.screenWidthDp > resources.configuration.screenHeightDp
+                 val displayHeight = SettingsPreferences.getKeyboardHeightDp(this, isLandscape)
+                     .coerceAtMost((resources.configuration.screenHeightDp * 8) / 10)
++                val numberRowExtra = if (SettingsPreferences.isLayout46Enabled(this)) {
++                    when (keyboardViewModel.keyboardState.value) {
++                        is KeyboardLayoutState.Chinese, is KeyboardLayoutState.English ->
++                            SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP
++                        else -> 0
++                    }
++                } else 0
+                 val density = resources.displayMetrics.density
+                 val rawDp = if (bottomInsetPxState.value > 0)
+                     (bottomInsetPxState.value / density).toInt() else 0
+                 val extraShrink = if (rawDp >= 120) 8 else 0
+                 val bottomSpace = if (rawDp > 0) (rawDp - 8 - extraShrink).coerceAtLeast(0) else 0
+                 val activeBottomDp = if (bottomSpace == 0) 18 else bottomSpace
+                 view.updateLayoutParams<android.widget.FrameLayout.LayoutParams> {
+-                    height = ((displayHeight + state.keyboardBottomPaddingDp + activeBottomDp) * density).toInt()
++                    height = ((displayHeight + numberRowExtra + state.keyboardBottomPaddingDp + activeBottomDp) * density).toInt()
+                 }
+             }
+         } catch (_: Exception) {}
+     }
+     
+@@ -1522,14 +1548,16 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+                     if (candidateState.value.hasPrevPage) { keyRouter.pageUp(); highlightIndex.intValue = 0; return true }
+                 }
+                 KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                     val maxIdx = candidateState.value.candidates.size - 1
+                     highlightIndex.intValue = (highlightIndex.intValue + 1).coerceAtMost(maxIdx)
++                    refreshCommitPreview()
+                     return true
+                 }
+                 KeyEvent.KEYCODE_DPAD_LEFT -> {
+                     highlightIndex.intValue = (highlightIndex.intValue - 1).coerceAtLeast(0)
++                    refreshCommitPreview()
+                     return true
+                 }
+                 KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_ENTER -> {
+                     if (candidateState.value.candidates.isNotEmpty()) {
+                         keyRouter.selectCandidate(highlightIndex.intValue)
+@@ -1576,18 +1604,21 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+             "show_ime_picker" -> {
+                 val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+                 @Suppress("DEPRECATION")
+                 imm.showInputMethodPicker()
+             }
++            "hide_keyboard" -> hideKeyboard()
++            "undo_commit" -> keyRouter.undoLastCommit()
++            "redo_commit" -> keyRouter.redoLastCommit()
+             else -> Log.w(TAG, "Unknown command: $name")
+         }
+     }
+ 
+     override fun repeatLastInput() {
+         val lastText = predictionManager.lastCommittedText
+         if (lastText.isNotEmpty()) {
+-            currentInputConnection?.commitText(lastText, 1)
++            commitText(lastText)
+         }
+     }
+ 
+     // ── 原有方法 ──
+ 
+@@ -1606,10 +1637,15 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+         if (!restarting) {
+             inputBoxComposingActive = false
+         }
+ 
+         predictionManager.clearCommittedText()
++        if (!restarting) {
++            commitStack.clear()
++            pendingCommitCode = ""
++            suppressCommitRecord = false
++        }
+         // 新输入会话清空 partial commit 累积：外部 UI（如设置页输入框"清除"按钮仅清 Compose
+         // state）会触发 restartInput → 此处重建 T9，若残留累积会被 buildT9DisplayState 拼进
+         // preedit 回灌输入框（2026-08-07 日志实证：清除后 testText 从 '' 回灌为 '几乎'）。
+         t9PartialSegments.clear()
+         debugLog("onStartInput: cleared lastCommittedText")
+@@ -1658,17 +1694,17 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+                             // 布局创建（LaunchedEffect）与落笔时的 predict 自愈兜底
+                             actualSchema = savedSchema
+                         }
+                     }
+                     savedSchema in availableSchemas -> {
+-                        if (savedSchema != currentSchema) {
+-                            debugLog("onStartInput: Switching to saved schema: $savedSchema")
+-                            schemaController.applyPageSizeSetting(savedSchema)
+-                            rimeEngine.switchSchema(savedSchema)
++                        if (shouldSkipWarmStartSchemaReselect(savedSchema, currentSchema)) {
++                            // 暖启动：session 已在目标方案上。再 select_schema / ApplySchema
++                            // 会重挂 translator（词库越大越慢），processor 冷启动已由
++                            // initRimeEngine 切过一次。page_size 覆盖对当前方案同样会 ApplySchema，一起跳过。
++                            debugLog("onStartInput: Schema already matches, skip reselect: $savedSchema")
+                         } else {
+-                            // 即使 schema 相同也重新 switch 一下，确保 processor 完全初始化
+-                            debugLog("onStartInput: Schema already matches, re-switching to init processors")
++                            debugLog("onStartInput: Switching to saved schema: $savedSchema")
+                             schemaController.applyPageSizeSetting(savedSchema)
+                             rimeEngine.switchSchema(savedSchema)
+                         }
+                         actualSchema = savedSchema
+                     }
+@@ -1770,10 +1806,26 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+         attribute?.let { updateEnterKeyText(it) }
+     }
+     
+     private val highlightIndex = mutableIntStateOf(0)
+ 
++    internal fun currentHighlightIndex(): Int = highlightIndex.intValue
++
++    internal fun resetHighlightIndex() {
++        highlightIndex.intValue = 0
++    }
++
++    internal fun clampHighlightIndex(size: Int) {
++        if (size <= 0) {
++            highlightIndex.intValue = 0
++            return
++        }
++        if (highlightIndex.intValue >= size) {
++            highlightIndex.intValue = size - 1
++        }
++    }
++
+     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
+         super.onStartInputView(info, restarting)
+         info?.let { updateEnterKeyText(it) }
+         hasHardwareKeyboard = resources.configuration.keyboard != android.content.res.Configuration.KEYBOARD_NOKEYS
+         applyCompactMode()
+@@ -1997,11 +2049,15 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+         while (page is com.kingzcheung.xime.keyboard.KeyboardPage.Overlay) {
+             keyboardViewModel.closeOverlay()
+             page = keyboardViewModel.page.value
+         }
+         calculatorEngine.clear()
++        // 预览上屏：先把输入框里漂的词交出去并静默记用户词，再清引擎。
++        // 必须在 clearComposition / 清 t9Partial 之前，否则没词可交。
++        val previewCommitted = sessionController.commitPreviewOnHide()
+         rimeEngine.clearComposition()
++        keyRouter.setSbxlmWordBuffer(false)
+         t9PartialSegments.clear()
+         // 输入法隐藏/结束输入：静默停止语音会话，丢弃未识别文本，避免迟到结果写入新输入框
+         if (uiState.value.isVoiceMode || voiceRecordingStarted) {
+             voiceRecognitionHandler.abandonSession()
+             voiceRecognitionHandler.stopRecognition()
+@@ -2035,11 +2091,14 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+             hasNextPage = false,
+             hasPrevPage = false,
+             englishReplaceSupported = true,
+             candidateActions = emptyList()
+         )
+-        endComposingInputBox()
++        highlightIndex.intValue = 0
++        if (!previewCommitted) {
++            endComposingInputBox()
++        }
+     }
+ 
+     /**
+      * 输入框是否存在 IME 写入的 composing 区域（拼音编码回显 / 语音识别临时文本）。
+      * Android 无法查询宿主编辑器的 composing 状态，由写入点主动标记。
+@@ -2049,10 +2108,12 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+     /** 标记刚向输入框写入了 composing 文本（showInputBoxComposition / 语音 partial）。 */
+     internal fun markInputBoxComposing() {
+         inputBoxComposingActive = true
+     }
+ 
++    internal fun hasInputBoxComposing(): Boolean = inputBoxComposingActive
++
+     /**
+      * 清理输入框中的 composing 区域（未上屏的拼音编码 / 语音临时文本）。
+      *
+      * 无论输入位置设置（输入框/候选栏）都执行。
+      * 注意：composing 区域不存在时 [InputConnection.setComposingText] 并非空操作——
+@@ -2070,10 +2131,44 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+             }
+         }
+         inputBoxComposingActive = false
+     }
+ 
++    /**
++     * 把输入框 composing 交出去，不清空。预览上屏藏键盘走这条。
++     * 没标记过 composing 时 finish 是空操作。
++     */
++    internal fun finishInputBoxComposing() {
++        currentInputConnection?.finishComposingText()
++        inputBoxComposingActive = false
++    }
++
++    /** 高亮改了立刻改输入框预览，不重跑引擎。 */
++    internal fun refreshCommitPreview() {
++        if (!SettingsPreferences.isCommitPreview(this)) return
++        sessionController.syncInputBoxComposing()
++    }
++
++    /**
++     * 编辑器已经通过 finishComposingText 拿到字，只记上屏栈/联想/事件，不再 commitText。
++     */
++    internal fun recordCommitWithoutSending(text: String) {
++        if (text.isEmpty()) {
++            pendingCommitCode = ""
++            return
++        }
++        if (!suppressCommitRecord && !pluginEvents.isCurrentEditorSensitive) {
++            commitStack.record(text, pendingCommitCode)
++        }
++        pendingCommitCode = ""
++        pluginEvents.onTextCommitted(text, false)
++        if (isChineseMode) {
++            predictionManager.appendCommittedText(text)
++            predictionManager.recordInput(text)
++        }
++    }
++
+     /**
+      * 当前宿主是否支持英文候选的"回删替换"机制。
+      *
+      * 英文直接上屏模式下，选中候选词需要 deleteSurroundingText 回删已上屏编码再提交候选词；
+      * 终端等受限宿主对该能力（含文本探测接口）通常不支持，探针返回 null。
+@@ -2212,12 +2307,17 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+                 touchableInsets = Insets.TOUCHABLE_INSETS_REGION
+                 val decor = window.window?.decorView ?: return
+                 if (currentEffectiveKeyboardHeight <= 0) {
+                     val isLandscape = resources.configuration.screenWidthDp > resources.configuration.screenHeightDp
+                     val kbH = SettingsPreferences.getKeyboardHeightDp(this@XimeInputMethodService, isLandscape)
++                    val numberRowExtra = if (SettingsPreferences.isLayout46Enabled(this@XimeInputMethodService) &&
++                        (keyboardViewModel.keyboardState.value is KeyboardLayoutState.Chinese ||
++                            keyboardViewModel.keyboardState.value is KeyboardLayoutState.English)
++                    ) SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP else 0
++                    val cappedKbH = (kbH + numberRowExtra)
+                         .coerceAtMost((resources.configuration.screenHeightDp * 8) / 10)
+-                    currentEffectiveKeyboardHeight = kbH + 18 + 50 + state.keyboardBottomPaddingDp
++                    currentEffectiveKeyboardHeight = cappedKbH + 18 + 50 + state.keyboardBottomPaddingDp
+                 }
+                 val density = resources.displayMetrics.density
+                 val inputViewWidthPx = decor.width
+                 val statusBarHeightDp = tryGetStatusBarHeightDp(this@XimeInputMethodService, window.window)
+                 val physicalHeightPx = resources.displayMetrics.heightPixels
+@@ -2262,10 +2362,15 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+ 
+     override fun commitText(text: String) {
+         commitTextAndPredict(text, isPaste = false)
+     }
+ 
++    /** 下一笔上屏带上这笔的 Rime 编码；空串表示只记字、不捞码。 */
++    internal fun armCommitCode(code: String) {
++        pendingCommitCode = code
++    }
++
+     /**
+      * 粘贴性质上屏（键盘剪贴板点选/编辑面板提交）：与 [commitText] 相同的上屏与
+      * 联想行为，但 text_committed 事件带 is_paste 标记——事件语义是"文本上屏"
+      * （照常投递给所有订阅插件），是否把粘贴计入打字量由插件自行决定
+      * （typing-stats 过滤，用户反馈"一天一万多字"的主要来源即长文本粘贴）。
+@@ -2316,36 +2421,46 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+      * [isPaste] 标记粘贴性质上屏，透传到 text_committed payload（见 commitPastedText）。
+      * 需在主线程调用。
+      */
+     internal fun commitTextSilently(text: String, isPaste: Boolean = false) {
+         if (uiState.value.quickSendFormFocused) {
++            pendingCommitCode = ""
+             // 焦点在触发编码输入框时路由到编码框，否则路由到快捷发送文本框
+             val codeFocused = uiState.value.quickSendCodeFocused
+             mainHandler.post {
+                 val et = if (codeFocused) QuickSendFormCodeEditTextHolder.editText
+                 else QuickSendFormEditTextHolder.editText
+                 et?.let { box ->
+                     val start = box.selectionStart.coerceAtLeast(0)
+                     val textLen = text.length
+                     box.text?.replace(start, box.selectionEnd.coerceAtLeast(start), text)
+-                    try { box.setSelection(start + textLen) } catch (_: Exception) {}
++                    val cursor = start + (wrapPairSplit(text)?.first?.length ?: textLen)
++                    try { box.setSelection(cursor) } catch (_: Exception) {}
+                 }
+             }
+             return
+         }
+         if (uiState.value.toolPanelInputFocused) {
++            pendingCommitCode = ""
+             mainHandler.post {
+                 ToolPanelEditTextHolder.editText?.let { et ->
+                     val start = et.selectionStart.coerceAtLeast(0)
+                     val textLen = text.length
+                     et.text?.replace(start, et.selectionEnd.coerceAtLeast(start), text)
+-                    try { et.setSelection(start + textLen) } catch (_: Exception) {}
++                    val cursor = start + (wrapPairSplit(text)?.first?.length ?: textLen)
++                    try { et.setSelection(cursor) } catch (_: Exception) {}
+                 }
+             }
+             return
+         }
+         currentInputConnection?.commitText(text, 1)
++        placeCursorInsideWrapPair(text)
++
++        if (!suppressCommitRecord && !pluginEvents.isCurrentEditorSensitive && text.isNotEmpty()) {
++            commitStack.record(text, pendingCommitCode)
++        }
++        pendingCommitCode = ""
+ 
+         // text_committed 事件：真实上屏才累计/投递（内部编辑器分支已在上方 return；
+         // 敏感输入框（密码）不计不投；粘贴性质上屏带 is_paste 标记，见 commitPastedText；
+         // 详见 PluginEventDispatcher）
+         pluginEvents.onTextCommitted(text, isPaste)
+@@ -2354,10 +2469,28 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+             predictionManager.appendCommittedText(text)
+             predictionManager.recordInput(text)
+         }
+     }
+ 
++    /** 成对弯引号贴上后把光标挪进中间。 */
++    private fun placeCursorInsideWrapPair(text: String) {
++        val back = wrapPairSplit(text)?.second?.length ?: return
++        val ic = currentInputConnection ?: return
++        try {
++            val extracted = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)
++            if (extracted != null && extracted.selectionStart >= back) {
++                val pos = extracted.selectionStart - back
++                ic.setSelection(pos, pos)
++                return
++            }
++        } catch (_: Exception) {}
++        repeat(back) {
++            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT))
++            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DPAD_LEFT))
++        }
++    }
++
+     /**
+      * 手写活动区固化后触发一轮联想推理（基于已上屏文本）。
+      * 空格/标点上屏走全量 commitText 自带推理，无需调用此方法。
+      */
+     internal fun finalizeHandwritingPrediction() {
+@@ -2426,10 +2559,13 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+             replaced = ic.deleteSurroundingText(expected.length, 0)
+             ic.commitText(replacement, 1)
+         } finally {
+             ic.endBatchEdit()
+         }
++        if (replaced && !pluginEvents.isCurrentEditorSensitive && replacement.isNotEmpty()) {
++            commitStack.replaceTail(expected, replacement)
++        }
+         return replaced
+     }
+ 
+     
+     

@@ -1,0 +1,55 @@
+diff --git a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayoutScreen.kt b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayoutScreen.kt
+index 42eea84..6061ef6 100644
+--- a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayoutScreen.kt
++++ b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayoutScreen.kt
+@@ -85,10 +85,14 @@ fun KeyboardLayoutScreen(
+                 FileLogger.i("XimeKeyboard", "earth key toggle_ascii tapped, ui ascii=${uiState.isAsciiMode}")
+                 viewModel.resetShift()
+                 callbacks.onKeyPress("ime_switch", uiState.isAsciiMode)
+             }
+ 
++            GestureAction.TOGGLE_MNEMONIC -> {
++                viewModel.toggleMnemonicHints()
++            }
++
+             else -> callbacks.onGestureAction?.invoke(action, value) ?: Unit
+         }
+     }
+ 
+ // 系统手势（如三指截图）截走触摸流时，Compose 手势检测器不会被 ACTION_CANCEL 取消，
+@@ -121,10 +125,17 @@ fun KeyboardLayoutScreen(
+                         viewModel = viewModel,
+                         callbacks = callbacks,
+                         uiState = uiState,
+                         isAsciiMode = false,
+                         modifier = modifier,
++                        isComposing = candidateState.value.isComposing ||
++                            candidateState.value.inputText.isNotEmpty(),
++                        hasPrevPage = candidateState.value.hasPrevPage,
++                        composingInput = candidateState.value.inputText,
++                        hasMenu = candidateState.value.candidates.isNotEmpty() ||
++                            candidateState.value.hasNextPage ||
++                            candidateState.value.hasPrevPage,
+                     )
+                 }
+             }
+ 
+             is KeyboardLayoutState.English -> {
+@@ -150,10 +161,17 @@ fun KeyboardLayoutScreen(
+                         viewModel = viewModel,
+                         callbacks = callbacks,
+                         uiState = uiState,
+                         isAsciiMode = true,
+                         modifier = modifier,
++                        isComposing = candidateState.value.isComposing ||
++                            candidateState.value.inputText.isNotEmpty(),
++                        hasPrevPage = candidateState.value.hasPrevPage,
++                        composingInput = candidateState.value.inputText,
++                        hasMenu = candidateState.value.candidates.isNotEmpty() ||
++                            candidateState.value.hasNextPage ||
++                            candidateState.value.hasPrevPage,
+                     )
+                 }
+             }
+ 
+             is KeyboardLayoutState.Number -> {

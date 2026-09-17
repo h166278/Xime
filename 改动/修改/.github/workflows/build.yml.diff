@@ -1,0 +1,190 @@
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index bac6546..a3ecf06 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -1,51 +1,60 @@
+-﻿name: Build and Test APK
++name: Build and Test APK
+ 
+ on:
+   push:
+     branches:
+       - main
+       - dev*
+   pull_request:
+   workflow_dispatch:
+ 
++concurrency:
++  group: ${{ github.workflow }}-${{ github.ref }}
++  cancel-in-progress: true
++
+ permissions:
+-  contents: read
++  contents: write
+   checks: write
+ 
+ jobs:
+   build-and-test:
+     runs-on: ubuntu-latest
+-    
++    env:
++      PUBLISH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
++
+     steps:
+       - name: Checkout code
+         uses: actions/checkout@v7
+         with:
+           submodules: recursive
+           fetch-depth: 0
+-        
++
+       - name: Set up JDK 17
+         uses: actions/setup-java@v5
+         with:
+           distribution: 'temurin'
+           java-version: '17'
+           cache: 'gradle'
+-          
++
+       - name: Setup Android SDK
+         uses: android-actions/setup-android@v4
+-        
++        with:
++          # Google 已下架过时的 `tools` 包，默认 packages 会让 sdkmanager 直接失败。
++          packages: platform-tools
++
+       - name: Install NDK
+         run: |
+           sdkmanager "ndk;29.0.14206865"
+           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
+           echo "ANDROID_NDK=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
+-        
++
+       - name: Install build tools
+         run: |
+           sudo apt-get update
+           sudo apt-get install -y cmake ninja-build
+-          
++
+       - name: Cache native deps
+         uses: actions/cache@v6
+         with:
+           path: |
+             app/src/main/jni/onnxruntime
+@@ -54,52 +63,108 @@ jobs:
+           restore-keys: |
+             native-${{ runner.os }}-
+ 
+       - name: Download native deps (ONNX Runtime)
+         run: ./gradlew downloadOnnx --no-daemon
+-        
++
+       - name: Cache CMake build
+         uses: actions/cache@v6
+         with:
+           path: |
+             app/.cxx
+             app/src/main/jni/boost
+             app/src/main/jni/boost-*.tar.xz
+           key: cmake-${{ runner.os }}-${{ hashFiles('app/src/main/jni/CMakeLists.txt') }}
+           restore-keys: |
+             cmake-${{ runner.os }}-
+-            
++
+       - name: Grant execute permission for gradlew
+         run: chmod +x gradlew
+-        
++
+       - name: Run Unit Tests
+         run: ./gradlew :app:testDebugUnitTest :plugin-core:testDebugUnitTest --no-daemon
+-        
++
+       - name: Generate Test Report
+         if: always()
+         uses: mikepenz/action-junit-report@v6
+         with:
+           report_paths: '**/build/test-results/testDebugUnitTest/*.xml'
+           fail_on_failure: true
+-          
++
+       - name: Upload Test Results
+         if: always()
+         uses: actions/upload-artifact@v7
+         with:
+           name: unit-test-results
+           path: app/build/test-results/testDebugUnitTest/
+           retention-days: 7
+-          
++
++      - name: Setup signing keystore
++        if: env.PUBLISH == 'true'
++        run: |
++          cat > app/keystore.properties <<'EOF'
++          keyBase64=${{ secrets.SIGNING_KEY }}
++          storePassword=${{ secrets.KEY_STORE_PASSWORD }}
++          keyAlias=${{ secrets.ALIAS }}
++          keyPassword=${{ secrets.KEY_PASSWORD }}
++          EOF
++
+       - name: Build Debug APKs
++        if: env.PUBLISH != 'true'
+         run: ./gradlew assembleDebug --no-daemon
+ 
++      - name: Build Release APKs (Signed)
++        if: env.PUBLISH == 'true'
++        run: ./gradlew assembleRelease --no-daemon
++
+       - name: Build Plugin XIPKs
+         run: bash scripts/build-plugins.sh
+ 
+       - name: Upload Debug APKs
++        if: env.PUBLISH != 'true'
+         uses: actions/upload-artifact@v7
+         with:
+           name: debug-apks
+           path: |
+             app/build/outputs/apk/debug/*.apk
+             build/plugin-release/*.xipk
+-          retention-days: 7
+\ No newline at end of file
++          retention-days: 7
++
++      - name: Verify APK signatures
++        if: env.PUBLISH == 'true'
++        run: |
++          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
++          for apk in app/build/outputs/apk/release/Xime-*.apk; do
++            "$APKSIGNER" verify --print-certs "$apk" >/dev/null
++            echo "Verified: $apk"
++          done
++
++      - name: Get version and tag
++        if: env.PUBLISH == 'true'
++        id: get_version
++        run: |
++          VERSION=$(grep -E '^\s*versionName\s*=' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
++          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
++          TAG="build-${VERSION}-${SHORT_SHA}"
++          NAME="Xime v${VERSION}"
++          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
++          echo "TAG=${TAG}" >> "$GITHUB_OUTPUT"
++          echo "NAME=${NAME}" >> "$GITHUB_OUTPUT"
++          echo "Using tag=$TAG name=$NAME version=$VERSION sha=$SHORT_SHA"
++
++      - name: Create Release
++        if: env.PUBLISH == 'true'
++        uses: softprops/action-gh-release@v3
++        with:
++          tag_name: ${{ steps.get_version.outputs.TAG }}
++          name: ${{ steps.get_version.outputs.NAME }}
++          target_commitish: ${{ github.sha }}
++          generate_release_notes: true
++          files: |
++            app/build/outputs/apk/release/Xime-*.apk
++            build/plugin-release/*.xipk
++          overwrite: true
++          make_latest: true
++          draft: false
++          prerelease: false
++        env:
++          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

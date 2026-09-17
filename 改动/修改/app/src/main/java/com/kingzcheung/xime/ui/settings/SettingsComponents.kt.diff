@@ -1,0 +1,326 @@
+diff --git a/app/src/main/java/com/kingzcheung/xime/ui/settings/SettingsComponents.kt b/app/src/main/java/com/kingzcheung/xime/ui/settings/SettingsComponents.kt
+index 65f5cc8..1d54e99 100644
+--- a/app/src/main/java/com/kingzcheung/xime/ui/settings/SettingsComponents.kt
++++ b/app/src/main/java/com/kingzcheung/xime/ui/settings/SettingsComponents.kt
+@@ -36,11 +36,14 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.vector.ImageVector
++import androidx.compose.ui.text.PlatformTextStyle
++import androidx.compose.ui.text.TextStyle
+ import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.LineHeightStyle
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+ import androidx.compose.ui.tooling.preview.Preview
+ import com.kingzcheung.xime.settings.SchemaInfo
+ import com.kingzcheung.xime.settings.BackgroundConfig
+@@ -559,11 +562,12 @@ fun ThemeCard(
+ fun CodeDisplayCard(
+     title: String,
+     isSelected: Boolean,
+     showCodeInInputBox: Boolean,
+     onClick: () -> Unit,
+-    modifier: Modifier = Modifier
++    modifier: Modifier = Modifier,
++    showCandidateInInputBox: Boolean = false,
+ ) {
+     val primary = MaterialTheme.colorScheme.primary
+     val onSurface = MaterialTheme.colorScheme.onSurface
+     val selectedBg = primary.copy(alpha = 0.15f)
+ 
+@@ -616,14 +620,14 @@ fun CodeDisplayCard(
+                                     RoundedCornerShape(4.dp)
+                                 )
+                                 .padding(horizontal = 8.dp),
+                             contentAlignment = Alignment.CenterStart
+                         ) {
+-                            if (showCodeInInputBox) {
++                            if (showCodeInInputBox || showCandidateInInputBox) {
+                                 Row(verticalAlignment = Alignment.CenterVertically) {
+                                     Text(
+-                                        text = "曦码 shu ru fa",
++                                        text = if (showCandidateInInputBox) "曦码 输入法" else "曦码 shu ru fa",
+                                         fontSize = 12.sp,
+                                         color = onSurface,
+                                         maxLines = 1
+                                     )
+                                     Spacer(modifier = Modifier.width(1.dp))
+@@ -736,10 +740,27 @@ fun CodeDisplayCardPreview_NotSelectedNoCode() {
+                 .height(160.dp)
+         )
+     }
+ }
+ 
++@Preview(name = "CodeDisplayCard - 预览上屏")
++@Composable
++fun CodeDisplayCardPreview_CommitPreview() {
++    XimeTheme {
++        CodeDisplayCard(
++            title = "预览上屏",
++            isSelected = true,
++            showCodeInInputBox = false,
++            showCandidateInInputBox = true,
++            onClick = {},
++            modifier = Modifier
++                .padding(16.dp)
++                .height(160.dp)
++        )
++    }
++}
++
+ @Composable
+ fun CommentDisplayCard(
+     title: String,
+     isSelected: Boolean,
+     showComment: Boolean,
+@@ -845,10 +866,235 @@ fun CommentDisplayCard(
+             }
+         }
+     }
+ }
+ 
++@Composable
++fun CommentLayoutCard(
++    title: String,
++    isSelected: Boolean,
++    stacked: Boolean,
++    onClick: () -> Unit,
++    modifier: Modifier = Modifier
++) {
++    val primary = MaterialTheme.colorScheme.primary
++    val onSurface = MaterialTheme.colorScheme.onSurface
++    val commentColor = onSurface.copy(alpha = 0.5f)
++
++    Box(modifier = modifier) {
++        Column {
++            Box(
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .weight(1f)
++                    .clip(RoundedCornerShape(12.dp))
++                    .background(MaterialTheme.colorScheme.surface)
++                    .clickable { onClick() }
++                    .then(
++                        if (isSelected) {
++                            Modifier.border(
++                                width = 2.dp,
++                                color = primary,
++                                shape = RoundedCornerShape(12.dp)
++                            )
++                        } else {
++                            Modifier
++                        }
++                    )
++            ) {
++                Box(
++                    modifier = Modifier
++                        .fillMaxSize()
++                        .padding(8.dp),
++                    contentAlignment = Alignment.Center
++                ) {
++                    Box(
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .clip(RoundedCornerShape(8.dp))
++                            .background(MaterialTheme.colorScheme.surfaceVariant)
++                            .padding(horizontal = 6.dp, vertical = 6.dp),
++                        contentAlignment = Alignment.Center
++                    ) {
++                        if (stacked) {
++                            Row(
++                                modifier = Modifier.fillMaxWidth(),
++                                verticalAlignment = Alignment.CenterVertically,
++                                horizontalArrangement = Arrangement.Center
++                            ) {
++                                StackedPreviewCell(
++                                    text = "输入法",
++                                    comment = "ltif",
++                                    highlighted = true,
++                                    primary = primary,
++                                    onSurface = onSurface,
++                                    commentColor = commentColor,
++                                )
++                                Box(
++                                    modifier = Modifier
++                                        .padding(horizontal = 8.dp)
++                                        .width(1.dp)
++                                        .height(28.dp)
++                                        .background(primary)
++                                )
++                                StackedPreviewCell(
++                                    text = "力学",
++                                    comment = "lixue",
++                                    highlighted = false,
++                                    primary = primary,
++                                    onSurface = onSurface,
++                                    commentColor = commentColor,
++                                )
++                            }
++                        } else {
++                            Row(
++                                modifier = Modifier.fillMaxWidth(),
++                                verticalAlignment = Alignment.CenterVertically
++                            ) {
++                                InlinePreviewCell(
++                                    text = "输入法",
++                                    comment = "ltif",
++                                    highlighted = true,
++                                    primary = primary,
++                                    onSurface = onSurface,
++                                    commentColor = commentColor,
++                                )
++                                Spacer(modifier = Modifier.width(8.dp))
++                                InlinePreviewCell(
++                                    text = "力学",
++                                    comment = "lixue",
++                                    highlighted = false,
++                                    primary = primary,
++                                    onSurface = onSurface,
++                                    commentColor = commentColor,
++                                )
++                            }
++                        }
++                    }
++                }
++            }
++            Spacer(modifier = Modifier.height(4.dp))
++            Row(
++                modifier = Modifier.fillMaxWidth(),
++                horizontalArrangement = Arrangement.Center
++            ) {
++                Text(
++                    text = title,
++                    style = MaterialTheme.typography.bodySmall,
++                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
++                    color = if (isSelected) primary else onSurface,
++                    maxLines = 1
++                )
++            }
++        }
++    }
++}
++
++private val previewTightStyle = TextStyle(
++    platformStyle = PlatformTextStyle(includeFontPadding = false),
++    lineHeightStyle = LineHeightStyle(
++        alignment = LineHeightStyle.Alignment.Center,
++        trim = LineHeightStyle.Trim.Both,
++    ),
++)
++
++@Composable
++private fun InlinePreviewCell(
++    text: String,
++    comment: String,
++    highlighted: Boolean,
++    primary: Color,
++    onSurface: Color,
++    commentColor: Color,
++) {
++    val content = @Composable {
++        Row(verticalAlignment = Alignment.CenterVertically) {
++            Text(
++                text = text,
++                style = previewTightStyle.copy(
++                    fontSize = 13.sp,
++                    color = if (highlighted) primary else onSurface,
++                    fontWeight = if (highlighted) FontWeight.Medium else FontWeight.Normal,
++                    lineHeight = 13.sp,
++                ),
++                maxLines = 1
++            )
++            Spacer(modifier = Modifier.width(3.dp))
++            Text(
++                text = comment,
++                style = previewTightStyle.copy(
++                    fontSize = 8.sp,
++                    color = commentColor,
++                    lineHeight = 8.sp,
++                ),
++                maxLines = 1
++            )
++        }
++    }
++    if (highlighted) {
++        Box(
++            modifier = Modifier
++                .clip(RoundedCornerShape(8.dp))
++                .background(primary.copy(alpha = 0.15f))
++                .padding(horizontal = 6.dp, vertical = 3.dp)
++        ) {
++            content()
++        }
++    } else {
++        content()
++    }
++}
++
++@Composable
++private fun StackedPreviewCell(
++    text: String,
++    comment: String,
++    highlighted: Boolean,
++    primary: Color,
++    onSurface: Color,
++    commentColor: Color,
++) {
++    val content = @Composable {
++        Column(
++            horizontalAlignment = Alignment.CenterHorizontally,
++            verticalArrangement = Arrangement.spacedBy(0.dp),
++        ) {
++            Text(
++                text = comment,
++                style = previewTightStyle.copy(
++                    fontSize = 8.sp,
++                    color = commentColor,
++                    lineHeight = 8.sp,
++                ),
++                maxLines = 1
++            )
++            Text(
++                text = text,
++                style = previewTightStyle.copy(
++                    fontSize = 13.sp,
++                    color = if (highlighted) primary else onSurface,
++                    fontWeight = if (highlighted) FontWeight.Medium else FontWeight.Normal,
++                    lineHeight = 13.sp,
++                ),
++                maxLines = 1
++            )
++        }
++    }
++    if (highlighted) {
++        Box(
++            modifier = Modifier
++                .clip(RoundedCornerShape(8.dp))
++                .background(primary.copy(alpha = 0.15f))
++                .padding(horizontal = 6.dp, vertical = 2.dp)
++        ) {
++            content()
++        }
++    } else {
++        content()
++    }
++}
++
+ @Preview(name = "CommentDisplayCard - 显示注释", heightDp = 120)
+ @Composable
+ fun CommentDisplayCardPreview_Show() {
+     XimeTheme {
+         CommentDisplayCard(
+@@ -879,11 +1125,10 @@ fun CommentDisplayCardPreview_Hide() {
+                 .padding(10.dp)
+         )
+     }
+ }
+ 
+-
+ @Composable
+ fun KeyboardThemeCard(
+     theme: KeyboardColorScheme,
+     isSelected: Boolean,
+     onClick: () -> Unit,

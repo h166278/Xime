@@ -1,0 +1,87 @@
+diff --git a/app/src/main/java/com/kingzcheung/xime/ui/settings/AboutScreen.kt b/app/src/main/java/com/kingzcheung/xime/ui/settings/AboutScreen.kt
+index c60a891..63967de 100644
+--- a/app/src/main/java/com/kingzcheung/xime/ui/settings/AboutScreen.kt
++++ b/app/src/main/java/com/kingzcheung/xime/ui/settings/AboutScreen.kt
+@@ -76,11 +76,11 @@ object AppInfo {
+     
+     val dependencies = listOf(
+         LicenseItem(
+             name = "曦码",
+             license = "GPL-3.0",
+-            url = "https://github.com/ximeiorg/Xime"
++            url = "https://github.com/h166278/Xime"
+         ),
+         LicenseItem(
+             name = "librime",
+             license = "BSD-3-Clause",
+             url = "https://github.com/rime/librime"
+@@ -224,11 +224,11 @@ fun AboutContent(
+                         Spacer(modifier = Modifier.height(12.dp))
+                         
+                         Row(
+                             modifier = Modifier
+                                 .fillMaxWidth()
+-                                .clickable { uriHandler.openUri("https://github.com/ximeiorg/Xime/releases") },
++                                .clickable { uriHandler.openUri("https://github.com/h166278/Xime/releases") },
+                             horizontalArrangement = Arrangement.Center,
+                             verticalAlignment = Alignment.CenterVertically
+                         ) {
+                             Icon(
+                                 imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+@@ -266,27 +266,27 @@ fun AboutContent(
+                         )
+                         Spacer(modifier = Modifier.height(12.dp))
+                         Row(
+                             modifier = Modifier
+                                 .fillMaxWidth()
+-                                .clickable { uriHandler.openUri("https://github.com/kingzcheung") },
++                                .clickable { uriHandler.openUri("https://github.com/h166278") },
+                             verticalAlignment = Alignment.CenterVertically
+                         ) {
+                             Icon(
+                                 imageVector = Icons.TwoTone.PersonOutline,
+                                 contentDescription = null,
+                                 tint = MaterialTheme.colorScheme.primary
+                             )
+                             Spacer(modifier = Modifier.width(12.dp))
+                             Column(modifier = Modifier.weight(1f)) {
+                                 Text(
+-                                    text = "Kor1 (kingzcheung)",
++                                    text = "h166278",
+                                     fontSize = 14.sp,
+                                     fontWeight = FontWeight.Medium
+                                 )
+                                 Text(
+-                                    text = "github.com/kingzcheung",
++                                    text = "github.com/h166278",
+                                     fontSize = 12.sp,
+                                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                                 )
+                             }
+                             Icon(
+@@ -304,11 +304,11 @@ fun AboutContent(
+             item {
+                 Card(
+                     modifier = Modifier
+                         .fillMaxWidth()
+                         .clickable {
+-                            uriHandler.openUri("https://github.com/ximeiorg/Xime")
++                            uriHandler.openUri("https://github.com/h166278/Xime")
+                         },
+                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                 ) {
+                     Row(
+                         modifier = Modifier
+@@ -327,11 +327,11 @@ fun AboutContent(
+                                 text = "源代码",
+                                 fontSize = 16.sp,
+                                 fontWeight = FontWeight.Medium
+                             )
+                             Text(
+-                                text = "github.com/ximeiorg/Xime",
++                                text = "github.com/h166278/Xime",
+                                 fontSize = 12.sp,
+                                 color = MaterialTheme.colorScheme.onSurfaceVariant
+                             )
+                         }
+                         Icon(

@@ -1,0 +1,77 @@
+diff --git a/app/src/main/java/com/kingzcheung/xime/service/ImeSchemaController.kt b/app/src/main/java/com/kingzcheung/xime/service/ImeSchemaController.kt
+index ca10918..e6aa8a3 100644
+--- a/app/src/main/java/com/kingzcheung/xime/service/ImeSchemaController.kt
++++ b/app/src/main/java/com/kingzcheung/xime/service/ImeSchemaController.kt
+@@ -11,18 +11,29 @@ import com.kingzcheung.xime.keyboard.HANDWRITING_SCHEMA_ID
+ import com.kingzcheung.xime.settings.KeysConfigHelper
+ import com.kingzcheung.xime.settings.SchemaConfigHelper
+ import com.kingzcheung.xime.settings.SchemaManager
+ import com.kingzcheung.xime.rime.RimeConfigHelper
+ import com.kingzcheung.xime.settings.SettingsPreferences
++import com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState
+ import com.kingzcheung.xime.ui.theme.KeyboardThemes
+ import com.kingzcheung.xime.util.FileLogger
+ import java.io.File
+ import kotlin.math.roundToInt
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
+ 
++/**
++ * 暖启动（onStartInput）是否跳过 select_schema。
++ * 方案已是目标时再切会把 translator/词库热路径再走一遍，主线程卡唤醒。
++ * 冷启动仍由 initRimeEngine 在 createSession 后强制切一次。
++ */
++internal fun shouldSkipWarmStartSchemaReselect(
++    savedSchema: String,
++    currentSchema: String,
++): Boolean = savedSchema.isNotEmpty() && savedSchema == currentSchema
++
+ /**
+  * 方案管理与输入模式切换。
+  *
+  * 承载方案切换（switchSchema/applyPageSizeSetting）、部署（reloadConfig/deploy/deploySchema/downloadSchema）、
+  * 中英切换（switchInputMethod）、工具栏编辑动作、键盘高度与浮动模式调整。
+@@ -260,13 +271,22 @@ internal class ImeSchemaController(private val service: XimeInputMethodService)
+         }
+     }
+ 
+     internal fun applyPageSizeSetting(schemaId: String) {
+         val userPageSize = SettingsPreferences.getPageSize(service)
+-        if (userPageSize > 0) {
+-            service.rimeEngine.setPageSize(schemaId, userPageSize)
++        if (userPageSize <= 0) return
++        // 选重布局方案（飞系/象码等）page_size 是一页几个选重键，不能盖成手机默认 20。
++        // JNI applyPageSizeOverride 是会话重建时的同一道闸；这里早退少一次 native。
++        if (RimeConfigHelper.schemaKeepsOwnPageSize(
++                service.rimeEngine.getSchemaString(schemaId, "menu/alternative_select_keys"),
++                service.rimeEngine.getSchemaString(schemaId, "menu/select_comment_pattern"),
++            )
++        ) {
++            Log.i(XimeInputMethodService.TAG, "applyPageSizeSetting: skip $schemaId (select-key layout)")
++            return
+         }
++        service.rimeEngine.setPageSize(schemaId, userPageSize)
+     }
+ 
+     internal fun switchSchema(schemaId: String) {
+         if (schemaId == HANDWRITING_SCHEMA_ID) {
+             // 检查手写模型文件是否已下载
+@@ -398,11 +418,16 @@ internal class ImeSchemaController(private val service: XimeInputMethodService)
+         val screenW = service.resources.configuration.screenWidthDp
+         val screenH = service.resources.configuration.screenHeightDp
+         val portraitWidth = minOf(screenW, screenH)
+         val cardWidth = (portraitWidth * 0.85f).roundToInt()
+         val halfMargin = maxOf(0, (screenW - cardWidth) / 2)
+-        val cappedKbH = SettingsPreferences.getKeyboardHeightDp(service, isLandscape).coerceAtMost((screenH * 8) / 10)
++        val numberRowExtra = if (SettingsPreferences.isLayout46Enabled(service) &&
++            (service.keyboardViewModel.keyboardState.value is KeyboardLayoutState.Chinese ||
++                service.keyboardViewModel.keyboardState.value is KeyboardLayoutState.English)
++        ) SettingsPreferences.NUMBER_ROW_EXTRA_HEIGHT_DP else 0
++        val cappedKbH = (SettingsPreferences.getKeyboardHeightDp(service, isLandscape) + numberRowExtra)
++            .coerceAtMost((screenH * 8) / 10)
+         val clampedX = loadedX.coerceIn(-halfMargin, halfMargin)
+         service.uiState.value = service.uiState.value.copy(
+             isFloatingMode = enabled,
+             floatingOffsetX = clampedX,
+             floatingOffsetY = 0,

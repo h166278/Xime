@@ -1,0 +1,143 @@
+diff --git a/app/src/main/java/com/kingzcheung/xime/service/ImeKeyboardCallbacks.kt b/app/src/main/java/com/kingzcheung/xime/service/ImeKeyboardCallbacks.kt
+index 489f133..abe410c 100644
+--- a/app/src/main/java/com/kingzcheung/xime/service/ImeKeyboardCallbacks.kt
++++ b/app/src/main/java/com/kingzcheung/xime/service/ImeKeyboardCallbacks.kt
+@@ -199,45 +199,24 @@ internal fun rememberImeKeyboardCallbacks(
+                 }
+             },
+             onPageDown = { service.keyRouter.pageDown() },
+             onPageUp = { service.keyRouter.pageUp() },
+             onCursorMove = { direction ->
+-                val ic = service.currentInputConnection
+-                if (ic != null && direction != 0) {
+-                    if (SettingsPreferences.getInputTextLocation(service) == SettingsPreferences.INPUT_TEXT_INPUT_BOX &&
+-                        service.candidateState.value.isComposing
+-                    ) {
+-                        // 输入框模式：移动光标前先结束 composing 并清空 RIME 组成，
+-                        // 避免再次输入时 composing 区域与光标位置错乱
+-                        ic.finishComposingText()
+-                        service.keyRouter.postRimeJob {
+-                            service.rimeEngine.clearComposition()
+-                            withContext(Dispatchers.Main) {
+-                                service.mainHandler.post { service.updateUI() }
+-                            }
+-                        }
+-                    }
+-                    var movedBySelection = false
+-                    try {
+-                        val req = android.view.inputmethod.ExtractedTextRequest()
+-                        val extracted = ic.getExtractedText(req, 0)
+-                        if (extracted != null && extracted.selectionStart >= 0) {
+-                            val newPos = (extracted.selectionStart + direction)
+-                                .coerceIn(0, extracted.text?.length ?: 0)
+-                            ic.setSelection(newPos, newPos)
+-                            movedBySelection = true
+-                        }
+-                    } catch (_: Exception) {}
+-                    if (!movedBySelection) {
+-                        val keyCode = if (direction < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT
+-                        repeat(abs(direction)) {
+-                            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+-                            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+-                        }
++                val cand = service.candidateState.value
++                val composing = cand.isComposing || cand.inputText.isNotEmpty()
++                if (SettingsPreferences.isLayout46Enabled(service) && composing && direction != 0) {
++                    val key = if (direction < 0) "rime_left" else "rime_right"
++                    repeat(abs(direction)) {
++                        service.keyRouter.handleKeyPress(key, false)
+                     }
++                } else {
++                    moveEditorCursor(service, direction)
+                 }
+             },
++            onEditorCursorMove = { direction ->
++                moveEditorCursor(service, direction)
++            },
+             onGestureAction = { action, value ->
+                 action.execute(service, value)
+             },
+             onUpdateToolbarButtons = { buttons ->
+                 SettingsPreferences.setToolbarButtons(service, buttons)
+@@ -310,12 +289,14 @@ internal fun rememberImeKeyboardCallbacks(
+                 }
+             },
+             onT9RightCommitUndone = { count ->
+                 // 半提交文本在 composing 区域时无法用 deleteSurroundingText 删除，
+                 // 需通过 endComposingInputBox 清空，交由后续 applyComposition 重建。
+-                if (SettingsPreferences.getInputTextLocation(service)
+-                    == SettingsPreferences.INPUT_TEXT_INPUT_BOX) {
++                if (writesComposingToInputBox(
++                        SettingsPreferences.getInputTextLocation(service)
++                    )
++                ) {
+                     service.endComposingInputBox()
+                 } else {
+                     service.deleteBeforeCursor(count)
+                 }
+                 // undo 联动：撤销 right commit 段时回滚用户词典调频。
+@@ -354,15 +335,19 @@ internal fun rememberImeKeyboardCallbacks(
+                 } else if (!isT9Schema(service.uiState.value.currentSchemaId)
+                     && cs.isComposing) {
+                     if (cs.candidates.isNotEmpty()) {
+                         if (service.rimeEngine.selectCandidate(0)) {
+                             val text = service.rimeEngine.commit()
+-                            if (text.isNotEmpty()) service.commitText(text)
++                            if (text.isNotEmpty()) {
++                                service.armCommitCode(cs.inputText)
++                                service.commitText(text)
++                            }
+                         }
+                     } else if (cs.preeditText.isNotEmpty()) {
+                         // 提交原始键入串而非 preeditText：后者现为带回显分隔符的展示串（如 ni'hao），
+                         // 直接上屏会混入分隔符。
++                        service.armCommitCode(cs.inputText)
+                         service.commitText(cs.inputText)
+                         service.rimeEngine.clearComposition()
+                     }
+                 }
+             },
+@@ -442,5 +427,43 @@ internal fun rememberImeKeyboardCallbacks(
+                 }
+             },
+         )
+     }
+ }
++
++/** 挪输入框光标。有编码且编码在输入框时先结束 composing，避免光标和组合区错位。 */
++private fun moveEditorCursor(service: XimeInputMethodService, direction: Int) {
++    val ic = service.currentInputConnection
++    if (ic == null || direction == 0) return
++    val loc = SettingsPreferences.getInputTextLocation(service)
++    if (writesComposingToInputBox(loc) && service.candidateState.value.isComposing) {
++        if (isCommitPreview(loc)) {
++            service.sessionController.commitPreviewOnHide()
++        } else {
++            ic.finishComposingText()
++        }
++        service.keyRouter.postRimeJob {
++            service.rimeEngine.clearComposition()
++            withContext(Dispatchers.Main) {
++                service.mainHandler.post { service.updateUI() }
++            }
++        }
++    }
++    var movedBySelection = false
++    try {
++        val req = android.view.inputmethod.ExtractedTextRequest()
++        val extracted = ic.getExtractedText(req, 0)
++        if (extracted != null && extracted.selectionStart >= 0) {
++            val newPos = (extracted.selectionStart + direction)
++                .coerceIn(0, extracted.text?.length ?: 0)
++            ic.setSelection(newPos, newPos)
++            movedBySelection = true
++        }
++    } catch (_: Exception) {}
++    if (!movedBySelection) {
++        val keyCode = if (direction < 0) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT
++        repeat(abs(direction)) {
++            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
++            ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
++        }
++    }
++}

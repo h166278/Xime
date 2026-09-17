@@ -1,0 +1,73 @@
+diff --git a/app/src/main/jni/librime_jni/rime_jni.cc b/app/src/main/jni/librime_jni/rime_jni.cc
+index b7b1655..29a5a48 100644
+--- a/app/src/main/jni/librime_jni/rime_jni.cc
++++ b/app/src/main/jni/librime_jni/rime_jni.cc
+@@ -734,26 +734,49 @@ public:
+             LOGI("Updated last_build_time to %d", now);
+             rime->config_close(&config);
+         }
+     }
+ 
++    // 方案把 page_size 当选重布局的一部分时（alternative_select_keys /
++    // select_comment_pattern），不覆盖——飞系增强一页正好 1 正选 + 5 数选，
++    // 大 page_size 会把第二页声笔字挤上第一页。拼音/五笔没有这两项，
++    // 继续用 app 设置覆盖 PC 遗留的 5。空白视为未配置。
++    bool schemaKeepsOwnPageSize(RimeConfig* config) {
++        const char* keys = rime->config_get_cstring(
++            config, "menu/alternative_select_keys");
++        const char* pattern = rime->config_get_cstring(
++            config, "menu/select_comment_pattern");
++        auto nonempty = [](const char* s) {
++            if (!s) return false;
++            while (*s == ' ' || *s == '\t') ++s;
++            return *s != '\0';
++        };
++        return nonempty(keys) || nonempty(pattern);
++    }
++
+     // 把记住的每页候选数覆盖值注入引擎（值来自 app 设置页，非 cpp 写死）：
+     // 1) 修改方案配置缓存：schema_open 打开的 ConfigData 由组件按 id 弱引用共享，
+     //    此处写入后，之后构造的所有 Schema 都会读到覆盖值；
+     // 2) 当前会话正在使用该方案时，幂等重构造 Schema 立即生效——Schema 仅在
+     //    构造时读取 menu/page_size（FetchUsefulConfigItems），只改配置对已构造的
+     //    Schema 无效。旧实现只有第 1 步，部署/会话重建后无人再调 setPageSize 时
+     //    候选数漂移回方案自带值（内置/第三方方案多为 PC 默认 5，不适配手机）。
++    // 选重布局方案在写缓存前直接返回，会话重建走 reapply 也不会再盖。
+     void applyPageSizeOverride(const char* schema_id) {
+         if (!rime || page_size_override_ <= 0) return;
+         RimeConfig config;
+-        if (rime->schema_open(schema_id, &config)) {
+-            rime->config_set_int(&config, "menu/page_size", page_size_override_);
+-            rime->config_close(&config);
+-        } else {
++        if (!rime->schema_open(schema_id, &config)) {
+             LOGE("applyPageSizeOverride: schema_open failed for '%s'", schema_id);
++            return;
+         }
++        if (schemaKeepsOwnPageSize(&config)) {
++            LOGI("applyPageSizeOverride: skip '%s' (select-key layout)", schema_id);
++            rime->config_close(&config);
++            return;
++        }
++        rime->config_set_int(&config, "menu/page_size", page_size_override_);
++        rime->config_close(&config);
+         if (!session_id_) return;
+         auto session = rime::Service::instance().GetSession(
+             static_cast<rime::SessionId>(session_id_));
+         if (!session) return;
+         auto schema = session->schema();
+@@ -922,11 +945,13 @@ private:
+     RimeSessionId session_id_ = 0;
+     std::string user_data_dir_;
+     std::string shared_data_dir_;
+     bool initialized_ = false;
+     // app 设置的每页候选数覆盖值（<=0 表示未设置）；会话重建后由
+-    // reapplyPageSizeIfNeeded 重新对齐，保证不被方案自带值（PC 默认 5）漂移
++    // reapplyPageSizeIfNeeded 重新对齐。选重布局方案（alternative_select_keys
++    // / select_comment_pattern）在 applyPageSizeOverride 内跳过，不被 PC 默认 5
++    // 以外的手机默认 20 盖掉。
+     int page_size_override_ = 0;
+ };
+ 
+ extern "C" {
+ 

@@ -1,0 +1,92 @@
+diff --git a/app/src/main/java/com/kingzcheung/xime/viewmodel/KeyboardViewModel.kt b/app/src/main/java/com/kingzcheung/xime/viewmodel/KeyboardViewModel.kt
+index 2c2e70c..0115b1c 100644
+--- a/app/src/main/java/com/kingzcheung/xime/viewmodel/KeyboardViewModel.kt
++++ b/app/src/main/java/com/kingzcheung/xime/viewmodel/KeyboardViewModel.kt
+@@ -106,10 +106,47 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
+     val isShifted: StateFlow<Boolean> = _isShifted.asStateFlow()
+ 
+     private val _shiftMode = MutableStateFlow(ShiftMode.OFF)
+     val shiftMode: StateFlow<ShiftMode> = _shiftMode.asStateFlow()
+ 
++    /**
++     * 46 键空闲上滑 Shift 切换：字母长按气泡默认选中大写还是小写。
++     * 与点按临时 Shift / 双击 Caps 无关。
++     */
++    private val _longPressPreferUppercase = MutableStateFlow(false)
++    val longPressPreferUppercase: StateFlow<Boolean> = _longPressPreferUppercase.asStateFlow()
++    fun toggleLongPressPreferUppercase() {
++        _longPressPreferUppercase.update { !it }
++    }
++    fun restoreShift(mode: ShiftMode) {
++        _shiftMode.value = mode
++        _isShifted.value = mode != ShiftMode.OFF
++    }
++
++    /**
++     * 46 键上滑 N：字母键帽切到飞系字根助记。
++     * 会话内有效，不落盘。
++     */
++    private val _mnemonicHintsEnabled = MutableStateFlow(false)
++    val mnemonicHintsEnabled: StateFlow<Boolean> = _mnemonicHintsEnabled.asStateFlow()
++    fun toggleMnemonicHints() {
++        _mnemonicHintsEnabled.update { !it }
++    }
++
++    /**
++     * 46 键中文盘：拉丁字母上屏后，五个符号键改英文符号。
++     * 点按/上滑其中任一键后关掉。会话重置清掉。
++     */
++    private val _englishPunctOverlay = MutableStateFlow(false)
++    val englishPunctOverlay: StateFlow<Boolean> = _englishPunctOverlay.asStateFlow()
++    fun armEnglishPunctOverlay() {
++        _englishPunctOverlay.value = true
++    }
++    fun consumeEnglishPunctOverlay() {
++        _englishPunctOverlay.value = false
++    }
++
+     private val _keyboardState = MutableStateFlow<KeyboardLayoutState>(KeyboardLayoutState.Chinese)
+     val keyboardState: StateFlow<KeyboardLayoutState> = _keyboardState.asStateFlow()
+ 
+     /** 最近一次停留的主键盘布局（中文/英文全键盘、九键、笔画）；
+      *  数字面板据此判断进入来源，决定「返回/符号」键的位置自适应 */
+@@ -492,21 +529,24 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
+             )
+             _syncViewState()
+         }
+     }
+ 
+-    /** Level 3: 在覆盖页面内回退 */
++    /** Level 3: 在覆盖页面内回退；栈空则关掉 overlay 回到背后键盘。 */
+     fun popOverlay() {
+         val current = _page.value
+-        if (current is KeyboardPage.Overlay && current.backStack.isNotEmpty()) {
++        if (current !is KeyboardPage.Overlay) return
++        if (current.backStack.isNotEmpty()) {
+             val prev = current.backStack.last()
+             _page.value = current.copy(
+                 route = prev,
+                 backStack = current.backStack.dropLast(1)
+             )
+-            _syncViewState()
++        } else {
++            _page.value = current.behind
+         }
++        _syncViewState()
+     }
+ 
+     /** Level 3: 关闭覆盖页面，回到背后页面 */
+     fun closeOverlay() {
+         val current = _page.value
+@@ -517,10 +557,11 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
+     }
+ 
+     fun resetKeyboard(isAsciiMode: Boolean, schemaId: String = "") {
+         _isShifted.value = false
+         _shiftMode.value = ShiftMode.OFF
++        _englishPunctOverlay.value = false
+         _keyboardState.value = initialKeyboardLayoutState(isAsciiMode, schemaId)
+         if (_page.value !is KeyboardPage.Main) {
+             _page.value = KeyboardPage.Main(MainType.FULL)
+         }
+         // 必须重新推导 viewState：否则 _viewState 停留在旧的面板/覆盖值，

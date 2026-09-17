@@ -1,0 +1,109 @@
+diff --git a/app/src/main/assets/default.custom.yaml b/app/src/main/assets/default.custom.yaml
+index 015324d..088d7e4 100644
+--- a/app/src/main/assets/default.custom.yaml
++++ b/app/src/main/assets/default.custom.yaml
+@@ -31,37 +31,36 @@ patch:
+   # commit_code   已输入的编码字符上屏并切换至英文输入模式
+   # -----------------------------------------------
+   # 参考链接： https://gist.github.com/lotem/2981316
+ 
+   ascii_composer:
+-    good_old_caps_lock: true       # true: 在保持 cap 键原有的特征， false: 点击不会切换大小写
++    good_old_caps_lock: true
+     switch_key:
+-      Caps_Lock: commit_code        # 如果想用 cap 键切换中英文输入，就修改为上面三种的任一一种，否则用 noop
+-      Shift_L: commit_code          # macOs 上 shift 键不区别左右，设置参数同上
+-      Shift_R: commit_code
+-      Control_L: noop
++      Shift_L: inline_ascii
++      Shift_R: inline_ascii
++      Control_L: commit_code
+       Control_R: noop
++      Caps_Lock: clear
++      Eisu_toggle: clear
+ 
+ 
+   key_binder:
+     bindings:
+-#      - { when: has_menu, accept: comma, send: 2 }  # 候选2 用逗号选择 （修改的时候不要多加或少加空格，跟前面的对齐就好了）
+-#      - { when: has_menu, accept: period, send: 3 } # 候选3 用句号选择
+-      - { when: has_menu, accept: semicolon, send: 2 }  # 候选2 用分号
+-      - { when: has_menu, accept: apostrophe, send: 3 } # 候选3 用单引号
+-
+       # 上下翻页 [ ]
+       - { when: has_menu, accept: bracketleft, send: Page_Up }
+       - { when: has_menu, accept: bracketright, send: Page_Down }
+ 
+       # 上下翻页 - =
+       - { when: has_menu, accept: minus, send: Page_Up }
+       - { when: has_menu, accept: equal, send: Page_Down }
+-      -
+-      # 上下翻页 tab
+-      - { when: has_menu, accept: Shift+Tab, send: Page_Up }
++
++      # 上下翻页 tab（对齐声笔：paging 才上一页，第一页 Shift+Tab 跳尾）
+       - { when: has_menu, accept: Tab, send: Page_Down }
++      - { when: paging, accept: Shift+Tab, send: Page_Up }
++      - { when: has_menu, accept: Shift+Tab, send_sequence: "{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}" }
++      - { when: paging, accept: Shift+ISO_Left_Tab, send: Page_Up }
++      - { when: has_menu, accept: Shift+ISO_Left_Tab, send_sequence: "{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}" }
+ 
+       # 回车清码
+       #- { when: composing, accept: Return, send: Escape }
+ 
+       # emacs key bindings, copy from https://github.com/rime/rime-prelude/blob/master/key_bindings.yaml
+@@ -83,11 +82,11 @@ patch:
+     full_shape: # 全角符号
+       " ": {commit: "　"}
+       "!": {commit: "！"}
+       "\"": {pair: ["“", "”"]}
+       "#": ["＃", "⌘"]
+-      "$": "￥"
++      "$": ["￥", "＄", "$"]
+       "%": "％"
+       "&": "＆"
+       "'": {pair: ["‘", "’"]}
+       "(": "（"
+       ")": "）"
+@@ -105,22 +104,22 @@ patch:
+       "?": {commit: "？"}
+       "@": "＠"
+       "[": ["「", "【", "〔", "［"]
+       "\\": ["、", "＼"]
+       "]": ["」", "】", "〕", "］"]
+-      "^": {commit: "……"}
++      "^": ["…", "……", "⋯", "⋮", "︙", "‥"]
+       _: "——"
+-      "`": "｀"
++      "`": ["·", "・", "･"]
+       "{": ["『", "〖", "｛"]
+       "|": ["·", "｜", "§", "¦"]
+       "}": ["』", "〗", "｝"]
+       "~": "～"
+     half_shape: # 半角符号
+       "!": {commit: "！"}
+       "\"": {pair: ["“", "”"]}
+       "#": "#"
+-      "$": "￥"
++      "$": ["￥", "＄", "$"]
+       "%": ["%", "％", "°", "℃"]
+       "&": "&"
+       "'": {pair: ["‘", "’"]}
+       "(": "（"
+       ")": "）"
+@@ -138,13 +137,13 @@ patch:
+       "?": {commit: "？"}
+       "@": "@"
+       "[": {commit: "【"}
+       "\\": {commit: "、"}
+       "]": {commit: "】"}
+-      "^": {commit: "……"}
++      "^": ["…", "……", "⋯", "⋮", "︙", "‥"]
+       _: "——"
+-      "`": "`"
++      "`": ["·", "・", "･"]
+       "{": "「"
+       "|": "|"
+       "}": "」"
+       "~": "~"
+   recognizer:

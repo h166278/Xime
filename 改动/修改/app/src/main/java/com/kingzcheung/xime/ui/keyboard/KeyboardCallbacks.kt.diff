@@ -1,0 +1,17 @@
+diff --git a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardCallbacks.kt b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardCallbacks.kt
+index f0a026c..c33d5d8 100644
+--- a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardCallbacks.kt
++++ b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardCallbacks.kt
+@@ -32,10 +32,12 @@ data class KeyboardCallbacks(
+     val onVoiceModeChange: ((Boolean) -> Unit)? = null,
+     val onVoiceStickyToggle: (() -> Unit)? = null,
+     val onPageDown: (() -> Unit)? = null,
+     val onPageUp: (() -> Unit)? = null,
+     val onCursorMove: ((Int) -> Unit)? = null,
++    /** 只挪输入框光标，不走 Rime 左右。46 键空格横滑用。 */
++    val onEditorCursorMove: ((Int) -> Unit)? = null,
+     val onGestureAction: ((GestureAction, String) -> Unit)? = null,
+     val onUpdateToolbarButtons: ((List<String>) -> Unit)? = null,
+     /**
+      * 插件工具栏按钮点击（manifest 声明的 action，如 open_panel）触发。
+      * 宿主据此打开对应插件的通用面板。

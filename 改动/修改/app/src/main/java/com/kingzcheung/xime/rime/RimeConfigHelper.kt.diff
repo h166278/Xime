@@ -1,0 +1,206 @@
+diff --git a/app/src/main/java/com/kingzcheung/xime/rime/RimeConfigHelper.kt b/app/src/main/java/com/kingzcheung/xime/rime/RimeConfigHelper.kt
+index 5d99a14..22b5986 100644
+--- a/app/src/main/java/com/kingzcheung/xime/rime/RimeConfigHelper.kt
++++ b/app/src/main/java/com/kingzcheung/xime/rime/RimeConfigHelper.kt
+@@ -25,10 +25,12 @@ object RimeConfigHelper {
+ 
+     /** 市场索引中随 app 发布的内置默认方案集条目 id（见 rimes/index.yaml 的 `builtin`）。 */
+     private const val BUILTIN_MARKET_ID = "builtin"
+     /** 内置方案集的初始占位版本：`0.0.0` 保证不等于任何真实 git tag，从而在市场提示「更新」。 */
+     private const val BUILTIN_PLACEHOLDER_VERSION = "0.0.0"
++    /** 声笔第一页 Shift+Tab 跳尾用的 31 次 Page_Down，与 sbxlm.yaml 一致。 */
++    private const val PAGE_DOWN_JUMP = "{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}{Page_Down}"
+ 
+     /** 部署互斥：Application 预初始化与输入法服务初始化可能并发触发部署，串行化避免重复/并发全量编译。 */
+     private val deploymentLock = Any()
+     
+     suspend fun initializeRimeDataAsync(context: Context): Pair<String, String> {
+@@ -325,29 +327,181 @@ object RimeConfigHelper {
+         val pageSize = SettingsPreferences.getPageSize(context).coerceAtLeast(1)
+         try {
+             if (!target.exists()) {
+                 copyAssetFile(context, ASSETS_DEFAULT_CUSTOM, target)
+                 // 模板基线（20）与用户设置不一致时（如 slider 调过）以设置为准
+-                val aligned = patchDefaultCustomContent(target.readText(), pageSize)
+-                if (aligned != null) {
+-                    target.writeText(aligned)
+-                }
++                var text = target.readText()
++                var changed = false
++                patchDefaultCustomContent(text, pageSize)?.let { text = it; changed = true }
++                patchShiftTabBindings(text)?.let { text = it; changed = true }
++                patchAsciiComposerToSbsrf(text)?.let { text = it; changed = true }
++                patchRemoveSelectKeys(text)?.let { text = it; changed = true }
++                if (changed) target.writeText(text)
+                 return
+             }
+-            val patched = patchDefaultCustomContent(target.readText(), pageSize) ?: return
+-            target.writeText(patched)
+-            Log.i(TAG, "Aligned ${target.name} menu/page_size=$pageSize")
++            var text = target.readText()
++            var changed = false
++            patchDefaultCustomContent(text, pageSize)?.let { text = it; changed = true }
++            patchShiftTabBindings(text)?.let { text = it; changed = true }
++            patchAsciiComposerToSbsrf(text)?.let { text = it; changed = true }
++            patchRemoveSelectKeys(text)?.let { text = it; changed = true }
++            if (!changed) return
++            target.writeText(text)
++            Log.i(TAG, "Aligned ${target.name} page_size / Shift+Tab / ascii_composer / select keys")
+         } catch (e: IOException) {
+             Log.e(TAG, "Failed to sync $ASSETS_DEFAULT_CUSTOM", e)
+         }
+     }
+ 
++    /**
++     * 方案是否把 page_size 当选重布局的一部分。
++     * [alternativeSelectKeys] / [selectCommentPattern] 任一非空白即跳过 app 的
++     * page_size 覆盖（飞系 `_aeuio`、象码/飞天 `_23789`）。拼音/五笔两项皆空，继续覆盖。
++     * 与 JNI `schemaKeepsOwnPageSize` 同一条规则。
++     */
++    internal fun schemaKeepsOwnPageSize(
++        alternativeSelectKeys: String?,
++        selectCommentPattern: String?,
++    ): Boolean {
++        return !alternativeSelectKeys.isNullOrBlank() || !selectCommentPattern.isNullOrBlank()
++    }
++
++    /**
++     * 把根层 `has_menu + Shift+Tab = Page_Up` 改成声笔语义：
++     * paging 才上一页，第一页 has_menu 跳尾。已是目标形态则返回 null。
++     */
++    internal fun patchShiftTabBindings(text: String): String? {
++        val sep = if (text.contains("\r\n")) "\r\n" else "\n"
++        val lines = text.lines()
++        val hasPagingUp = lines.any { line ->
++            val t = line.trimStart()
++            t.startsWith("-") && t.contains("when: paging") &&
++                t.contains("Shift+Tab") && t.contains("Page_Up")
++        }
++        val hasJumpTail = lines.any { line ->
++            val t = line.trimStart()
++            t.startsWith("-") && t.contains("when: has_menu") &&
++                t.contains("Shift+Tab") && t.contains("send_sequence")
++        }
++        if (hasPagingUp && hasJumpTail) return null
++
++        val oldIdx = lines.indexOfFirst { line ->
++            val t = line.trimStart()
++            t.startsWith("-") && t.contains("has_menu") && t.contains("Shift+Tab") &&
++                t.contains("Page_Up") && !t.contains("send_sequence")
++        }
++        if (oldIdx < 0) return null
++
++        val indent = lines[oldIdx].takeWhile { it == ' ' || it == '\t' }
++        val drop = mutableSetOf(oldIdx)
++        // 旧模板紧挨着的 Tab=Page_Down、注释、孤立 "-"
++        if (oldIdx + 1 < lines.size) {
++            val next = lines[oldIdx + 1].trimStart()
++            if (next.startsWith("-") && next.contains("has_menu") &&
++                next.contains("accept: Tab") && next.contains("Page_Down")
++            ) {
++                drop.add(oldIdx + 1)
++            }
++        }
++        if (oldIdx > 0 && lines[oldIdx - 1].trimStart().startsWith("#") &&
++            lines[oldIdx - 1].contains("tab")
++        ) {
++            drop.add(oldIdx - 1)
++        }
++        if (oldIdx > 1 && lines[oldIdx - 2].trim() == "-") {
++            drop.add(oldIdx - 2)
++        } else if (oldIdx > 0 && lines[oldIdx - 1].trim() == "-") {
++            drop.add(oldIdx - 1)
++        }
++
++        val insert = listOf(
++            "${indent}# 上下翻页 tab（对齐声笔：paging 才上一页，第一页 Shift+Tab 跳尾）",
++            "${indent}- { when: has_menu, accept: Tab, send: Page_Down }",
++            "${indent}- { when: paging, accept: Shift+Tab, send: Page_Up }",
++            "${indent}- { when: has_menu, accept: Shift+Tab, send_sequence: \"$PAGE_DOWN_JUMP\" }",
++            "${indent}- { when: paging, accept: Shift+ISO_Left_Tab, send: Page_Up }",
++            "${indent}- { when: has_menu, accept: Shift+ISO_Left_Tab, send_sequence: \"$PAGE_DOWN_JUMP\" }",
++        )
++        val updated = mutableListOf<String>()
++        var inserted = false
++        for (i in lines.indices) {
++            if (i in drop) {
++                if (!inserted) {
++                    updated.addAll(insert)
++                    inserted = true
++                }
++                continue
++            }
++            updated.add(lines[i])
++        }
++        return updated.joinToString(sep)
++    }
++
++    /**
++     * 根层 ascii_composer.switch_key 对齐声笔：Shift 进 inline_ascii，Caps 清码。
++     * 已是目标形态则返回 null。
++     */
++    internal fun patchAsciiComposerToSbsrf(text: String): String? {
++        if (text.contains("Shift_L: inline_ascii") &&
++            text.contains("Caps_Lock: clear") &&
++            text.contains("Control_L: commit_code")
++        ) {
++            return null
++        }
++        val sep = if (text.contains("\r\n")) "\r\n" else "\n"
++        val lines = text.lines()
++        val composerIdx = lines.indexOfFirst { it.trimStart().startsWith("ascii_composer:") }
++        if (composerIdx < 0) return null
++        val switchIdx = (composerIdx + 1 until lines.size).firstOrNull { i ->
++            lines[i].trimStart().startsWith("switch_key:")
++        } ?: return null
++        val switchIndent = lines[switchIdx].takeWhile { it == ' ' || it == '\t' }
++        var end = switchIdx + 1
++        while (end < lines.size) {
++            val line = lines[end]
++            if (line.isBlank()) break
++            val ind = line.takeWhile { it == ' ' || it == '\t' }
++            if (!line.trimStart().startsWith("#") && ind.length <= switchIndent.length) break
++            end++
++        }
++        val childIndent = "$switchIndent  "
++        val insert = listOf(
++            "${childIndent}Shift_L: inline_ascii",
++            "${childIndent}Shift_R: inline_ascii",
++            "${childIndent}Control_L: commit_code",
++            "${childIndent}Control_R: noop",
++            "${childIndent}Caps_Lock: clear",
++            "${childIndent}Eisu_toggle: clear",
++        )
++        return (lines.take(switchIdx + 1) + insert + lines.drop(end)).joinToString(sep)
++    }
++
++    /**
++     * 去掉根层分号/引号选 2/3。声笔方案自己拿这两键做组合上屏和打空造词。
++     * 没有这两条则返回 null。
++     */
++    internal fun patchRemoveSelectKeys(text: String): String? {
++        val sep = if (text.contains("\r\n")) "\r\n" else "\n"
++        val lines = text.lines()
++        val drop = mutableSetOf<Int>()
++        for (i in lines.indices) {
++            val t = lines[i].trimStart()
++            if (!t.startsWith("-")) continue
++            val semi = t.contains("accept: semicolon") && t.contains("send: 2")
++            val apos = t.contains("accept: apostrophe") && t.contains("send: 3")
++            if (semi || apos) drop.add(i)
++        }
++        if (drop.isEmpty()) return null
++        return lines.filterIndexed { i, _ -> i !in drop }.joinToString(sep)
++    }
++
+     /**
+      * default.custom.yaml 的基线对齐（纯函数）：把 page_size 强制对齐为 app 当前
+      * 设置值。注意这只是磁盘配置基线——方案自带的 menu/page_size（内置与第三方
+      * 方案多为 PC 遗留默认 5，不适配手机）经 librime MergeTree 语义压过 default
+      * 层，运行时的实际生效靠 JNI 层 setPageSize 直接注入（rime_jni.cc）。
++     * 带选重布局的方案（见 [schemaKeepsOwnPageSize]）JNI 不会覆盖。
+      * 无需变化时返回 null。
+      */
+     internal fun patchDefaultCustomContent(text: String, pageSize: Int): String? {
+         val sep = if (text.contains("\r\n")) "\r\n" else "\n"
+         val lines = text.lines()

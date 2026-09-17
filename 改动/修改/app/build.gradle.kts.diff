@@ -1,0 +1,17 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index b637efa..fefbead 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -38,11 +38,11 @@ if (keystorePropertiesFile.exists()) {
+ android {
+     namespace = "com.kingzcheung.xime"
+     compileSdk = 36
+ 
+     defaultConfig {
+-        applicationId = "com.kingzcheung.xime"
++        applicationId = "com.shengbitt.xime"
+         minSdk = 28
+         targetSdk = 35
+         versionCode = 20260910
+         versionName = "2.8.1"
+ 

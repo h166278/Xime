@@ -1,0 +1,174 @@
+diff --git a/app/src/main/java/com/kingzcheung/xime/settings/KeysConfigHelper.kt b/app/src/main/java/com/kingzcheung/xime/settings/KeysConfigHelper.kt
+index 4e9b9e7..c139c5f 100644
+--- a/app/src/main/java/com/kingzcheung/xime/settings/KeysConfigHelper.kt
++++ b/app/src/main/java/com/kingzcheung/xime/settings/KeysConfigHelper.kt
+@@ -67,13 +67,18 @@ data class LongPressConfig(
+     val values: List<GestureDef> = emptyList(),
+ )
+ 
+ data class KeyGestureConfig(
+     val tap: GestureDef? = null,
++    /** 空闲点按；有编码时仍走 [tap]（46 键 / 空闲顿号、组合加码）。 */
++    val idle: GestureDef? = null,
+     val swipeUp: GestureDef? = null,
++    /** 空闲上滑；有编码时仍走 [swipeUp]（46 键引号空闲弯引号）。 */
++    val idleSwipeUp: GestureDef? = null,
+     val swipeDown: GestureDef? = null,
+     val longPress: LongPressConfig? = null,
++    val swipeRight: GestureDef? = null,
+ )
+ 
+ data class KeyboardConfig(
+     val keys: Map<String, KeyGestureConfig> = emptyMap(),
+ )
+@@ -168,23 +173,29 @@ private fun parseKeyboardConfig(raw: com.charleskorn.kaml.YamlMap?): KeyboardCon
+     return KeyboardConfig(keys)
+ }
+ 
+ private fun parseKeyGestureConfig(map: com.charleskorn.kaml.YamlMap): KeyGestureConfig {
+     var tap: GestureDef? = null
++    var idle: GestureDef? = null
+     var swipeUp: GestureDef? = null
++    var idleSwipeUp: GestureDef? = null
+     var swipeDown: GestureDef? = null
+     var longPress: LongPressConfig? = null
++    var swipeRight: GestureDef? = null
+     for ((kNode, vNode) in map.entries) {
+         val name = (kNode as? com.charleskorn.kaml.YamlScalar)?.content ?: continue
+         when (name) {
+             "tap" -> tap = parseGestureNode(vNode)
++            "idle" -> idle = parseGestureNode(vNode)
+             "swipe_up" -> swipeUp = parseGestureNode(vNode)
++            "idle_swipe_up" -> idleSwipeUp = parseGestureNode(vNode)
+             "swipe_down" -> swipeDown = parseGestureNode(vNode)
+             "long_press" -> longPress = parseLongPress(vNode)
++            "swipe_right" -> swipeRight = parseGestureNode(vNode)
+         }
+     }
+-    return KeyGestureConfig(tap, swipeUp, swipeDown, longPress)
++    return KeyGestureConfig(tap, idle, swipeUp, idleSwipeUp, swipeDown, longPress, swipeRight)
+ }
+ 
+ /**
+  * 解析 long_press，支持两种格式：
+  *   新格式（推荐）：{ display: "bubble", values: ["q", "Q"] }
+@@ -225,10 +236,11 @@ private fun parseGestureNode(node: com.charleskorn.kaml.YamlNode): GestureDef {
+         var label = ""
+         var labels: List<String> = emptyList()
+         var action: GestureAction? = GestureAction.COMMIT
+         var value = ""
+         var display = "key"
++        var iconField = ""
+         for ((k, v) in node.entries) {
+             val key = (k as? com.charleskorn.kaml.YamlScalar)?.content ?: continue
+             when (key) {
+                 "label" -> {
+                     if (v is YamlList) {
+@@ -249,14 +261,18 @@ private fun parseGestureNode(node: com.charleskorn.kaml.YamlNode): GestureDef {
+                 }
+                 "display" -> {
+                     val vStr = (v as? YamlScalar)?.content ?: continue
+                     display = vStr
+                 }
++                "icon" -> {
++                    iconField = (v as? YamlScalar)?.content ?: continue
++                }
+             }
+         }
+-        val icon = if (label.startsWith("@")) label.removePrefix("@") else ""
+-        val cleanLabel = if (icon.isNotEmpty()) "" else label
++        val iconFromLabel = if (label.startsWith("@")) label.removePrefix("@") else ""
++        val icon = iconField.ifEmpty { iconFromLabel }
++        val cleanLabel = if (iconFromLabel.isNotEmpty()) "" else label
+         return GestureDef(label = cleanLabel, labels = labels, action = action, value = value, icon = icon, display = DisplayMode.fromValue(display))
+     }
+     return GestureDef()
+ }
+ 
+@@ -686,13 +702,47 @@ object KeysConfigHelper {
+             customZh = assetText?.let { parseKeyboardYamlSection(it, "qwerty") }
+             customEn = assetText?.let { parseKeyboardYamlSection(it, "qwerty_en") }
+         }
+         val zh = if (customZh != null) defaultZh + customZh else defaultZh
+         val en = if (customEn != null) defaultEn + customEn else defaultEn
++        // 46 键布局：叠加手势覆盖段（字段级合并，未覆盖的手势沿用主表）
++        if (SettingsPreferences.isLayout46Enabled(context)) {
++            val overrideZh = parseKeyboardYamlSection(defaultText, "qwerty_46")
++            val overrideEn = parseKeyboardYamlSection(defaultText, "qwerty_en_46")
++            return Pair(
++                applyGestureOverrides(zh, overrideZh),
++                applyGestureOverrides(en, overrideEn),
++            )
++        }
+         return Pair(zh, en)
+     }
+ 
++    /**
++     * 把覆盖段逐字段合并进基表：只替换显式给出的手势，其余（tap/swipe_down 等）保留基表值。
++     * 例：`q: { swipe_up: "`", long_press: {...} }` 只改上滑与长按，tap 仍是 "q"。
++     */
++    internal fun applyGestureOverrides(
++        base: Map<String, KeyGestureConfig>,
++        overrides: Map<String, KeyGestureConfig>?,
++    ): Map<String, KeyGestureConfig> {
++        if (overrides.isNullOrEmpty()) return base
++        val merged = base.toMutableMap()
++        for ((key, ov) in overrides) {
++            val cur = merged[key]
++            merged[key] = if (cur == null) ov else KeyGestureConfig(
++                tap = ov.tap ?: cur.tap,
++                idle = ov.idle ?: cur.idle,
++                swipeUp = ov.swipeUp ?: cur.swipeUp,
++                idleSwipeUp = ov.idleSwipeUp ?: cur.idleSwipeUp,
++                swipeDown = ov.swipeDown ?: cur.swipeDown,
++                longPress = ov.longPress ?: cur.longPress,
++                swipeRight = ov.swipeRight ?: cur.swipeRight,
++            )
++        }
++        return merged
++    }
++
+     /** 从 xime.yaml + xime.custom.yaml 合并解析键盘颜色配置（字段级一路 fallback）。 */
+     private fun parseKeyboardColorsFromAssets(context: Context): KeyboardColorsConfig {
+         val builtIn = readAssetText(context, XIME_CONFIG_FILE)
+             ?.let { parseKeyboardColorsYamlText(it) }
+         val custom = readCustomText(context)?.let { parseKeyboardColorsYamlText(it) }
+@@ -1295,10 +1345,11 @@ object KeysConfigHelper {
+         val kc = config[key.lowercase()] ?: return null
+         return when (gesture) {
+             "tap" -> kc.tap?.label
+             "swipe_up" -> kc.swipeUp?.label
+             "swipe_down" -> kc.swipeDown?.label
++            "swipe_right" -> kc.swipeRight?.label
+             "long_press" -> kc.longPress?.values?.firstOrNull()?.label
+             else -> null
+         }
+     }
+ 
+@@ -1366,17 +1417,25 @@ object KeysConfigHelper {
+     fun getSwipeUpDisplay(key: String, isAsciiMode: Boolean = false): DisplayMode {
+         val configMap = if (isAsciiMode) _keyGestureConfigEn.value else _keyGestureConfig.value
+         return configMap[key.lowercase()]?.swipeUp?.display ?: DisplayMode.BOTH
+     }
+ 
++    /** 上滑键帽图标 id（xime.yaml swipe_up.icon），空则走文字 hint。 */
++    fun getSwipeUpIcon(key: String, isAsciiMode: Boolean = false): String? {
++        val configMap = if (isAsciiMode) _keyGestureConfigEn.value else _keyGestureConfig.value
++        return configMap[key.lowercase()]?.swipeUp?.icon?.takeIf { it.isNotEmpty() }
++    }
++
+     private fun getDefaultSwipeUp(): Map<String, String> = mapOf(
+         "q" to "1", "w" to "2", "e" to "3", "r" to "4", "t" to "5",
+         "y" to "6", "u" to "7", "i" to "8", "o" to "9", "p" to "0",
+         "a" to "!", "s" to "@", "d" to "#", "f" to "$", "g" to "%",
+         "h" to "^", "j" to "&", "k" to "(", "l" to ")",
+         "z" to "|", "x" to "*", "c" to "\\", "v" to "?", "b" to "_",
+-        "n" to "-", "m" to "+"
++        "n" to "-", "m" to "+",
++        "1" to "!", "2" to "@", "3" to "#", "4" to "$", "5" to "%",
++        "6" to "^", "7" to "&", "8" to "*", "9" to "(", "0" to ")",
+     )
+     
+     private fun getDefaultSwipeDownEnglish(): Map<String, String> = mapOf(
+         "q" to "Q", "w" to "W", "e" to "E", "r" to "R", "t" to "T",
+         "y" to "Y", "u" to "U", "i" to "I", "o" to "O", "p" to "P",

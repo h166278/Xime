@@ -1,0 +1,530 @@
+diff --git a/app/src/test/java/com/kingzcheung/xime/settings/KeyboardGestureConfigTest.kt b/app/src/test/java/com/kingzcheung/xime/settings/KeyboardGestureConfigTest.kt
+index a11b755..7cff547 100644
+--- a/app/src/test/java/com/kingzcheung/xime/settings/KeyboardGestureConfigTest.kt
++++ b/app/src/test/java/com/kingzcheung/xime/settings/KeyboardGestureConfigTest.kt
+@@ -4,10 +4,11 @@ import com.charleskorn.kaml.Yaml
+ import com.kingzcheung.xime.keyboard.GestureAction
+ import org.junit.Assert.assertEquals
+ import org.junit.Assert.assertNotNull
+ import org.junit.Assert.assertNotEquals
+ import org.junit.Assert.assertNull
++import org.junit.Assert.assertTrue
+ import org.junit.Test
+ 
+ class KeyboardGestureConfigTest {
+ 
+     @Test
+@@ -430,23 +431,29 @@ class KeyboardGestureConfigTest {
+         return result
+     }
+ 
+     private fun parseKeyGestureConfig(map: com.charleskorn.kaml.YamlMap): KeyGestureConfig {
+         var tap: GestureDef? = null
++        var idle: GestureDef? = null
+         var swipeUp: GestureDef? = null
++        var idleSwipeUp: GestureDef? = null
+         var swipeDown: GestureDef? = null
+         var longPress: LongPressConfig? = null
++        var swipeRight: GestureDef? = null
+         for ((kNode, vNode) in map.entries) {
+             val name = (kNode as com.charleskorn.kaml.YamlScalar).content
+             when (name) {
+                 "tap" -> tap = parseGestureNode(vNode)
++                "idle" -> idle = parseGestureNode(vNode)
+                 "swipe_up" -> swipeUp = parseGestureNode(vNode)
++                "idle_swipe_up" -> idleSwipeUp = parseGestureNode(vNode)
+                 "swipe_down" -> swipeDown = parseGestureNode(vNode)
+                 "long_press" -> longPress = parseLongPress(vNode)
++                "swipe_right" -> swipeRight = parseGestureNode(vNode)
+             }
+         }
+-        return KeyGestureConfig(tap = tap, swipeUp = swipeUp, swipeDown = swipeDown, longPress = longPress)
++        return KeyGestureConfig(tap = tap, idle = idle, swipeUp = swipeUp, idleSwipeUp = idleSwipeUp, swipeDown = swipeDown, longPress = longPress, swipeRight = swipeRight)
+     }
+ 
+     private fun parseLongPress(node: com.charleskorn.kaml.YamlNode): LongPressConfig? {
+         if (node is com.charleskorn.kaml.YamlList) {
+             val values = node.items.map { parseGestureNode(it) }
+@@ -663,6 +670,480 @@ keyboard:
+         assertEquals(1, en.size)
+         assertNotNull(zh["w"])
+         assertNull(en["w"])
+     }
+ 
+-}
+\ No newline at end of file
++    // ── 46 键覆盖段：字段级合并 ──
++
++    @Test
++    fun `46 键覆盖段只替换显式手势 tap 与 swipe_down 保留`() {
++        val base = parseSection("""
++keyboard:
++  qwerty:
++    keys:
++      q: { tap: "q", swipe_up: "1", swipe_down: { label: "金", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["q", "Q"] } }
++        """.trimIndent(), "qwerty")
++        val overlay = parseSection("""
++keyboard:
++  qwerty_46:
++    keys:
++      q: { swipe_up: "`", long_press: { display: "bubble", values: ["q", "Q"] } }
++        """.trimIndent(), "qwerty_46")
++
++        val merged = KeysConfigHelper.applyGestureOverrides(base, overlay)
++        val q = merged["q"]!!
++        // 覆盖生效
++        assertEquals("`", q.swipeUp!!.label)
++        // 未提及的手势保留基表值
++        assertEquals("q", q.tap!!.value)
++        assertEquals("金", q.swipeDown!!.label)
++        assertEquals(GestureAction.NONE, q.swipeDown!!.action)
++    }
++
++    @Test
++    fun `46 键覆盖段未列出的键原样保留`() {
++        val base = parseSection("""
++keyboard:
++  qwerty:
++    keys:
++      q: { tap: "q" }
++      w: { tap: "w" }
++        """.trimIndent(), "qwerty")
++        val overlay = parseSection("""
++keyboard:
++  qwerty_46:
++    keys:
++      q: { swipe_up: "`" }
++        """.trimIndent(), "qwerty_46")
++
++        val merged = KeysConfigHelper.applyGestureOverrides(base, overlay)
++        assertEquals(2, merged.size)
++        assertEquals("w", merged["w"]!!.tap!!.value)
++        assertNull(merged["w"]!!.swipeUp)
++    }
++
++    @Test
++    fun `46 键覆盖段为空时返回基表`() {
++        val base = parseSection("""
++keyboard:
++  qwerty:
++    keys:
++      q: { tap: "q" }
++        """.trimIndent(), "qwerty")
++
++        assertEquals(base, KeysConfigHelper.applyGestureOverrides(base, null))
++        assertEquals(base, KeysConfigHelper.applyGestureOverrides(base, emptyMap()))
++    }
++
++    @Test
++    fun `process_rime_key 解析为 PROCESS_RIME_KEY`() {
++        val keys = parseKeys("""
++            a: { swipe_up: { label: "\\", action: "process_rime_key", value: "\\" } }
++            l: { swipe_up: { label: "Aa", action: "process_rime_key", value: "shift_enter" } }
++        """.trimIndent())
++        val a = keys["a"]!!.swipeUp!!
++        assertEquals(GestureAction.PROCESS_RIME_KEY, a.action)
++        assertEquals("\\", a.value)
++        assertEquals("\\", a.label)
++        val l = keys["l"]!!.swipeUp!!
++        assertEquals(GestureAction.PROCESS_RIME_KEY, l.action)
++        assertEquals("shift_enter", l.value)
++        assertEquals("Aa", l.label)
++    }
++
++    @Test
++    fun `中文46数字6上滑全角省略号长按注入省略号变体`() {
++        val keys = parseKeys("""
++            "6": { swipe_up: "……", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "rime_punct:^" }, "⅚"] } }
++        """.trimIndent())
++        val six = keys["6"]!!
++        assertEquals("……", six.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, six.swipeUp!!.action)
++        assertEquals("……", six.swipeUp!!.value)
++        val lp = six.longPress!!
++        assertEquals("…", lp.values[0].label)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, lp.values[0].action)
++        assertEquals("rime_punct:^", lp.values[0].value)
++        assertEquals("⅚", lp.values[1].label)
++        assertEquals(GestureAction.COMMIT, lp.values[1].action)
++    }
++
++    @Test
++    fun `英文46数字6上滑半角省略号长按注入省略号变体`() {
++        val keys = parseKeys("""
++            "6": { swipe_up: "…", long_press: { display: "bubble", values: [{ label: "…", action: "process_rime_key", value: "rime_punct:^" }, "⅚"] } }
++        """.trimIndent())
++        val six = keys["6"]!!
++        assertEquals("…", six.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, six.swipeUp!!.action)
++        assertEquals("…", six.swipeUp!!.value)
++        val lp = six.longPress!!
++        assertEquals("…", lp.values[0].label)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, lp.values[0].action)
++        assertEquals("rime_punct:^", lp.values[0].value)
++    }
++
++    @Test
++    fun `中文46字母上滑中符长按英符走 Rime`() {
++        val keys = parseKeys("""
++            q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
++            r: { swipe_up: "－", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "rime_punct:-" }, "r", "R"] } }
++            y: { swipe_up: "＿", long_press: { display: "bubble", values: [{ label: "_", action: "process_rime_key", value: "rime_punct:_" }, "y", "Y", "ÿ"] } }
++            t: { swipe_up: "＝", long_press: { display: "bubble", values: [{ label: "=", action: "process_rime_key", value: "rime_punct:=" }, "t", "T"] } }
++            u: { swipe_up: "『", long_press: { display: "bubble", values: [{ label: "『", action: "process_rime_key", value: "{" }, "u", "U"] } }
++            i: { swipe_up: "』", long_press: { display: "bubble", values: [{ label: "』", action: "process_rime_key", value: "}" }, "i", "I"] } }
++            a: { swipe_up: { label: "\\", action: "process_rime_key", value: "\\" }, long_press: { display: "bubble", values: [{ label: "\\", action: "process_rime_key", value: "\\" }, "a", "A"] } }
++            d: { swipe_up: "×", long_press: { display: "bubble", values: [{ label: "×", action: "process_rime_key", value: "rime_punct:x" }, "d", "D"] } }
++            f: { swipe_up: "÷", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:÷" }, "f", "F"] } }
++        """.trimIndent())
++        val q = keys["q"]!!
++        assertEquals("·", q.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, q.swipeUp!!.action)
++        assertEquals("·", q.longPress!!.values[0].label)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, q.longPress!!.values[0].action)
++        assertEquals("rime_punct:`", q.longPress!!.values[0].value)
++        assertEquals("q", q.longPress!!.values[1].label)
++        val r = keys["r"]!!
++        assertEquals("－", r.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, r.swipeUp!!.action)
++        assertEquals("-", r.longPress!!.values[0].label)
++        assertEquals("rime_punct:-", r.longPress!!.values[0].value)
++        val a = keys["a"]!!
++        assertEquals("\\", a.swipeUp!!.label)
++        assertEquals("\\", a.swipeUp!!.value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, a.swipeUp!!.action)
++        assertEquals("\\", a.longPress!!.values[0].value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, a.longPress!!.values[0].action)
++        val y = keys["y"]!!
++        assertEquals("＿", y.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, y.swipeUp!!.action)
++        assertEquals("_", y.longPress!!.values[0].label)
++        assertEquals("rime_punct:_", y.longPress!!.values[0].value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, y.longPress!!.values[0].action)
++        val t = keys["t"]!!
++        assertEquals("＝", t.swipeUp!!.label)
++        assertEquals("=", t.longPress!!.values[0].label)
++        assertEquals("rime_punct:=", t.longPress!!.values[0].value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, t.longPress!!.values[0].action)
++        val u = keys["u"]!!
++        assertEquals("『", u.swipeUp!!.label)
++        assertEquals("『", u.longPress!!.values[0].label)
++        assertEquals("{", u.longPress!!.values[0].value)
++        val i = keys["i"]!!
++        assertEquals("』", i.swipeUp!!.label)
++        assertEquals("』", i.longPress!!.values[0].label)
++        assertEquals("}", i.longPress!!.values[0].value)
++        val d = keys["d"]!!
++        assertEquals("×", d.swipeUp!!.label)
++        assertEquals("×", d.longPress!!.values[0].label)
++        assertEquals("rime_punct:x", d.longPress!!.values[0].value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, d.longPress!!.values[0].action)
++        val f = keys["f"]!!
++        assertEquals("÷", f.swipeUp!!.label)
++        assertEquals("÷", f.longPress!!.values[0].label)
++        assertEquals("rime_punct:÷", f.longPress!!.values[0].value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, f.longPress!!.values[0].action)
++    }
++
++    @Test
++    fun `英文46字母上滑英符长按气泡跟中文QRT仍注入`() {
++        val keys = parseKeys("""
++            q: { swipe_up: "·", long_press: { display: "bubble", values: [{ label: "·", action: "process_rime_key", value: "rime_punct:`" }, "q", "Q"] } }
++            r: { swipe_up: "-", long_press: { display: "bubble", values: [{ label: "-", action: "process_rime_key", value: "rime_punct:-" }, "r", "R"] } }
++            t: { swipe_up: "=", long_press: { display: "bubble", values: [{ label: "=", action: "process_rime_key", value: "rime_punct:=" }, "t", "T"] } }
++            a: { swipe_up: "/", long_press: { display: "bubble", values: [{ label: "\\", action: "process_rime_key", value: "\\" }, "a", "A"] } }
++            d: { swipe_up: "×", long_press: { display: "bubble", values: [{ label: "×", action: "process_rime_key", value: "rime_punct:x" }, "d", "D"] } }
++            f: { swipe_up: "÷", long_press: { display: "bubble", values: [{ label: "÷", action: "process_rime_key", value: "rime_punct:÷" }, "f", "F"] } }
++            w: { swipe_up: "~", long_press: { display: "bubble", values: [{ label: "~", action: "process_rime_key", value: "~" }, "w", "W"] } }
++            y: { swipe_up: "_", long_press: { display: "bubble", values: [{ label: "_", action: "process_rime_key", value: "rime_punct:_" }, "y", "Y"] } }
++        """.trimIndent())
++        val q = keys["q"]!!
++        assertEquals("·", q.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, q.swipeUp!!.action)
++        assertEquals("·", q.longPress!!.values[0].label)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, q.longPress!!.values[0].action)
++        assertEquals("rime_punct:`", q.longPress!!.values[0].value)
++        assertEquals("q", q.longPress!!.values[1].label)
++        val r = keys["r"]!!
++        assertEquals("-", r.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, r.swipeUp!!.action)
++        assertEquals("-", r.longPress!!.values[0].label)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, r.longPress!!.values[0].action)
++        assertEquals("rime_punct:-", r.longPress!!.values[0].value)
++        val t = keys["t"]!!
++        assertEquals("=", t.longPress!!.values[0].label)
++        assertEquals("rime_punct:=", t.longPress!!.values[0].value)
++        val a = keys["a"]!!
++        assertEquals("/", a.swipeUp!!.value)
++        assertEquals(GestureAction.COMMIT, a.swipeUp!!.action)
++        assertEquals("\\", a.longPress!!.values[0].label)
++        assertEquals("\\", a.longPress!!.values[0].value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, a.longPress!!.values[0].action)
++        val w = keys["w"]!!
++        assertEquals("~", w.longPress!!.values[0].label)
++        assertEquals("~", w.longPress!!.values[0].value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, w.longPress!!.values[0].action)
++        val y = keys["y"]!!
++        assertEquals("_", y.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, y.swipeUp!!.action)
++        assertEquals("_", y.longPress!!.values[0].label)
++        assertEquals("rime_punct:_", y.longPress!!.values[0].value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, y.longPress!!.values[0].action)
++        val d = keys["d"]!!
++        assertEquals("×", d.swipeUp!!.label)
++        assertEquals("×", d.swipeUp!!.value)
++        assertEquals(GestureAction.COMMIT, d.swipeUp!!.action)
++        assertEquals("×", d.longPress!!.values[0].label)
++        assertEquals("rime_punct:x", d.longPress!!.values[0].value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, d.longPress!!.values[0].action)
++        val f = keys["f"]!!
++        assertEquals("÷", f.swipeUp!!.label)
++        assertEquals("÷", f.swipeUp!!.value)
++        assertEquals(GestureAction.COMMIT, f.swipeUp!!.action)
++        assertEquals("÷", f.longPress!!.values[0].label)
++        assertEquals("rime_punct:÷", f.longPress!!.values[0].value)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, f.longPress!!.values[0].action)
++    }
++
++    @Test
++    fun `46分号点按中文全角英文半角直上屏上滑冒号`() {
++        val zh = parseKeys("""
++            ";": { tap: "；", swipe_up: "：", long_press: { display: "key", values: [ { label: "：", value: "：" } ] } }
++        """.trimIndent())[";"]!!
++        assertEquals("；", zh.tap!!.label)
++        assertEquals("；", zh.tap!!.value)
++        assertEquals(GestureAction.COMMIT, zh.tap!!.action)
++        assertEquals("：", zh.swipeUp!!.label)
++        assertEquals("：", zh.swipeUp!!.value)
++        assertEquals(GestureAction.COMMIT, zh.swipeUp!!.action)
++        assertEquals("：", zh.longPress!!.values[0].label)
++        assertEquals("：", zh.longPress!!.values[0].value)
++        val en = parseKeys("""
++            ";": { tap: { label: ";", value: ";" }, swipe_up: { label: ":", value: ":" }, long_press: { display: "key", values: [ { label: ":", value: ":" } ] } }
++        """.trimIndent())[";"]!!
++        assertEquals(";", en.tap!!.label)
++        assertEquals(";", en.tap!!.value)
++        assertEquals(GestureAction.COMMIT, en.tap!!.action)
++        assertEquals(":", en.swipeUp!!.label)
++        assertEquals(":", en.swipeUp!!.value)
++        assertEquals(GestureAction.COMMIT, en.swipeUp!!.action)
++    }
++
++    @Test
++    fun `数字长按英符走 Rime 分数直上屏`() {
++        val keys = parseKeys("""
++            "3": { long_press: { display: "bubble", values: [{ label: "#", action: "process_rime_key", value: "#" }, "¾", "⅗", "⅜"] } }
++        """.trimIndent())
++        val lp = keys["3"]!!.longPress!!
++        assertEquals("bubble", lp.display)
++        assertEquals(4, lp.values.size)
++        assertEquals("#", lp.values[0].label)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, lp.values[0].action)
++        assertEquals("#", lp.values[0].value)
++        assertEquals("¾", lp.values[1].label)
++        assertEquals(GestureAction.COMMIT, lp.values[1].action)
++        assertEquals("⅜", lp.values[3].label)
++    }
++
++    @Test
++    fun `中文46数字1上滑全角感叹长按半角直上屏`() {
++        val keys = parseKeys("""
++            "1": { swipe_up: "！", long_press: { display: "bubble", values: ["!", "½", "⅓", "¼"] } }
++        """.trimIndent())
++        val one = keys["1"]!!
++        assertEquals("！", one.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, one.swipeUp!!.action)
++        assertEquals("！", one.swipeUp!!.value)
++        val lp = one.longPress!!
++        assertEquals("!", lp.values[0].label)
++        assertEquals(GestureAction.COMMIT, lp.values[0].action)
++        assertEquals("!", lp.values[0].value)
++        assertNotEquals(GestureAction.PROCESS_RIME_KEY, lp.values[0].action)
++        assertEquals("½", lp.values[1].label)
++        assertEquals(GestureAction.COMMIT, lp.values[1].action)
++    }
++
++    @Test
++    fun `英文46数字1上滑半角感叹长按感叹走 Rime`() {
++        val keys = parseKeys("""
++            "1": { swipe_up: "!", long_press: { display: "bubble", values: [{ label: "!", action: "process_rime_key", value: "!" }, "½", "⅓", "¼"] } }
++        """.trimIndent())
++        val one = keys["1"]!!
++        assertEquals("!", one.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, one.swipeUp!!.action)
++        val lp = one.longPress!!
++        assertEquals("!", lp.values[0].label)
++        assertEquals(GestureAction.PROCESS_RIME_KEY, lp.values[0].action)
++        assertEquals("!", lp.values[0].value)
++    }
++
++    @Test
++    fun `中文46数字2到8上滑半角英文上滑全角`() {
++        val zh = parseKeys("""
++            "2": { swipe_up: "@" }
++            "3": { swipe_up: "#" }
++            "4": { swipe_up: "$" }
++            "5": { swipe_up: "%" }
++            "7": { swipe_up: "&" }
++            "8": { swipe_up: "*" }
++        """.trimIndent())
++        val en = parseKeys("""
++            "2": { swipe_up: "＠" }
++            "3": { swipe_up: "＃" }
++            "4": { swipe_up: "＄" }
++            "5": { swipe_up: "％" }
++            "7": { swipe_up: "＆" }
++            "8": { swipe_up: "＊" }
++        """.trimIndent())
++        val half = mapOf("2" to "@", "3" to "#", "4" to "$", "5" to "%", "7" to "&", "8" to "*")
++        val full = mapOf("2" to "＠", "3" to "＃", "4" to "＄", "5" to "％", "7" to "＆", "8" to "＊")
++        for ((k, v) in half) {
++            assertEquals(v, zh[k]!!.swipeUp!!.label)
++            assertEquals(GestureAction.COMMIT, zh[k]!!.swipeUp!!.action)
++        }
++        for ((k, v) in full) {
++            assertEquals(v, en[k]!!.swipeUp!!.label)
++            assertEquals(GestureAction.COMMIT, en[k]!!.swipeUp!!.action)
++        }
++    }
++
++    @Test
++    fun `中文46数字9和0上滑中文括号长按半角直上屏`() {
++        val keys = parseKeys("""
++            "9": { swipe_up: "（", long_press: { display: "bubble", values: ["("] } }
++            "0": { swipe_up: "）", long_press: { display: "bubble", values: [")"] } }
++        """.trimIndent())
++        assertEquals("（", keys["9"]!!.swipeUp!!.value)
++        assertEquals(GestureAction.COMMIT, keys["9"]!!.swipeUp!!.action)
++        assertEquals("(", keys["9"]!!.longPress!!.values[0].label)
++        assertEquals(GestureAction.COMMIT, keys["9"]!!.longPress!!.values[0].action)
++        assertNotEquals(GestureAction.PROCESS_RIME_KEY, keys["9"]!!.longPress!!.values[0].action)
++        assertEquals("）", keys["0"]!!.swipeUp!!.value)
++        assertEquals(")", keys["0"]!!.longPress!!.values[0].label)
++        assertEquals(GestureAction.COMMIT, keys["0"]!!.longPress!!.values[0].action)
++    }
++
++    @Test
++    fun `英文46数字9和0上滑英文括号长按中文括号直上屏`() {
++        val keys = parseKeys("""
++            "9": { swipe_up: "(", long_press: { display: "bubble", values: ["（"] } }
++            "0": { swipe_up: ")", long_press: { display: "bubble", values: ["）"] } }
++        """.trimIndent())
++        assertEquals("(", keys["9"]!!.swipeUp!!.value)
++        assertEquals(GestureAction.COMMIT, keys["9"]!!.swipeUp!!.action)
++        assertEquals("（", keys["9"]!!.longPress!!.values[0].label)
++        assertEquals(GestureAction.COMMIT, keys["9"]!!.longPress!!.values[0].action)
++        assertNotEquals(GestureAction.PROCESS_RIME_KEY, keys["9"]!!.longPress!!.values[0].action)
++        assertEquals(")", keys["0"]!!.swipeUp!!.value)
++        assertEquals("）", keys["0"]!!.longPress!!.values[0].label)
++        assertEquals(GestureAction.COMMIT, keys["0"]!!.longPress!!.values[0].action)
++    }
++
++    @Test
++    fun `46键J上滑撤销K右滑重做长按仍默认字母`() {
++        val keys = parseKeys("""
++            j: { swipe_up: { label: "↶", action: "undo", display: "both" }, long_press: { display: "bubble", values: ["j", "J", { label: "撤销", action: "undo" }] } }
++            k: { swipe_up: "↷", swipe_right: { label: "↷", action: "redo", display: "bubble" }, long_press: { display: "bubble", values: ["k", "K", { label: "重做", action: "redo" }] } }
++        """.trimIndent())
++        val j = keys["j"]!!
++        assertEquals(GestureAction.UNDO, j.swipeUp!!.action)
++        assertEquals("↶", j.swipeUp!!.label)
++        assertEquals("j", j.longPress!!.values[0].label)
++        assertEquals(GestureAction.COMMIT, j.longPress!!.values[0].action)
++        assertEquals(GestureAction.UNDO, j.longPress!!.values[2].action)
++        val k = keys["k"]!!
++        assertEquals(GestureAction.COMMIT, k.swipeUp!!.action)
++        assertEquals("↷", k.swipeUp!!.label)
++        assertEquals(GestureAction.REDO, k.swipeRight!!.action)
++        assertEquals("↷", k.swipeRight!!.label)
++        assertEquals("k", k.longPress!!.values[0].label)
++        assertEquals(GestureAction.COMMIT, k.longPress!!.values[0].action)
++        assertEquals(GestureAction.REDO, k.longPress!!.values[2].action)
++    }
++
++    @Test
++    fun `toggle_mnemonic 解析为 TOGGLE_MNEMONIC`() {
++        val keys = parseKeys("""
++            n: { swipe_up: { label: "助记", action: "toggle_mnemonic", display: "both" } }
++        """.trimIndent())
++        val n = keys["n"]!!.swipeUp!!
++        assertEquals(GestureAction.TOGGLE_MNEMONIC, n.action)
++        assertEquals("助记", n.label)
++    }
++
++    @Test
++    fun `46键斜杠空闲顿号组合斜杠长按斜杠`() {
++        val zh = parseKeys("""
++            "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "﹖", value: "﹖" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
++        """.trimIndent())["/"]!!
++        assertEquals("/", zh.tap!!.value)
++        assertEquals("、", zh.idle!!.label)
++        assertEquals("、", zh.idle!!.value)
++        assertEquals(GestureAction.COMMIT, zh.idle!!.action)
++        assertEquals("﹖", zh.swipeUp!!.label)
++        assertEquals("key", zh.longPress!!.display)
++        assertEquals("/", zh.longPress!!.values[0].label)
++        assertEquals(GestureAction.COMMIT, zh.longPress!!.values[0].action)
++        val en = parseKeys("""
++            "/": { tap: { label: "/", value: "/" }, idle: "､", swipe_up: { label: "?", value: "?" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
++        """.trimIndent())["/"]!!
++        assertEquals("､", en.idle!!.label)
++        assertEquals("､", en.idle!!.value)
++        assertEquals(GestureAction.COMMIT, en.idle!!.action)
++        assertEquals("?", en.swipeUp!!.label)
++        assertEquals("/", en.longPress!!.values[0].value)
++    }
++
++    @Test
++    fun `46键中文引号空闲弯引号对组合仍半角`() {
++        val zh = parseKeys("""
++            quote46: { tap: { label: "'", value: "'" }, idle: "“”", swipe_up: { label: "\"", value: "“”" }, idle_swipe_up: { label: "\"", value: "‘’" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
++        """.trimIndent())["quote46"]!!
++        assertEquals("'", zh.tap!!.value)
++        assertEquals("“”", zh.idle!!.value)
++        assertEquals(GestureAction.COMMIT, zh.idle!!.action)
++        assertEquals("\"", zh.swipeUp!!.label)
++        assertEquals("“”", zh.swipeUp!!.value)
++        assertEquals("\"", zh.idleSwipeUp!!.label)
++        assertEquals("‘’", zh.idleSwipeUp!!.value)
++        assertEquals(GestureAction.COMMIT, zh.idleSwipeUp!!.action)
++        val en = parseKeys("""
++            quote46: { tap: { label: "'", value: "'" }, swipe_up: { label: "\"", value: "\"" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
++        """.trimIndent())["quote46"]!!
++        assertNull(en.idle)
++        assertNull(en.idleSwipeUp)
++        assertEquals("'", en.tap!!.value)
++        assertEquals("\"", en.swipeUp!!.value)
++    }
++
++    @Test
++    fun `46键逗号句号长按气泡尖括号小于等于直上屏`() {
++        val zh = parseKeys("""
++            ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
++            ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
++        """.trimIndent())
++        val comma = zh[","]!!
++        assertEquals("《", comma.swipeUp!!.label)
++        assertEquals(GestureAction.COMMIT, comma.swipeUp!!.action)
++        assertEquals("bubble", comma.longPress!!.display)
++        assertEquals(listOf("〈", "<", "≤"), comma.longPress!!.values.map { it.label })
++        assertTrue(comma.longPress!!.values.all { it.action == GestureAction.COMMIT })
++        assertNotEquals(GestureAction.PROCESS_RIME_KEY, comma.longPress!!.values[1].action)
++        val period = zh["."]!!
++        assertEquals("》", period.swipeUp!!.label)
++        assertEquals("bubble", period.longPress!!.display)
++        assertEquals(listOf("〉", ">", "≥"), period.longPress!!.values.map { it.label })
++        assertTrue(period.longPress!!.values.all { it.action == GestureAction.COMMIT })
++        val en = parseKeys("""
++            ",": { tap: { label: ",", value: "," }, swipe_up: { label: "<", value: "<" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
++            ".": { tap: { label: ".", value: "." }, swipe_up: { label: ">", value: ">" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
++        """.trimIndent())
++        assertEquals("<", en[","]!!.swipeUp!!.label)
++        assertEquals("<", en[","]!!.swipeUp!!.value)
++        assertEquals(GestureAction.COMMIT, en[","]!!.swipeUp!!.action)
++        assertEquals(">", en["."]!!.swipeUp!!.label)
++        assertEquals(">", en["."]!!.swipeUp!!.value)
++        assertEquals(listOf("〈", "<", "≤"), en[","]!!.longPress!!.values.map { it.value })
++        assertEquals(listOf("〉", ">", "≥"), en["."]!!.longPress!!.values.map { it.value })
++    }
++
++}
