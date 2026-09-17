@@ -3675,7 +3675,7 @@ fun CompactKeyboardRowWithConfig(
             }
             val compactDisplayText = overlayFace?.tapLabel
                 ?: if (isAsciiMode) commitValue else KeysConfigHelper.getKeyDisplayLabel(key, isAsciiMode)
-            val compactOnClick = remember(key, commitValue, onKeyPress, overlayFace, englishPunctOverlay, onConsumeEnglishPunct) {
+            val compactOnClick: () -> Unit = remember(key, commitValue, onKeyPress, overlayFace, englishPunctOverlay, onConsumeEnglishPunct) {
                 {
                     if (overlayFace != null) {
                         onKeyPress("$LAYOUT46_OVERLAY_PREFIX$key")
@@ -3684,6 +3684,7 @@ fun CompactKeyboardRowWithConfig(
                         if (englishPunctOverlay && isLetterKey(key)) onConsumeEnglishPunct?.invoke()
                         onKeyPress(commitValue)
                     }
+                    Unit
                 }
             }
             val compactOnPress: (() -> Unit)? = remember(key, onKeyPressDown) { { onKeyPressDown?.invoke(key); Unit } }
