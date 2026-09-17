@@ -52,6 +52,48 @@ internal fun previewStolenByHost(
 }
 
 /**
+ * IME 自己 commitText 之后宿主会连发 composing span=-1。
+ * 不是截胡：顶功已经把预览交出去，引擎里是下一码。
+ * 只吞有限几次，不能挡到正 span——正 span 一清，迟到的 -1 又会进来。
+ */
+internal const val IME_COMMIT_COMPOSING_LOSS_SWALLOW = 3
+
+internal fun shouldSwallowImeCommitComposingLoss(
+    commitPreview: Boolean,
+    remaining: Int,
+    composingStart: Int,
+    composingEnd: Int,
+): Boolean {
+    if (!commitPreview || remaining <= 0) return false
+    return composingStart < 0 && composingEnd < 0
+}
+
+/**
+ * 截胡后要不要删光标前那段预览。
+ * IME 刚 commitText 的字会留在光标前，跟预览字面一样，不能当残留删，否则空格像退格。
+ */
+internal fun shouldDeleteLeftoverPreview(leftover: String, lastImeCommit: String): Boolean {
+    if (leftover.isEmpty()) return false
+    if (lastImeCommit.isNotEmpty() && leftover == lastImeCommit) return false
+    return true
+}
+
+/**
+ * 截胡已经清引擎。过期的 updateUIWithResult 还带着旧码，不能再 setComposingText 贴回去。
+ * 引擎仍报 composing，且码对得上刚放弃的那串，才丢掉这次刷新。
+ * applyComposition 同一条。
+ */
+internal fun shouldDropStalePreviewWrite(
+    previewAbandoned: Boolean,
+    abandonedInput: String,
+    incomingInput: String,
+    incomingComposing: Boolean,
+): Boolean {
+    if (!previewAbandoned || abandonedInput.isEmpty()) return false
+    return incomingComposing && incomingInput == abandonedInput
+}
+
+/**
  * 预览上屏才把 T9 半提交拼到高亮词前面。
  * 编码在输入框时 displayText 已经含半提交，不能再拼。
  * 半提交展示态候选就是末段，[t9Prefix] 已经以它结尾，不要再加一遍。

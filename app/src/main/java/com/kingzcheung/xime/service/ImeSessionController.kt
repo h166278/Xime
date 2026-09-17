@@ -19,6 +19,9 @@ import kotlinx.coroutines.withContext
  * 方案名称/开关刷新与切换、T9 切离提交等逻辑。共享状态通过 service 引用访问。
  */
 internal class ImeSessionController(private val service: XimeInputMethodService) {
+    /** 刚被宿主截胡清掉的那串码。过期 UI 刷新对上就丢掉，别把预览贴回去。 */
+    private var abandonedPreviewInput = ""
+
     internal fun applyComposition(
         composition: com.kingzcheung.xime.rime.RimeComposition,
         pluginActions: List<CandidateAction> = emptyList(),
@@ -112,6 +115,21 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
             displayCandidates = filteredTexts
             displayComments = filteredComments
             isComposing = inputText.isNotEmpty()
+        }
+
+        val incomingInput = if (isT9Schema) displayText else inputText
+        if (shouldDropStalePreviewWrite(
+                previewAbandoned = abandonedPreviewInput.isNotEmpty(),
+                abandonedInput = abandonedPreviewInput,
+                incomingInput = incomingInput,
+                incomingComposing = isComposing,
+            )
+        ) {
+            abandonedPreviewInput = ""
+            return
+        }
+        if (incomingInput.isEmpty() || incomingInput != abandonedPreviewInput) {
+            abandonedPreviewInput = ""
         }
 
         // 用户开始实际输入时，清除候选栏中残留的 inline suggestions
@@ -231,6 +249,7 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         service.t9PartialSegments.clear()
         service.keyRouter.setSbxlmWordBuffer(false)
         service.resetHighlightIndex()
+        abandonedPreviewInput = cs.inputText
     }
 
     /**
@@ -365,6 +384,21 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
             isComposing = result.inputText.isNotEmpty()
         }
 
+        val newInput = if (isT9Schema) displayText else result.inputText
+        if (shouldDropStalePreviewWrite(
+                previewAbandoned = abandonedPreviewInput.isNotEmpty(),
+                abandonedInput = abandonedPreviewInput,
+                incomingInput = newInput,
+                incomingComposing = isComposing,
+            )
+        ) {
+            abandonedPreviewInput = ""
+            return
+        }
+        if (newInput.isEmpty() || newInput != abandonedPreviewInput) {
+            abandonedPreviewInput = ""
+        }
+
         // 用户开始实际输入时，清除候选栏中残留的 inline suggestions
         if (displayText.isNotEmpty() || displayCandidates.isNotEmpty()) {
             service.dismissInlineSuggestions()
@@ -400,7 +434,6 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
             }
         }
 
-        val newInput = if (isT9Schema) displayText else result.inputText
         if (newInput != prevInput) {
             service.resetHighlightIndex()
         } else {

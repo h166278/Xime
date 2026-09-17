@@ -1636,6 +1636,8 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         // （无 composing 时会在光标处插入空串，选中文字时等于删除选区）。
         if (!restarting) {
             inputBoxComposingActive = false
+            imeCommitComposingLossRemaining = 0
+            lastImeCommitText = ""
         }
 
         predictionManager.clearCommittedText()
@@ -2015,8 +2017,19 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd,
         )
         if (ignoreHostComposingLoss) return
+        val commitPreview = SettingsPreferences.isCommitPreview(this)
+        if (shouldSwallowImeCommitComposingLoss(
+                commitPreview,
+                imeCommitComposingLossRemaining,
+                candidatesStart,
+                candidatesEnd,
+            )
+        ) {
+            imeCommitComposingLossRemaining--
+            return
+        }
         if (!previewStolenByHost(
-                SettingsPreferences.isCommitPreview(this),
+                commitPreview,
                 hasInputBoxComposing() && candidateState.value.isComposing,
                 candidatesStart,
                 candidatesEnd,
@@ -2130,6 +2143,12 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
     /** IME 自己 finish/清空 composing 时 onUpdateSelection 也会变成 -1，别当成宿主偷走。 */
     private var ignoreHostComposingLoss = false
 
+    /** IME 自己 commit 后宿主连发 span=-1。只吞几次，不挡到正 span。 */
+    private var imeCommitComposingLossRemaining = 0
+
+    /** 刚经 InputConnection.commitText 送出的字。截胡删残留时对上就跳过，空格不能当退格。 */
+    private var lastImeCommitText = ""
+
     /** 标记刚向输入框写入了 composing 文本（showInputBoxComposition / 语音 partial）。 */
     internal fun markInputBoxComposing() {
         inputBoxComposingActive = true
@@ -2177,6 +2196,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         } finally {
             ignoreHostComposingLoss = false
             inputBoxComposingActive = false
+            imeCommitComposingLossRemaining = 0
         }
     }
 
@@ -2191,12 +2211,14 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         } finally {
             ignoreHostComposingLoss = false
             inputBoxComposingActive = false
+            imeCommitComposingLossRemaining = 0
         }
     }
 
     /** 预览已被宿主读走，只丢标记，不 finish、不写回。 */
     internal fun dropInputBoxComposingMark() {
         inputBoxComposingActive = false
+        imeCommitComposingLossRemaining = 0
     }
 
     /**
@@ -2210,6 +2232,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             ic.getTextBeforeCursor(preview.length, 0)?.toString()
         }.getOrNull()
         if (before != preview) return
+        if (!shouldDeleteLeftoverPreview(preview, lastImeCommitText)) return
         ignoreHostComposingLoss = true
         try {
             ic.deleteSurroundingText(preview.length, 0)
@@ -2528,8 +2551,22 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
             }
             return
         }
-        currentInputConnection?.commitText(text, 1)
-        placeCursorInsideWrapPair(text)
+        // 预览档：IME 自己 commit 会把 composing span 变成 -1。同步靠
+        // ignoreHostComposingLoss；异步连发靠 remaining 吞几次。
+        val commitPreview = SettingsPreferences.isCommitPreview(this)
+        val hadPreviewComposing = commitPreview && inputBoxComposingActive
+        if (hadPreviewComposing) {
+            imeCommitComposingLossRemaining = IME_COMMIT_COMPOSING_LOSS_SWALLOW
+        }
+        ignoreHostComposingLoss = true
+        try {
+            currentInputConnection?.commitText(text, 1)
+            placeCursorInsideWrapPair(text)
+            if (text.isNotEmpty()) lastImeCommitText = text
+        } finally {
+            ignoreHostComposingLoss = false
+            if (hadPreviewComposing) inputBoxComposingActive = false
+        }
 
         if (!suppressCommitRecord && !pluginEvents.isCurrentEditorSensitive && text.isNotEmpty()) {
             commitStack.record(text, pendingCommitCode)
