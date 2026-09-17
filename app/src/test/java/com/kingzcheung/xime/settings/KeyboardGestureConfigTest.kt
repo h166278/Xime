@@ -1096,12 +1096,13 @@ keyboard:
     @Test
     fun `46键中文引号空闲弯引号对组合仍半角`() {
         val zh = parseKeys("""
-            quote46: { tap: { label: "'", value: "'" }, idle: "“”", swipe_up: { label: "\"", value: "\"" }, idle_swipe_up: { label: "\"", value: "‘’" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
+            quote46: { tap: { label: "'", value: "'" }, idle: "“”", swipe_up: { label: "\"", value: "“”" }, idle_swipe_up: { label: "\"", value: "‘’" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }
         """.trimIndent())["quote46"]!!
         assertEquals("'", zh.tap!!.value)
         assertEquals("“”", zh.idle!!.value)
         assertEquals(GestureAction.COMMIT, zh.idle!!.action)
-        assertEquals("\"", zh.swipeUp!!.value)
+        assertEquals("\"", zh.swipeUp!!.label)
+        assertEquals("“”", zh.swipeUp!!.value)
         assertEquals("\"", zh.idleSwipeUp!!.label)
         assertEquals("‘’", zh.idleSwipeUp!!.value)
         assertEquals(GestureAction.COMMIT, zh.idleSwipeUp!!.action)

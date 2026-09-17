@@ -1211,8 +1211,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
 
     /**
      * 46 底行 / , . quote46 和分号上滑。有码先交高亮候选，再贴 YAML 上滑字面
-     * （yu + 句号上滑 → 用》）。空闲仍直贴，quote46 空闲仍 ‘’。
-     * 不进 punctuator：/ 上滑是 ﹖ 不是 ？。
+     * （yu + 句号上滑 → 用》；quote46 有码 → “”，光标进中间）。
+     * 空闲仍直贴，quote46 空闲仍 ‘’。不进 punctuator：/ 上滑是 ﹖ 不是 ？。
      */
     private suspend fun handleLayout46SymbolSwipe(keyId: String, asciiMode: Boolean) {
         val gesture = KeysConfigHelper.getKeyGesture(keyId, asciiMode)
@@ -1946,7 +1946,7 @@ internal fun planLayout46SymbolSwipe(rimeHasInput: Boolean): Layout46SymbolSwipe
     if (rimeHasInput) Layout46SymbolSwipeAction.SELECT_THEN_COMMIT
     else Layout46SymbolSwipeAction.COMMIT
 
-/** 有码用 swipe_up；空闲有 idle_swipe_up 用它（quote46 ‘’）。都空返回 null。 */
+/** 有码用 swipe_up（quote46 “”）；空闲有 idle_swipe_up 用它（quote46 ‘’）。都空返回 null。 */
 internal fun layout46SymbolSwipeText(
     rimeHasInput: Boolean,
     swipe: String?,
@@ -1994,22 +1994,16 @@ internal val TIMES_CANDIDATES = listOf("×", "⨯", "✖", "Ⅹ", "ₓ", "ⅹ")
 internal val DIVISION_CANDIDATES = listOf("÷", "⊘", "⟌")
 /** 乘号变体注释：首位空（空格上屏），aeuio 两字说明。 */
 internal val TIMES_CANDIDATE_COMMENTS = listOf("", "叉积", "粗乘", "罗马", "下标", "小写")
-/** 英文 46 长按选中的符号排首位，空格上屏它；aeuio 选后面变体。g–m 不走这条。 */
+/**
+ * YAML 实际会发 `rime_punct:` 的通道才登记。
+ * `~ + { } [ ] \ | *` 长按仍是 `process_rime_key` 单字符，进引擎不进注入栏，表里留着是死的。
+ */
 internal val RIME_PUNCT_CANDIDATES: Map<String, List<String>> = mapOf(
     "`" to MIDDLE_DOT_CANDIDATES,
     "-" to DASH_CANDIDATES,
-    "~" to listOf("～", "~", "≈", "﹏"),
-    "+" to listOf("＋", "+"),
     "=" to EQUALS_CANDIDATES,
     "_" to UNDERSCORE_CANDIDATES,
     "^" to ELLIPSIS_CANDIDATES,
-    "{" to listOf("『", "〖", "{", "｛"),
-    "}" to listOf("』", "〗", "}", "｝"),
-    "[" to listOf("「", "【", "〔", "[", "［"),
-    "]" to listOf("」", "】", "〕", "]", "］"),
-    "\\" to listOf("、", "＼", "\\"),
-    "|" to listOf("｜", "·", "§", "¦"),
-    "*" to listOf("×", "＊", "*", "·"),
     "x" to TIMES_CANDIDATES,
     "÷" to DIVISION_CANDIDATES,
 )
@@ -2050,12 +2044,11 @@ internal fun rimePunctCandidates(key: String): List<String>? {
 internal fun hasInjectedCandidates(candState: CandidateState): Boolean =
     candState.candidateActions.any { it.isInjectedCandidate }
 
-/** `rime_punct:` 后跟一个 ASCII 键，或注入表已登记的单字符。非法串返回 false。 */
+/** 只认注入表里的通道。未知 `rime_punct:` 不当标点吞掉。 */
 internal fun isRimePunctKey(key: String): Boolean {
     if (!key.startsWith(RIME_PUNCT_PREFIX)) return false
     val ch = key.substring(RIME_PUNCT_PREFIX.length)
-    if (ch.length != 1) return false
-    return ch[0].code in 0x20..0x7E || RIME_PUNCT_CANDIDATES.containsKey(ch)
+    return ch.length == 1 && RIME_PUNCT_CANDIDATES.containsKey(ch)
 }
 
 /**

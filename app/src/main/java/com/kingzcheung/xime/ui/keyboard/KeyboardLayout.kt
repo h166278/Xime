@@ -1843,13 +1843,6 @@ internal fun shouldComposingLetterSwipeUp(
     key: String,
 ): Boolean = isComposing && !isAsciiMode && isLetterKey(key)
 
-/** 空闲点按走 idle；组合/无 idle 仍走 tap。覆盖脸不走这条。 */
-internal fun idleSymbolTapValue(
-    composing: Boolean,
-    idleValue: String?,
-    tapValue: String,
-): String = if (!composing && !idleValue.isNullOrEmpty()) idleValue else tapValue
-
 /**
  * display=key 也要有 longPressItems，否则 SwipeableKeyButton 不进长按，
  * 空闲松手会当成点按，46 键 / 就变成顿号。
@@ -2368,6 +2361,7 @@ private fun LandscapeKeyboardContent(
                     isComposing = isComposing,
                     englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                 )
             }
             Box(
@@ -2403,6 +2397,7 @@ private fun LandscapeKeyboardContent(
                     isComposing = isComposing,
                     englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                 )
             }
             if (is46Layout) {
@@ -2446,6 +2441,7 @@ private fun LandscapeKeyboardContent(
                     isComposing = isComposing,
                     englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                     letterWidth = letterW,
                     leadingContent = {
                         ShiftCapsKeyButton(
@@ -2517,6 +2513,7 @@ private fun LandscapeKeyboardContent(
                     isComposing = isComposing,
                     englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                 )
             }
             }
@@ -2794,6 +2791,7 @@ private fun LandscapeKeyboardContent(
                     isComposing = isComposing,
                     englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                 )
             }
             Box(
@@ -2826,6 +2824,7 @@ private fun LandscapeKeyboardContent(
                     isComposing = isComposing,
                     englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                 )
             }
             if (is46Layout) {
@@ -2865,6 +2864,7 @@ private fun LandscapeKeyboardContent(
                     isComposing = isComposing,
                     englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
                     onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
+                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
                     letterWidth = letterW,
                     trailingContent = {
                         SwipeableIconKeyButton(
@@ -3599,6 +3599,7 @@ fun CompactKeyboardRowWithConfig(
     isComposing: Boolean = false,
     englishPunctOverlay: Boolean = false,
     onConsumeEnglishPunct: (() -> Unit)? = null,
+    onArmEnglishPunct: (() -> Unit)? = null,
     leadingContent: @Composable RowScope.() -> Unit = {},
     trailingContent: @Composable RowScope.() -> Unit = {},
     letterWidth: Dp? = null,
@@ -3704,7 +3705,7 @@ fun CompactKeyboardRowWithConfig(
                     }
                 }
             } else null
-            val compactOnLongPressSelect: ((String) -> Unit)? = remember(key, longPressGestureMap, onGestureAction, onCommitText, onKeyPress) { { selectedLabel: String ->
+            val compactOnLongPressSelect: ((String) -> Unit)? = remember(key, longPressGestureMap, onGestureAction, onCommitText, onKeyPress, is46Layout, onArmEnglishPunct) { { selectedLabel: String ->
                 val gesture = longPressGestureMap?.get(selectedLabel)
                 if (gesture != null && gesture.action != GestureAction.COMMIT) {
                     onGestureAction?.invoke(
@@ -3712,6 +3713,9 @@ fun CompactKeyboardRowWithConfig(
                         gesture.value.ifEmpty { selectedLabel })
                 } else {
                     (onCommitText ?: onKeyPress)(selectedLabel)
+                    if (is46Layout && selectedLabel.any { it.isLetter() }) {
+                        onArmEnglishPunct?.invoke()
+                    }
                 }
                 Unit
             } }

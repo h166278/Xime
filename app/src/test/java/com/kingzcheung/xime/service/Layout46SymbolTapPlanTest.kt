@@ -106,7 +106,8 @@ class Layout46SymbolTapPlanTest {
     @Test
     fun `有码上滑用 swipe_up 空闲用 idle_swipe`() {
         assertEquals("》", layout46SymbolSwipeText(rimeHasInput = true, swipe = "》", idleSwipe = "‘’"))
-        assertEquals("‘’", layout46SymbolSwipeText(rimeHasInput = false, swipe = "\"", idleSwipe = "‘’"))
+        assertEquals("“”", layout46SymbolSwipeText(rimeHasInput = true, swipe = "“”", idleSwipe = "‘’"))
+        assertEquals("‘’", layout46SymbolSwipeText(rimeHasInput = false, swipe = "“”", idleSwipe = "‘’"))
         assertEquals("﹖", layout46SymbolSwipeText(rimeHasInput = false, swipe = "﹖", idleSwipe = null))
         assertEquals("：", layout46SymbolSwipeText(rimeHasInput = true, swipe = "：", idleSwipe = null))
         assertNull(layout46SymbolSwipeText(rimeHasInput = false, swipe = null, idleSwipe = null))

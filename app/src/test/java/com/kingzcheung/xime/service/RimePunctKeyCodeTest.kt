@@ -21,6 +21,8 @@ class RimePunctKeyCodeTest {
         assertFalse(isRimePunctKey("${RIME_PUNCT_PREFIX}``"))
         assertFalse(isRimePunctKey("${RIME_PUNCT_PREFIX}·"))
         assertFalse(isRimePunctKey("${RIME_UPPER_PREFIX}B"))
+        assertFalse(isRimePunctKey("${RIME_PUNCT_PREFIX}#"))
+        assertFalse(isRimePunctKey("${RIME_PUNCT_PREFIX}~"))
     }
 
     @Test
@@ -74,33 +76,28 @@ class RimePunctKeyCodeTest {
     }
 
     @Test
-    fun `英文46长按符号注入表气泡项排首位`() {
-        assertEquals("～", rimePunctCandidates("${RIME_PUNCT_PREFIX}~")!!.first())
-        assertEquals("＋", rimePunctCandidates("${RIME_PUNCT_PREFIX}+")!!.first())
+    fun `YAML会发的注入通道才有表`() {
         assertEquals(EQUALS_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}="))
         assertEquals(listOf("＝", "=", "≠", "≡", "≈", "=="), EQUALS_CANDIDATES)
         assertEquals(ELLIPSIS_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}^"))
         assertEquals(listOf("……", "…", "⋯", "⋮", "︙", "‥"), ELLIPSIS_CANDIDATES)
         assertEquals(UNDERSCORE_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}_"))
         assertEquals(listOf("＿", "_", "__", "___", "____"), UNDERSCORE_CANDIDATES)
-        assertEquals("『", rimePunctCandidates("${RIME_PUNCT_PREFIX}{")!!.first())
-        assertEquals("』", rimePunctCandidates("${RIME_PUNCT_PREFIX}}")!!.first())
-        assertEquals("「", rimePunctCandidates("${RIME_PUNCT_PREFIX}[")!!.first())
-        assertEquals("」", rimePunctCandidates("${RIME_PUNCT_PREFIX}]")!!.first())
-        assertEquals("、", rimePunctCandidates("${RIME_PUNCT_PREFIX}\\")!!.first())
-        assertEquals("｜", rimePunctCandidates("${RIME_PUNCT_PREFIX}|")!!.first())
-        assertEquals("×", rimePunctCandidates("${RIME_PUNCT_PREFIX}*")!!.first())
         assertEquals(TIMES_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}x"))
         assertEquals(listOf("×", "⨯", "✖", "Ⅹ", "ₓ", "ⅹ"), TIMES_CANDIDATES)
         assertEquals(listOf("", "叉积", "粗乘", "罗马", "下标", "小写"), TIMES_CANDIDATE_COMMENTS)
         assertEquals(TIMES_CANDIDATE_COMMENTS, injectedPunctCommentsFor("${RIME_PUNCT_PREFIX}x", 6))
-        assertEquals(injectedPunctComments(6), injectedPunctCommentsFor("${RIME_PUNCT_PREFIX}*", 6))
         assertEquals(DIVISION_CANDIDATES, rimePunctCandidates("${RIME_PUNCT_PREFIX}÷"))
-        assertEquals(listOf("÷", "⊘", "⟌"), DIVISION_CANDIDATES)
+        assertEquals(listOf("÷", "⊘", " Tor"), DIVISION_CANDIDATES)
         assertTrue(isRimePunctKey("${RIME_PUNCT_PREFIX}÷"))
+        assertEquals(null, rimePunctCandidates("${RIME_PUNCT_PREFIX}~"))
+        assertEquals(null, rimePunctCandidates("${RIME_PUNCT_PREFIX}+"))
+        assertEquals(null, rimePunctCandidates("${RIME_PUNCT_PREFIX}{"))
+        assertEquals(null, rimePunctCandidates("${RIME_PUNCT_PREFIX}*"))
         assertEquals(null, rimePunctCandidates("${RIME_PUNCT_PREFIX}/"))
         assertEquals(null, rimePunctCandidates("${RIME_PUNCT_PREFIX}g"))
         assertFalse(isRimePunctKey("${RIME_PUNCT_PREFIX}·"))
+        assertFalse(isRimePunctKey("${RIME_PUNCT_PREFIX}*"))
     }
 
     @Test
