@@ -1212,7 +1212,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
     /**
      * 46 底行 / , . quote46 和分号上滑。有码先交高亮候选，再贴 YAML 上滑字面
      * （yu + 句号上滑 → 用》；quote46 有码 → “”，光标进中间）。
-     * 空闲仍直贴，quote46 空闲仍 ‘’。不进 punctuator：/ 上滑是 ﹖ 不是 ？。
+     * 空闲仍直贴，quote46 空闲仍 ‘’。不进 punctuator，直贴 YAML 上滑字面（/ 是 ？）。
      */
     private suspend fun handleLayout46SymbolSwipe(keyId: String, asciiMode: Boolean) {
         val gesture = KeysConfigHelper.getKeyGesture(keyId, asciiMode)

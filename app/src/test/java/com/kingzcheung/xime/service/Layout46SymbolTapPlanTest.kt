@@ -108,7 +108,7 @@ class Layout46SymbolTapPlanTest {
         assertEquals("》", layout46SymbolSwipeText(rimeHasInput = true, swipe = "》", idleSwipe = "‘’"))
         assertEquals("“”", layout46SymbolSwipeText(rimeHasInput = true, swipe = "“”", idleSwipe = "‘’"))
         assertEquals("‘’", layout46SymbolSwipeText(rimeHasInput = false, swipe = "“”", idleSwipe = "‘’"))
-        assertEquals("﹖", layout46SymbolSwipeText(rimeHasInput = false, swipe = "﹖", idleSwipe = null))
+        assertEquals("？", layout46SymbolSwipeText(rimeHasInput = false, swipe = "？", idleSwipe = null))
         assertEquals("：", layout46SymbolSwipeText(rimeHasInput = true, swipe = "：", idleSwipe = null))
         assertNull(layout46SymbolSwipeText(rimeHasInput = false, swipe = null, idleSwipe = null))
     }

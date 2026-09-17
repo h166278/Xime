@@ -483,11 +483,11 @@ keyboard:
       # 分号键点按已改全角直上屏，不在这组。
       # 上滑书名号：空闲直上屏；有码先交高亮再贴字面（yu + 句号上滑 → 用》），不进 punctuator。
       # 逗号/句号长按气泡：〈<>≤≥，选中走 commit 直上屏（别走 Rime，< 会被 punctuator 交成《）。
-      # /：中文空闲点按顿号、上滑 ﹖、长按松手直上屏 /。quote46 空闲点按 “”、上滑 ‘’（光标进中间）；有码上滑 “”（先交高亮，光标进中间），不是 "。键帽右上仍 "。
+      # /：中文空闲点按顿号、上滑 ？（全角问号，不是 Big5 小问号 ﹖）、长按松手直上屏 /。quote46 空闲点按 “”、上滑 ‘’（光标进中间）；有码上滑 “”（先交高亮，光标进中间），不是 "。键帽右上仍 "。
       # 分号上滑 ： 同样：有码交高亮再贴，空闲直贴。
       # 拉丁上屏后五个键改英文脸：组合态不套脸；覆盖脸点按仍问引擎，有码进 popping，空闲才贴 '。
       # 两码后点 ' 偶尔直上屏，就是覆盖脸没清、Compose isComposing 滞后。
-      "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "﹖", value: "﹖" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
+      "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "？", value: "？" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
       ",": { tap: { label: "，", value: "," }, swipe_up: { label: "《", value: "《" }, long_press: { display: "bubble", values: ["〈", "<", "≤"] } }
       ".": { tap: { label: "。", value: "." }, swipe_up: { label: "》", value: "》" }, long_press: { display: "bubble", values: ["〉", ">", "≥"] } }
       quote46: { tap: { label: "'", value: "'" }, idle: "“”", swipe_up: { label: "\"", value: "“”" }, idle_swipe_up: { label: "\"", value: "‘’" }, long_press: { display: "key", values: [ { label: "\"", value: "\"" } ] } }

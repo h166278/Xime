@@ -1073,13 +1073,14 @@ keyboard:
     @Test
     fun `46键斜杠空闲顿号组合斜杠长按斜杠`() {
         val zh = parseKeys("""
-            "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "﹖", value: "﹖" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
+            "/": { tap: { label: "/", value: "/" }, idle: "、", swipe_up: { label: "？", value: "？" }, long_press: { display: "key", values: [ { label: "/", value: "/" } ] } }
         """.trimIndent())["/"]!!
         assertEquals("/", zh.tap!!.value)
         assertEquals("、", zh.idle!!.label)
         assertEquals("、", zh.idle!!.value)
         assertEquals(GestureAction.COMMIT, zh.idle!!.action)
-        assertEquals("﹖", zh.swipeUp!!.label)
+        assertEquals("？", zh.swipeUp!!.label)
+        assertEquals("？", zh.swipeUp!!.value)
         assertEquals("key", zh.longPress!!.display)
         assertEquals("/", zh.longPress!!.values[0].label)
         assertEquals(GestureAction.COMMIT, zh.longPress!!.values[0].action)
