@@ -255,18 +255,27 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             if (isLetterKey(key)) {
                 service.keyboardViewModel.consumeEnglishPunctOverlay()
             }
-            // 中文 46 分号：有编码发 ; 进声笔组词；空闲直上屏 ；。英文盘点按是 ;，不进这里。
+            // 中文 46 分号：一码发 ; 进标点字；两码以上先交高亮再贴 ；（hui; → 遑；）。
+            // 空闲直上屏 ；。英文盘点按是 ;，不进这里。
             // 有没有码问引擎（阻塞），不信滞后的 candidateState。
             if (key == "；") {
-                val engineHasInput = service.rimeEngine.getInputBlocking().isNotEmpty() ||
+                val input = service.rimeEngine.getInputBlocking()
+                val engineHasInput = input.isNotEmpty() ||
                     candState.pendingEnglishText.isNotEmpty()
-                if (planFullwidthSemicolonTap(
-                        chineseMode = !state.isAsciiMode,
-                        composing = engineHasInput,
-                    ) == FullwidthSemicolonTapAction.SEND_SEMICOLON
-                ) {
-                    sendRimeKeyBlocking(';'.code, 0)
-                    return@launch
+                when (planFullwidthSemicolonTap(
+                    chineseMode = !state.isAsciiMode,
+                    composing = engineHasInput,
+                    inputLength = input.length,
+                )) {
+                    FullwidthSemicolonTapAction.SEND_SEMICOLON -> {
+                        sendRimeKeyBlocking(';'.code, 0)
+                        return@launch
+                    }
+                    FullwidthSemicolonTapAction.SELECT_THEN_COMMIT -> {
+                        selectHighlightThenCommitLiteral("；")
+                        return@launch
+                    }
+                    FullwidthSemicolonTapAction.COMMIT -> { }
                 }
             }
 
@@ -1139,7 +1148,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
 
     /**
      * 46 底行 / , . quote46 点按。空闲字面跟 YAML：/ 顿号、引号弯引号对；
-     * 逗号句号空闲仍走 Rime punctuator（，。）。有码一律半角进 popping。
+     * 逗号句号空闲仍走 Rime punctuator（，。）。
+     * 一码半角进 popping（j/ → 简；j, → 机；j. → 计）。
+     * `/ , .` 两码以上先交高亮再贴（jk/ → 叫，；jk, → 叫，；jk. → 叫。）。
+     * quote46 三码以上贴 “”（hui' → 遑“”）。
      */
     private suspend fun handleLayout46SymbolTap(keyId: String, asciiMode: Boolean) {
         val gesture = KeysConfigHelper.getKeyGesture(keyId, asciiMode)
@@ -1151,9 +1163,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 "quote46" -> "'"
                 else -> keyId
             }
-        val engineHasInput = service.rimeEngine.getInputBlocking().isNotEmpty() ||
+        val input = service.rimeEngine.getInputBlocking()
+        val engineHasInput = input.isNotEmpty() ||
             service.candidateState.value.pendingEnglishText.isNotEmpty()
-        when (planLayout46SymbolTap(engineHasInput, asciiMode, idle)) {
+        when (planLayout46SymbolTap(engineHasInput, asciiMode, idle, input.length, keyId)) {
             Layout46SymbolTapAction.PROCESS -> {
                 val ascii = layout46SymbolAsciiKey(keyId, tap)
                 val processed = sendRimeKeyBlocking(ascii.code, 0)
@@ -1161,6 +1174,9 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 if (!processed && !engineHasInput) {
                     withContext(Dispatchers.Main) { service.commitText(tap) }
                 }
+            }
+            Layout46SymbolTapAction.SELECT_THEN_COMMIT -> {
+                selectHighlightThenCommitLiteral(layout46ComposingPunctLiteral(keyId, idle))
             }
             Layout46SymbolTapAction.COMMIT_IDLE -> {
                 val text = idle!!
@@ -1173,6 +1189,21 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     service.commitText(tap)
                 }
             }
+        }
+    }
+
+    /** 先交高亮（没候选就空格顶），再贴字面。造词缓冲先关，免得首选进缓冲不上屏。 */
+    private suspend fun selectHighlightThenCommitLiteral(text: String) {
+        setSbxlmWordBuffer(false)
+        val candState = service.candidateState.value
+        if (candState.candidates.isNotEmpty()) {
+            val idx = service.currentHighlightIndex().coerceIn(0, candState.candidates.lastIndex)
+            selectCandidateAsync(idx)
+        } else {
+            sendRimeKeyBlocking(0x20, 0)
+        }
+        withContext(Dispatchers.Main) {
+            service.commitText(text)
         }
     }
 
@@ -1223,14 +1254,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         val rimeHasInput = service.rimeEngine.getInputBlocking().isNotEmpty()
         val text = layout46SymbolSwipeText(rimeHasInput, swipe, idleSwipe) ?: return
         if (planLayout46SymbolSwipe(rimeHasInput) == Layout46SymbolSwipeAction.SELECT_THEN_COMMIT) {
-            setSbxlmWordBuffer(false)
-            val candState = service.candidateState.value
-            if (candState.candidates.isNotEmpty()) {
-                val idx = service.currentHighlightIndex().coerceIn(0, candState.candidates.lastIndex)
-                selectCandidateAsync(idx)
-            } else {
-                sendRimeKeyBlocking(0x20, 0)
-            }
+            selectHighlightThenCommitLiteral(text)
+            return
         }
         withContext(Dispatchers.Main) {
             service.commitText(text)

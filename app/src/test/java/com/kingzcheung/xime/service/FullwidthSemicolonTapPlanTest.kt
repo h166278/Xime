@@ -6,10 +6,18 @@ import org.junit.Test
 class FullwidthSemicolonTapPlanTest {
 
     @Test
-    fun `中文有编码进组词`() {
+    fun `中文一码两码进组词三码交词再贴`() {
         assertEquals(
             FullwidthSemicolonTapAction.SEND_SEMICOLON,
-            planFullwidthSemicolonTap(chineseMode = true, composing = true),
+            planFullwidthSemicolonTap(chineseMode = true, composing = true, inputLength = 1),
+        )
+        assertEquals(
+            FullwidthSemicolonTapAction.SEND_SEMICOLON,
+            planFullwidthSemicolonTap(chineseMode = true, composing = true, inputLength = 2),
+        )
+        assertEquals(
+            FullwidthSemicolonTapAction.SELECT_THEN_COMMIT,
+            planFullwidthSemicolonTap(chineseMode = true, composing = true, inputLength = 3),
         )
     }
 
