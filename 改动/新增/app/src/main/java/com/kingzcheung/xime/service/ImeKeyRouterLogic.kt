@@ -123,7 +123,7 @@ internal fun planLayout46SymbolSwipe(rimeHasInput: Boolean): Layout46SymbolSwipe
     if (rimeHasInput) Layout46SymbolSwipeAction.SELECT_THEN_COMMIT
     else Layout46SymbolSwipeAction.COMMIT
 
-/** 有码用 swipe_up（quote46 “”）；空闲有 idle_swipe_up 用它（quote46 ‘’）。都空返回 null。 */
+/** 有码用 swipe_up（quote46 ‘’）；空闲有 idle_swipe_up 用它（也是 ‘’）。都空返回 null。 */
 internal fun layout46SymbolSwipeText(
     rimeHasInput: Boolean,
     swipe: String?,
@@ -141,7 +141,7 @@ internal fun layout46SymbolAsciiKey(keyId: String, tap: String): Char {
 
 /**
  * 中文一码：半角进 Rime 标点字（j/ → 简，j, → 机，j. → 计）。
- * `/ , .` 两码以上交词再贴（jk/ → 叫，；jk, → 叫，；jk. → 叫。）。
+ * `/ , .` 两码以上交词再贴（jk/ → 叫、；jk, → 叫，；jk. → 叫。）。
  * quote46 / 分号两码仍进组词（sx+'、ss+;），三码以上才贴 “” / ；（hui' → 遑“”；hui; → 遑；）。
  * 空闲有 YAML idle（/ 顿号、引号弯引号）直上屏。
  * 空闲无 idle（逗号句号）仍 processKey，punctuator 出 ，。
@@ -170,11 +170,11 @@ internal fun planLayout46SymbolTap(
 }
 
 /**
- * 两码以上点按贴的字面。/ 空闲是顿号，顶功后要逗号（jk/ → 叫，）。
- * quote46 用 idle “”；逗号句号跟 punctuator。
+ * 两码以上点按贴的字面。/ 跟空闲一样贴顿号（jk/ → 叫、）。
+ * quote46 点按用 idle “”；逗号句号跟 punctuator。
  */
 internal fun layout46ComposingPunctLiteral(keyId: String, idle: String?): String = when (keyId) {
-    "/" -> "，"
+    "/" -> idle?.takeIf { it.isNotEmpty() } ?: "、"
     "," -> "，"
     "." -> "。"
     ";" -> "；"

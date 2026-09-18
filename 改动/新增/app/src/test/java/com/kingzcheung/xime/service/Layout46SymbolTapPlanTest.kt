@@ -60,7 +60,8 @@ class Layout46SymbolTapPlanTest {
 
     @Test
     fun `两码以上点按贴逗号分号弯引号`() {
-        assertEquals("，", layout46ComposingPunctLiteral("/", "、"))
+        assertEquals("、", layout46ComposingPunctLiteral("/", "、"))
+        assertEquals("、", layout46ComposingPunctLiteral("/", null))
         assertEquals("，", layout46ComposingPunctLiteral(",", null))
         assertEquals("。", layout46ComposingPunctLiteral(".", null))
         assertEquals("；", layout46ComposingPunctLiteral(";", null))
@@ -136,7 +137,7 @@ class Layout46SymbolTapPlanTest {
     @Test
     fun `有码上滑用 swipe_up 空闲用 idle_swipe`() {
         assertEquals("》", layout46SymbolSwipeText(rimeHasInput = true, swipe = "》", idleSwipe = "‘’"))
-        assertEquals("“”", layout46SymbolSwipeText(rimeHasInput = true, swipe = "“”", idleSwipe = "‘’"))
+        assertEquals("‘’", layout46SymbolSwipeText(rimeHasInput = true, swipe = "‘’", idleSwipe = "‘’"))
         assertEquals("‘’", layout46SymbolSwipeText(rimeHasInput = false, swipe = "“”", idleSwipe = "‘’"))
         assertEquals("？", layout46SymbolSwipeText(rimeHasInput = false, swipe = "？", idleSwipe = null))
         assertEquals("：", layout46SymbolSwipeText(rimeHasInput = true, swipe = "：", idleSwipe = null))
