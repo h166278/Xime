@@ -40,14 +40,17 @@ internal fun isCommitPreview(location: String): Boolean =
 /**
  * 宿主把 composing 拿走了（QQ 发送键常见：读走预览词，span 变成 -1），
  * 键盘还开着。这时不能再 setComposingText 写回去，也不能 finish 把字钉死在输入框。
+ *
+ * 引擎仍有码就算截胡：inputBoxComposingActive 可能已被自己 commit 清掉，
+ * 但候选栏还在。只认 span=-1 会漏掉 QQ 先 finish 再清空的路径。
  */
 internal fun previewStolenByHost(
     commitPreview: Boolean,
-    previewComposingActive: Boolean,
+    engineComposing: Boolean,
     composingStart: Int,
     composingEnd: Int,
 ): Boolean {
-    if (!commitPreview || !previewComposingActive) return false
+    if (!commitPreview || !engineComposing) return false
     return composingStart < 0 && composingEnd < 0
 }
 
@@ -55,16 +58,20 @@ internal fun previewStolenByHost(
  * IME 自己 commitText 之后宿主会连发 composing span=-1。
  * 不是截胡：顶功已经把预览交出去，引擎里是下一码。
  * 只吞有限几次，不能挡到正 span——正 span 一清，迟到的 -1 又会进来。
+ *
+ * remaining 只在本机刚 commit 且 composing 标记已清时有效。
+ * 预览还在输入框时那串 -1 是宿主截胡，不能吞。
  */
 internal const val IME_COMMIT_COMPOSING_LOSS_SWALLOW = 3
 
 internal fun shouldSwallowImeCommitComposingLoss(
     commitPreview: Boolean,
     remaining: Int,
+    previewComposingActive: Boolean,
     composingStart: Int,
     composingEnd: Int,
 ): Boolean {
-    if (!commitPreview || remaining <= 0) return false
+    if (!commitPreview || remaining <= 0 || previewComposingActive) return false
     return composingStart < 0 && composingEnd < 0
 }
 
@@ -79,18 +86,62 @@ internal fun shouldDeleteLeftoverPreview(leftover: String, lastImeCommit: String
 }
 
 /**
- * 截胡已经清引擎。过期的 updateUIWithResult 还带着旧码，不能再 setComposingText 贴回去。
- * 引擎仍报 composing，且码对得上刚放弃的那串，才丢掉这次刷新。
- * applyComposition 同一条。
+ * 截胡已经清引擎。过期的 updateUI / CONFLATED 刷新还带着旧码，
+ * 不能再 setComposingText 贴回去。
+ *
+ * 守卫是独立标志，不靠 abandonedInput 非空。T9 半提交截胡时码可能是空串。
+ * 空刷新、同一串码丢掉这次写回。新码才放行。
  */
 internal fun shouldDropStalePreviewWrite(
     previewAbandoned: Boolean,
     abandonedInput: String,
     incomingInput: String,
-    incomingComposing: Boolean,
 ): Boolean {
-    if (!previewAbandoned || abandonedInput.isEmpty()) return false
-    return incomingComposing && incomingInput == abandonedInput
+    if (!previewAbandoned) return false
+    if (incomingInput.isEmpty()) return true
+    if (abandonedInput.isEmpty()) return false
+    return incomingInput == abandonedInput
+}
+
+/** 用户打下一条跟放弃码不同的新码，才拆截胡守卫。 */
+internal fun shouldClearAbandonedPreview(
+    previewAbandoned: Boolean,
+    abandonedInput: String,
+    incomingInput: String,
+): Boolean {
+    if (!previewAbandoned) return true
+    if (incomingInput.isEmpty()) return false
+    if (abandonedInput.isEmpty()) return true
+    return incomingInput != abandonedInput
+}
+
+/**
+ * 探测输入框是不是空的。before/after 都拿不到（探针失败）不当空，
+ * 免得误把还在打的预览当成发送截胡。extracted 只在前后都拿不到时才用。
+ */
+internal fun editorLooksEmpty(
+    before: String?,
+    after: String?,
+    extracted: String? = null,
+): Boolean {
+    if (before != null || after != null) {
+        return before.isNullOrEmpty() && after.isNullOrEmpty()
+    }
+    if (extracted != null) return extracted.isEmpty()
+    return false
+}
+
+/**
+ * QQ 发送后常 restartInput：框已经空了，键盘还开着，引擎里还有码。
+ * 这时再 updateUI 会把预览写回空框。
+ */
+internal fun shouldAbandonPreviewOnRestart(
+    commitPreview: Boolean,
+    restarting: Boolean,
+    engineComposing: Boolean,
+    editorEmpty: Boolean,
+): Boolean {
+    return commitPreview && restarting && engineComposing && editorEmpty
 }
 
 /**

@@ -128,8 +128,9 @@ internal fun shiftSwipeZoneBubble(
 }
 
 /**
- * 46 横屏右半第二行：GHJKL 字母宽跟 YUIOP 一样（面板五等分），
- * G 左缘跟 Y 左缘对齐。分号宽跟底行标点一样 unit*0.8，往右溢。
+ * 46 横屏右半第二行：HJKL 字母宽跟 YUIOP 一样（面板五等分）。
+ * 去掉右半 G，H 左缘跟 Y 对齐，JKL 和分号整组左挪一格。
+ * 分号宽跟底行标点一样 unit*0.8，落在 P 那一列。
  * L-分号间距靠键内 2+2dp，跟 K-L 一样。
  */
 internal data class Landscape46SemicolonRowMetrics(
@@ -149,6 +150,23 @@ internal fun landscape46SemicolonRowMetrics(
     return Landscape46SemicolonRowMetrics(
         letterWidth = letterWidth,
         semicolonWidth = semicolonWidth,
-        rowWidth = letterWidth * 5 + semicolonWidth,
+        rowWidth = letterWidth * 4 + semicolonWidth,
     )
+}
+
+/**
+ * 横屏左右空格拆方案名。声笔飞单 → 左「声笔」右「飞单」。
+ * 以「声笔」开头的四字名同样切开；对不上就整串留左边。
+ */
+internal fun splitSchemaSpaceLabel(name: String): Pair<String, String> {
+    val n = name.trim()
+    if (n.isEmpty()) return "" to ""
+    if (n.startsWith("声笔") && n.length > 2) {
+        return "声笔" to n.removePrefix("声笔")
+    }
+    if (n.length >= 4 && n.length % 2 == 0) {
+        val mid = n.length / 2
+        return n.take(mid) to n.drop(mid)
+    }
+    return n to ""
 }

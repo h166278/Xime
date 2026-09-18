@@ -1,5 +1,5 @@
 diff --git a/app/src/main/java/com/kingzcheung/xime/service/XimeInputMethodService.kt b/app/src/main/java/com/kingzcheung/xime/service/XimeInputMethodService.kt
-index a3ade02..88cf187 100644
+index a3ade02..1fd1503 100644
 --- a/app/src/main/java/com/kingzcheung/xime/service/XimeInputMethodService.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/service/XimeInputMethodService.kt
 @@ -242,6 +242,17 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
@@ -119,24 +119,34 @@ index a3ade02..88cf187 100644
          }
      }
  
-@@ -1605,9 +1636,16 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -1605,13 +1636,22 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
          // （无 composing 时会在光标处插入空串，选中文字时等于删除选区）。
          if (!restarting) {
              inputBoxComposingActive = false
 +            imeCommitComposingLossRemaining = 0
 +            lastImeCommitText = ""
++            sessionController.resetAbandonedPreview()
          }
  
          predictionManager.clearCommittedText()
+-        // 新输入会话清空 partial commit 累积：外部 UI（如设置页输入框"清除"按钮仅清 Compose
+-        // state）会触发 restartInput → 此处重建 T9，若残留累积会被 buildT9DisplayState 拼进
+-        // preedit 回灌输入框（2026-08-07 日志实证：清除后 testText 从 '' 回灌为 '几乎'）。
+-        t9PartialSegments.clear()
 +        if (!restarting) {
 +            commitStack.clear()
 +            pendingCommitCode = ""
 +            suppressCommitRecord = false
 +        }
-         // 新输入会话清空 partial commit 累积：外部 UI（如设置页输入框"清除"按钮仅清 Compose
-         // state）会触发 restartInput → 此处重建 T9，若残留累积会被 buildT9DisplayState 拼进
-         // preedit 回灌输入框（2026-08-07 日志实证：清除后 testText 从 '' 回灌为 '几乎'）。
-@@ -1660,13 +1698,13 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
++        // 新输入会话才清 T9 半提交。restartInput（QQ 发送常见）先别清，
++        // 后面空框截胡还要用这段前缀记用户词。
++        if (!restarting) {
++            t9PartialSegments.clear()
++        }
+         debugLog("onStartInput: cleared lastCommittedText")
+ 
+         // 跨进程同步文件日志开关（开关在主进程设置页切换）
+@@ -1660,13 +1700,13 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                          }
                      }
                      savedSchema in availableSchemas -> {
@@ -156,7 +166,53 @@ index a3ade02..88cf187 100644
                              schemaController.applyPageSizeSetting(savedSchema)
                              rimeEngine.switchSchema(savedSchema)
                          }
-@@ -1772,6 +1810,22 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -1692,7 +1732,15 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+                 
+                 // 从 user.yaml 恢复方案选项（中/西、简/繁等，含 ascii_mode）
+                 sessionController.restorePersistedSchemaOptions()
+-                updateUI()
++                val stealOnRestart = shouldAbandonPreviewBecauseEditorEmpty(restarting)
++                when {
++                    stealOnRestart -> sessionController.abandonPreviewStolenByHost()
++                    sessionController.hasAbandonedPreview() -> { }
++                    else -> {
++                        if (restarting) t9PartialSegments.clear()
++                        updateUI()
++                    }
++                }
+             } else {
+                 debugLog("onStartInput: deployment in progress, skipping schema switch")
+             }
+@@ -1769,9 +1817,51 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+ 
+         attribute?.let { updateEnterKeyText(it) }
+     }
++
++    /**
++     * QQ 发送后 restartInput：框已经空了，引擎里还有码。
++     * 再 updateUI 会把预览写回空框。
++     */
++    private fun shouldAbandonPreviewBecauseEditorEmpty(restarting: Boolean): Boolean {
++        val commitPreview = SettingsPreferences.isCommitPreview(this)
++        val engineComposing = candidateState.value.isComposing || t9PartialSegments.isNotEmpty()
++        val ic = currentInputConnection
++        val before = runCatching { ic?.getTextBeforeCursor(1, 0)?.toString() }.getOrNull()
++        val after = runCatching { ic?.getTextAfterCursor(1, 0)?.toString() }.getOrNull()
++        val extracted = if (before == null && after == null) {
++            runCatching {
++                ic?.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)
++                    ?.text?.toString()
++            }.getOrNull()
++        } else {
++            null
++        }
++        return shouldAbandonPreviewOnRestart(
++            commitPreview,
++            restarting,
++            engineComposing,
++            editorLooksEmpty(before, after, extracted),
++        )
++    }
      
      private val highlightIndex = mutableIntStateOf(0)
  
@@ -179,7 +235,7 @@ index a3ade02..88cf187 100644
      override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
          super.onStartInputView(info, restarting)
          info?.let { updateEnterKeyText(it) }
-@@ -1950,6 +2004,39 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -1950,6 +2040,41 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
          clearInputState()
          recentClipboardItemsState.value = emptyList()
      }
@@ -197,9 +253,11 @@ index a3ade02..88cf187 100644
 +        )
 +        if (ignoreHostComposingLoss) return
 +        val commitPreview = SettingsPreferences.isCommitPreview(this)
++        val engineComposing = candidateState.value.isComposing || t9PartialSegments.isNotEmpty()
 +        if (shouldSwallowImeCommitComposingLoss(
 +                commitPreview,
 +                imeCommitComposingLossRemaining,
++                hasInputBoxComposing(),
 +                candidatesStart,
 +                candidatesEnd,
 +            )
@@ -209,7 +267,7 @@ index a3ade02..88cf187 100644
 +        }
 +        if (!previewStolenByHost(
 +                commitPreview,
-+                hasInputBoxComposing() && candidateState.value.isComposing,
++                engineComposing,
 +                candidatesStart,
 +                candidatesEnd,
 +            )
@@ -219,7 +277,7 @@ index a3ade02..88cf187 100644
      
      override fun onFinishInputView(finishingInput: Boolean) {
          super.onFinishInputView(finishingInput)
-@@ -1999,7 +2086,11 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -1999,7 +2124,11 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
              page = keyboardViewModel.page.value
          }
          calculatorEngine.clear()
@@ -231,7 +289,7 @@ index a3ade02..88cf187 100644
          t9PartialSegments.clear()
          // 输入法隐藏/结束输入：静默停止语音会话，丢弃未识别文本，避免迟到结果写入新输入框
          if (uiState.value.isVoiceMode || voiceRecordingStarted) {
-@@ -2037,7 +2128,10 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -2037,7 +2166,10 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
              englishReplaceSupported = true,
              candidateActions = emptyList()
          )
@@ -243,7 +301,7 @@ index a3ade02..88cf187 100644
      }
  
      /**
-@@ -2046,11 +2140,39 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -2046,11 +2178,40 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
       */
      private var inputBoxComposingActive = false
  
@@ -263,6 +321,7 @@ index a3ade02..88cf187 100644
  
 +    /** 写预览 composing，短暂挡住 onUpdateSelection，避免中间态 span=-1 被当成宿主偷走。 */
 +    internal fun writeInputBoxComposing(text: String) {
++        if (sessionController.hasAbandonedPreview()) return
 +        val ic = currentInputConnection ?: return
 +        markInputBoxComposing()
 +        ignoreHostComposingLoss = true
@@ -283,7 +342,7 @@ index a3ade02..88cf187 100644
      /**
       * 清理输入框中的 composing 区域（未上屏的拼音编码 / 语音临时文本）。
       *
-@@ -2061,15 +2183,87 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -2061,15 +2222,87 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
       * 否则只调用 finishComposingText（无 composing 时是无害空操作，仅兜底清理残留 span）。
       */
      internal fun endComposingInputBox() {
@@ -377,7 +436,7 @@ index a3ade02..88cf187 100644
      }
  
      /**
-@@ -2214,8 +2408,13 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -2214,8 +2447,13 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                  if (currentEffectiveKeyboardHeight <= 0) {
                      val isLandscape = resources.configuration.screenWidthDp > resources.configuration.screenHeightDp
                      val kbH = SettingsPreferences.getKeyboardHeightDp(this@XimeInputMethodService, isLandscape)
@@ -392,7 +451,7 @@ index a3ade02..88cf187 100644
                  }
                  val density = resources.displayMetrics.density
                  val inputViewWidthPx = decor.width
-@@ -2264,6 +2463,11 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -2264,6 +2502,11 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
          commitTextAndPredict(text, isPaste = false)
      }
  
@@ -404,7 +463,7 @@ index a3ade02..88cf187 100644
      /**
       * 粘贴性质上屏（键盘剪贴板点选/编辑面板提交）：与 [commitText] 相同的上屏与
       * 联想行为，但 text_committed 事件带 is_paste 标记——事件语义是"文本上屏"
-@@ -2318,6 +2522,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -2318,6 +2561,7 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
       */
      internal fun commitTextSilently(text: String, isPaste: Boolean = false) {
          if (uiState.value.quickSendFormFocused) {
@@ -412,7 +471,7 @@ index a3ade02..88cf187 100644
              // 焦点在触发编码输入框时路由到编码框，否则路由到快捷发送文本框
              val codeFocused = uiState.value.quickSendCodeFocused
              mainHandler.post {
-@@ -2327,23 +2532,46 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -2327,23 +2571,46 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
                      val start = box.selectionStart.coerceAtLeast(0)
                      val textLen = text.length
                      box.text?.replace(start, box.selectionEnd.coerceAtLeast(start), text)
@@ -462,7 +521,7 @@ index a3ade02..88cf187 100644
  
          // text_committed 事件：真实上屏才累计/投递（内部编辑器分支已在上方 return；
          // 敏感输入框（密码）不计不投；粘贴性质上屏带 is_paste 标记，见 commitPastedText；
-@@ -2356,6 +2584,24 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -2356,6 +2623,24 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
          }
      }
  
@@ -487,7 +546,7 @@ index a3ade02..88cf187 100644
      /**
       * 手写活动区固化后触发一轮联想推理（基于已上屏文本）。
       * 空格/标点上屏走全量 commitText 自带推理，无需调用此方法。
-@@ -2428,6 +2674,9 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
+@@ -2428,6 +2713,9 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
          } finally {
              ic.endBatchEdit()
          }

@@ -1,5 +1,5 @@
 diff --git a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayout.kt b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayout.kt
-index 6235137..58674da 100644
+index 6235137..52c374d 100644
 --- a/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayout.kt
 +++ b/app/src/main/java/com/kingzcheung/xime/ui/keyboard/KeyboardLayout.kt
 @@ -4,6 +4,7 @@ import android.annotation.SuppressLint
@@ -1535,7 +1535,7 @@ index 6235137..58674da 100644
                      onKeyPressDown = onKeyPressDown,
                      onKeyRelease = onKeyRelease,
                      swipeDownHintsEnabled = swipeDownHintsEnabled,
-@@ -1337,24 +2324,251 @@ private fun LandscapeKeyboardContent(
+@@ -1337,24 +2324,253 @@ private fun LandscapeKeyboardContent(
                      onCommitText = onCommitText,
                      onGestureAction = onGestureAction,
                      onSwipeStateChange = onSwipeStateChange,
@@ -1732,7 +1732,7 @@ index 6235137..58674da 100644
 +                        swipeUpHintTopEnd = true,
 +                    )
 +                    SpaceKey(
-+                        schemaName = schemaName,
++                        schemaName = splitSchemaSpaceLabel(schemaName).first,
 +                        isAsciiMode = isAsciiMode,
 +                        isSttEnabled = isSttEnabled,
 +                        isVoiceMode = isVoiceMode,
@@ -1755,6 +1755,8 @@ index 6235137..58674da 100644
 +                            isAsciiMode -> "中文"
 +                            else -> "English"
 +                        },
++                        swipeDownLabel = "撤回",
++                        onSwipeDown = { onKeyPress("undo_clear") },
 +                        onSwipeStateChange = onSwipeStateChange,
 +                        rimeArrowsWhenComposing = isComposing,
 +                        onCursorMove = callbacks.onEditorCursorMove ?: callbacks.onCursorMove,
@@ -1794,7 +1796,7 @@ index 6235137..58674da 100644
                      )
                      val k2Gesture = KeysConfigHelper.getKeyGesture("'")
                      val k2Action = k2Gesture?.tap?.action
-@@ -1362,8 +2576,6 @@ private fun LandscapeKeyboardContent(
+@@ -1362,8 +2578,6 @@ private fun LandscapeKeyboardContent(
                          ?: k2Gesture?.tap?.label?.takeIf { it.isNotEmpty() }
                          ?: "，"
                      val k2SwipeValue = k2Gesture?.swipeUp?.value?.takeIf { it.isNotEmpty() } ?: "。"
@@ -1803,7 +1805,7 @@ index 6235137..58674da 100644
                      val k2Swipe = k2SwipeValue
                      if (k2Action == GestureAction.TOGGLE_ASCII) {
                          IconKeyButton(
-@@ -1413,6 +2625,8 @@ private fun LandscapeKeyboardContent(
+@@ -1413,6 +2627,8 @@ private fun LandscapeKeyboardContent(
                      shadowShapeRadius = shadowShapeRadius,
                  )
              }
@@ -1812,7 +1814,7 @@ index 6235137..58674da 100644
          }
  
          // 中间留空
-@@ -1425,6 +2639,40 @@ private fun LandscapeKeyboardContent(
+@@ -1425,6 +2641,40 @@ private fun LandscapeKeyboardContent(
                  .weight(0.42f)
                  .padding(end = 4.dp),
          ) {
@@ -1853,18 +1855,18 @@ index 6235137..58674da 100644
              Box(modifier = Modifier.weight(1f)) {
                  CompactKeyboardRowWithConfig(
                      keys = listOf("y", "u", "i", "o", "p"),
-@@ -1440,6 +2688,48 @@ private fun LandscapeKeyboardContent(
+@@ -1440,6 +2690,7 @@ private fun LandscapeKeyboardContent(
                          shadowShapeRadius = shadowShapeRadius,
                      ),
                      isShifted = visualIsShifted,
 +                    isAsciiMode = isAsciiMode,
-+                    onKeyPressDown = onKeyPressDown,
-+                    onKeyRelease = onKeyRelease,
-+                    swipeDownHintsEnabled = swipeDownHintsEnabled,
-+                    swipeUpHintsEnabled = swipeUpHintsEnabled,
-+                    onCommitText = onCommitText,
-+                    onGestureAction = onGestureAction,
-+                    onSwipeStateChange = onSwipeStateChange,
+                     onKeyPressDown = onKeyPressDown,
+                     onKeyRelease = onKeyRelease,
+                     swipeDownHintsEnabled = swipeDownHintsEnabled,
+@@ -1447,8 +2698,59 @@ private fun LandscapeKeyboardContent(
+                     onCommitText = onCommitText,
+                     onGestureAction = onGestureAction,
+                     onSwipeStateChange = onSwipeStateChange,
 +                    longPressPreferUppercase = longPressPreferUppercase,
 +                    is46Layout = is46Layout,
 +                    mnemonicHintsEnabled = mnemonicHintsEnabled,
@@ -1872,8 +1874,8 @@ index 6235137..58674da 100644
 +                    englishPunctOverlay = is46Layout && !isAsciiMode && englishPunctOverlay,
 +                    onConsumeEnglishPunct = { viewModel.consumeEnglishPunctOverlay() },
 +                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
-+                )
-+            }
+                 )
+             }
 +            if (is46Layout) {
 +            BoxWithConstraints(
 +                modifier = Modifier
@@ -1882,7 +1884,7 @@ index 6235137..58674da 100644
 +            ) {
 +                val metrics = landscape46SemicolonRowMetrics(maxWidth)
 +                CompactKeyboardRowWithConfig(
-+                    keys = listOf("g", "h", "j", "k", "l", ";"),
++                    keys = listOf("h", "j", "k", "l", ";"),
 +                    onKeyPress = onKeyPress,
 +                    config = KeyboardRowConfig(
 +                        keyBackgroundColor = keyBackgroundColor,
@@ -1899,13 +1901,13 @@ index 6235137..58674da 100644
 +                    modifier = Modifier
 +                        .fillMaxHeight()
 +                        .requiredWidth(metrics.rowWidth),
-                     onKeyPressDown = onKeyPressDown,
-                     onKeyRelease = onKeyRelease,
-                     swipeDownHintsEnabled = swipeDownHintsEnabled,
-@@ -1447,8 +2737,18 @@ private fun LandscapeKeyboardContent(
-                     onCommitText = onCommitText,
-                     onGestureAction = onGestureAction,
-                     onSwipeStateChange = onSwipeStateChange,
++                    onKeyPressDown = onKeyPressDown,
++                    onKeyRelease = onKeyRelease,
++                    swipeDownHintsEnabled = swipeDownHintsEnabled,
++                    swipeUpHintsEnabled = swipeUpHintsEnabled,
++                    onCommitText = onCommitText,
++                    onGestureAction = onGestureAction,
++                    onSwipeStateChange = onSwipeStateChange,
 +                    longPressPreferUppercase = longPressPreferUppercase,
 +                    is46Layout = is46Layout,
 +                    mnemonicHintsEnabled = mnemonicHintsEnabled,
@@ -1915,13 +1917,13 @@ index 6235137..58674da 100644
 +                    onArmEnglishPunct = { viewModel.armEnglishPunctOverlay() },
 +                    letterWidth = metrics.letterWidth,
 +                    punctWidth = metrics.semicolonWidth,
-                 )
-             }
++                )
++            }
 +            } else {
              Box(
                  modifier = Modifier
                      .weight(1f)
-@@ -1465,6 +2765,7 @@ private fun LandscapeKeyboardContent(
+@@ -1465,6 +2767,7 @@ private fun LandscapeKeyboardContent(
                          swipeFontSize = landscapeSwipeFontSize,
                      ),
                      isShifted = visualIsShifted,
@@ -1929,7 +1931,7 @@ index 6235137..58674da 100644
                      onKeyPressDown = onKeyPressDown,
                      onKeyRelease = onKeyRelease,
                      swipeDownHintsEnabled = swipeDownHintsEnabled,
-@@ -1472,156 +2773,402 @@ private fun LandscapeKeyboardContent(
+@@ -1472,156 +2775,404 @@ private fun LandscapeKeyboardContent(
                      onCommitText = onCommitText,
                      onGestureAction = onGestureAction,
                      onSwipeStateChange = onSwipeStateChange,
@@ -2087,7 +2089,7 @@ index 6235137..58674da 100644
 +                    horizontalArrangement = Arrangement.spacedBy(gap),
 +                ) {
 +                    SpaceKey(
-+                        schemaName = "",
++                        schemaName = splitSchemaSpaceLabel(schemaName).second,
 +                        isAsciiMode = isAsciiMode,
 +                        isSttEnabled = isSttEnabled,
 +                        isVoiceMode = isVoiceMode,
@@ -2119,6 +2121,8 @@ index 6235137..58674da 100644
 +                            isAsciiMode -> "中文"
 +                            else -> "English"
 +                        },
++                        swipeDownLabel = "撤回",
++                        onSwipeDown = { onKeyPress("undo_clear") },
 +                        onSwipeStateChange = onSwipeStateChange,
 +                        rimeArrowsWhenComposing = isComposing,
 +                        onCursorMove = callbacks.onEditorCursorMove ?: callbacks.onCursorMove,
@@ -2446,7 +2450,7 @@ index 6235137..58674da 100644
      }
  }
  
-@@ -1639,12 +3186,16 @@ fun SwipeableKeyButtonLandscape(
+@@ -1639,12 +3190,16 @@ fun SwipeableKeyButtonLandscape(
      swipeDownText: String? = null,
      swipeUpKeyLabel: String? = null,
      swipeDownKeyLabel: String? = null,
@@ -2463,7 +2467,7 @@ index 6235137..58674da 100644
      fontSize: androidx.compose.ui.unit.TextUnit = androidx.compose.ui.unit.TextUnit.Unspecified,
      swipeFontSize: androidx.compose.ui.unit.TextUnit = 8.sp,
      onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
-@@ -1654,8 +3205,10 @@ fun SwipeableKeyButtonLandscape(
+@@ -1654,8 +3209,10 @@ fun SwipeableKeyButtonLandscape(
  ) {
      var isPressed by remember { mutableStateOf(false) }
      var dragOffsetY by remember { mutableStateOf(0f) }
@@ -2474,7 +2478,7 @@ index 6235137..58674da 100644
      var isSwiping by remember { mutableStateOf(false) }
      var isSwipeDown by remember { mutableStateOf(false) }
      var buttonBounds by remember { mutableStateOf(Rect(0f, 0f, 0f, 0f)) }
-@@ -1666,11 +3219,14 @@ fun SwipeableKeyButtonLandscape(
+@@ -1666,11 +3223,14 @@ fun SwipeableKeyButtonLandscape(
      val currentSwipeDownText by rememberUpdatedState(swipeDownText)
      val currentOnSwipe by rememberUpdatedState(onSwipe)
      val currentOnSwipeDown by rememberUpdatedState(onSwipeDown)
@@ -2489,7 +2493,7 @@ index 6235137..58674da 100644
      val currentOnSwipeStateChange by rememberUpdatedState(onSwipeStateChange)
      val scope = rememberCoroutineScope()
      val view = LocalView.current
-@@ -1682,6 +3238,8 @@ fun SwipeableKeyButtonLandscape(
+@@ -1682,6 +3242,8 @@ fun SwipeableKeyButtonLandscape(
      val swipeDownThreshold = with(density) { 15.dp.toPx() }
      val bubbleShowThresholdUp = swipeUpThreshold * 0.3f
      val bubbleShowThresholdDown = swipeDownThreshold * 0.3f
@@ -2498,7 +2502,7 @@ index 6235137..58674da 100644
  
      val shadowModifier = remember(shadowEnabled, shadowElevation, shadowShapeRadius, density, backgroundColor) {
          if (shadowEnabled) {
-@@ -1714,7 +3272,7 @@ fun SwipeableKeyButtonLandscape(
+@@ -1714,7 +3276,7 @@ fun SwipeableKeyButtonLandscape(
          modifier = modifier
              .fillMaxHeight()
              .fillMaxWidth()
@@ -2507,7 +2511,7 @@ index 6235137..58674da 100644
                  if (currentLongPressItems.isNullOrEmpty() || currentOnLongPressSelect == null) {
                      detectTapGestures(
                          onPress = {
-@@ -1735,7 +3293,7 @@ fun SwipeableKeyButtonLandscape(
+@@ -1735,7 +3297,7 @@ fun SwipeableKeyButtonLandscape(
                          val down = awaitFirstDown(requireUnconsumed = false)
                          isPressed = true
                          var localLongPressTriggered = false
@@ -2516,7 +2520,7 @@ index 6235137..58674da 100644
                          val downX = down.position.x
                          val items = currentLongPressItems ?: return@awaitEachGesture
  
-@@ -1751,7 +3309,7 @@ fun SwipeableKeyButtonLandscape(
+@@ -1751,7 +3313,7 @@ fun SwipeableKeyButtonLandscape(
                                      isPressed = true,
                                      isLongPress = true,
                                      longPressItems = items,
@@ -2525,7 +2529,7 @@ index 6235137..58674da 100644
                                  ),
                                  buttonBounds
                              )
-@@ -1782,7 +3340,8 @@ fun SwipeableKeyButtonLandscape(
+@@ -1782,7 +3344,8 @@ fun SwipeableKeyButtonLandscape(
                                  if (localLongPressTriggered) {
                                      val deltaX = change.position.x - downX
                                      val itemWidth = buttonBounds.width / items.size
@@ -2535,7 +2539,7 @@ index 6235137..58674da 100644
                                          .coerceIn(0, items.size - 1)
  
                                      if (selectedIdx != lastReportedIdx) {
-@@ -1826,28 +3385,34 @@ fun SwipeableKeyButtonLandscape(
+@@ -1826,28 +3389,34 @@ fun SwipeableKeyButtonLandscape(
                  }
              }
              .then(
@@ -2572,7 +2576,7 @@ index 6235137..58674da 100644
                                  isSwiping = false
                                  isSwipeDown = false
                                  currentOnSwipeStateChange?.invoke(SwipeState(), buttonBounds)
-@@ -1855,15 +3420,19 @@ fun SwipeableKeyButtonLandscape(
+@@ -1855,15 +3424,19 @@ fun SwipeableKeyButtonLandscape(
                              onDragCancel = {
                                  dragActivated = false
                                  isPressed = false
@@ -2592,7 +2596,7 @@ index 6235137..58674da 100644
  
                                  val swipeTextValue = currentSwipeText
                                  val swipeDownTextValue = currentSwipeDownText
-@@ -1871,7 +3440,21 @@ fun SwipeableKeyButtonLandscape(
+@@ -1871,7 +3444,21 @@ fun SwipeableKeyButtonLandscape(
                                  val onSwipeDownAction = currentOnSwipeDown
                                  val onSwipeStateChangeAction = currentOnSwipeStateChange
  
@@ -2615,7 +2619,7 @@ index 6235137..58674da 100644
                                      val shouldShowBubble = swipeTextValue != null && dragOffsetY < bubbleShowThresholdUp
                                      if (shouldShowBubble != isSwiping) {
                                          isSwiping = shouldShowBubble
-@@ -1893,12 +3476,12 @@ fun SwipeableKeyButtonLandscape(
+@@ -1893,12 +3480,12 @@ fun SwipeableKeyButtonLandscape(
                                      }
                                  }
  
@@ -2630,7 +2634,7 @@ index 6235137..58674da 100644
                                      if (dragOffsetY > swipeDownThreshold) {
                                          hasTriggeredSwipeDown = true
                                          onSwipeDownAction(swipeDownTextValue)
-@@ -1928,7 +3511,15 @@ fun SwipeableKeyButtonLandscape(
+@@ -1928,7 +3515,15 @@ fun SwipeableKeyButtonLandscape(
          ) * contentScale
          val effectiveSwipeFontSize = swipeFontSize.value * hintScale
  
@@ -2647,7 +2651,7 @@ index 6235137..58674da 100644
              modifier = Modifier.fillMaxSize(),
              contentAlignment = Alignment.Center
          ) {
-@@ -1944,7 +3535,7 @@ fun SwipeableKeyButtonLandscape(
+@@ -1944,7 +3539,7 @@ fun SwipeableKeyButtonLandscape(
              )
          }
  
@@ -2656,7 +2660,7 @@ index 6235137..58674da 100644
          if (keyLabel != null) {
              Text(
                  text = keyLabel,
-@@ -1953,13 +3544,14 @@ fun SwipeableKeyButtonLandscape(
+@@ -1953,13 +3548,14 @@ fun SwipeableKeyButtonLandscape(
                  fontWeight = FontWeight.Normal,
                  textAlign = TextAlign.End,
                  maxLines = 1,
@@ -2674,7 +2678,7 @@ index 6235137..58674da 100644
              Text(
                  text = swipeDownKeyLabel,
                  color = textColor.copy(alpha = 0.5f),
-@@ -1996,28 +3588,71 @@ fun CompactKeyboardRowWithConfig(
+@@ -1996,28 +3592,71 @@ fun CompactKeyboardRowWithConfig(
      onGestureAction: ((GestureAction, String) -> Unit)? = null,
      onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
      configVersion: Int = 0,
@@ -2755,7 +2759,7 @@ index 6235137..58674da 100644
  
              val longPressConfig = KeysConfigHelper.getKeyGesture(key, isAsciiMode)?.longPress
              val longPressDisplay = longPressConfig?.display ?: "key"
-@@ -2035,8 +3670,20 @@ fun CompactKeyboardRowWithConfig(
+@@ -2035,8 +3674,20 @@ fun CompactKeyboardRowWithConfig(
              } else {
                  rawCommitValue
              }
@@ -2778,7 +2782,7 @@ index 6235137..58674da 100644
              val compactOnPress: (() -> Unit)? = remember(key, onKeyPressDown) { { onKeyPressDown?.invoke(key); Unit } }
              val compactOnRelease: (() -> Unit)? = remember(key, onKeyRelease) { { onKeyRelease?.invoke(key); Unit } }
              val compactOnSwipeDown: ((String) -> Unit)? = if (swipeDownAction != null && swipeDownHintsEnabled && swipeDownLabel != null) {
-@@ -2054,7 +3701,7 @@ fun CompactKeyboardRowWithConfig(
+@@ -2054,7 +3705,7 @@ fun CompactKeyboardRowWithConfig(
                      }
                  }
              } else null
@@ -2787,7 +2791,7 @@ index 6235137..58674da 100644
                  val gesture = longPressGestureMap?.get(selectedLabel)
                  if (gesture != null && gesture.action != GestureAction.COMMIT) {
                      onGestureAction?.invoke(
-@@ -2062,34 +3709,110 @@ fun CompactKeyboardRowWithConfig(
+@@ -2062,34 +3713,110 @@ fun CompactKeyboardRowWithConfig(
                          gesture.value.ifEmpty { selectedLabel })
                  } else {
                      (onCommitText ?: onKeyPress)(selectedLabel)
@@ -2921,12 +2925,14 @@ index 6235137..58674da 100644
      }
  }
  
-@@ -2185,13 +3908,26 @@ private fun SpaceKey(
+@@ -2185,13 +3912,30 @@ private fun SpaceKey(
      onKeyPressDown: ((String) -> Unit)?,
      onKeyRelease: ((String) -> Unit)?,
      onVoiceModeChange: ((Boolean) -> Unit)?,
 +    onGestureAction: ((GestureAction, String) -> Unit)? = null,
 +    swipeUpLabel: String? = null,
++    swipeDownLabel: String? = null,
++    onSwipeDown: (() -> Unit)? = null,
 +    onSwipeStateChange: ((SwipeState, Rect) -> Unit)? = null,
 +    rimeArrowsWhenComposing: Boolean = false,
 +    onCursorMove: ((Int) -> Unit)? = null,
@@ -2938,6 +2944,8 @@ index 6235137..58674da 100644
 -    val scope = rememberCoroutineScope()
 +    val currentOnGestureAction by rememberUpdatedState(onGestureAction)
 +    val currentSwipeUpLabel by rememberUpdatedState(swipeUpLabel)
++    val currentSwipeDownLabel by rememberUpdatedState(swipeDownLabel)
++    val currentOnSwipeDown by rememberUpdatedState(onSwipeDown)
 +    val currentOnSwipeStateChange by rememberUpdatedState(onSwipeStateChange)
 +    val currentRimeArrows by rememberUpdatedState(rimeArrowsWhenComposing)
 +    val currentOnCursorMove by rememberUpdatedState(onCursorMove)
@@ -2949,7 +2957,7 @@ index 6235137..58674da 100644
  
      val density = LocalDensity.current
      val shadowModifier = remember(shadowEnabled, shadowElevation, shadowShapeRadius, density, keyBackgroundColor) {
-@@ -2214,9 +3950,16 @@ private fun SpaceKey(
+@@ -2214,9 +3958,16 @@ private fun SpaceKey(
      Box(
          modifier = modifier
              .fillMaxHeight()
@@ -2967,7 +2975,7 @@ index 6235137..58674da 100644
  
                      if (voiceSticky) {
                          // 常驻语音模式：轻触空格即结束语音
-@@ -2226,11 +3969,31 @@ private fun SpaceKey(
+@@ -2226,11 +3977,32 @@ private fun SpaceKey(
                      }
  
                      currentOnKeyPressDown?.invoke("space")
@@ -2986,6 +2994,7 @@ index 6235137..58674da 100644
 +                    // 气泡显示阈值：轻扫即出，与 SwipeableKeyButton 保持同一手感（阈值的 30%）
 +                    val bubbleShowThresholdPx = swipeUpThresholdPx * 0.3f
 +                    var swipeUpTriggered = false
++                    var swipeDownTriggered = false
 +                    var swipeH: String? = null
 +                    var cursorSwipe = false
 +                    var cursorMoved = false
@@ -3000,7 +3009,7 @@ index 6235137..58674da 100644
  
                          if (isSttEnabled) {
                              if (!PermissionHelper.hasRecordAudioPermission(context)) {
-@@ -2248,14 +4011,81 @@ private fun SpaceKey(
+@@ -2248,14 +4020,97 @@ private fun SpaceKey(
                          }
                      }
  
@@ -3041,24 +3050,39 @@ index 6235137..58674da 100644
 +                                    longPressJob.cancel()
 +                                }
 +                            }
-+                            // 上滑气泡：与普通键一致，越过起泡阈值即亮出「切换中/英」
-+                            if (currentSwipeUpLabel != null && !cursorMoved) {
-+                                val shouldShowBubble = dy > bubbleShowThresholdPx
++                            // 上滑/下滑气泡：与普通键一致，越过起泡阈值即亮出
++                            if (!cursorMoved && (currentSwipeUpLabel != null || currentSwipeDownLabel != null)) {
++                                val showUp = currentSwipeUpLabel != null && dy > bubbleShowThresholdPx
++                                val showDown = currentSwipeDownLabel != null && dy < -bubbleShowThresholdPx
++                                val shouldShowBubble = showUp || showDown
 +                                if (shouldShowBubble != isBubbleShowing) {
 +                                    isBubbleShowing = shouldShowBubble
 +                                    currentOnSwipeStateChange?.invoke(
-+                                        if (shouldShowBubble) {
++                                        if (showUp) {
 +                                            SwipeState(isSwiping = true, swipeText = currentSwipeUpLabel)
++                                        } else if (showDown) {
++                                            SwipeState(isSwiping = true, swipeText = currentSwipeDownLabel)
 +                                        } else {
 +                                            SwipeState()
 +                                        },
 +                                        buttonBounds
 +                                    )
++                                } else if (isBubbleShowing) {
++                                    val text = if (showUp) currentSwipeUpLabel else currentSwipeDownLabel
++                                    currentOnSwipeStateChange?.invoke(
++                                        SwipeState(isSwiping = true, swipeText = text),
++                                        buttonBounds,
++                                    )
 +                                }
 +                            }
 +                            if (dy > swipeUpThresholdPx && !swipeUpTriggered && !cursorMoved) {
 +                                swipeUpTriggered = true
-+                                // 已判定为上滑：取消长按（语音/连发空格）
++                                swipeDownTriggered = false
++                                longPressJob.cancel()
++                            }
++                            if (currentOnSwipeDown != null && dy < -swipeUpThresholdPx && !swipeDownTriggered && !cursorMoved) {
++                                swipeDownTriggered = true
++                                swipeUpTriggered = false
 +                                longPressJob.cancel()
 +                            }
 +                        }
@@ -3078,6 +3102,7 @@ index 6235137..58674da 100644
 +                        swipeH != null -> currentOnKeyPress(if (swipeH == "left") "rime_left" else "rime_right")
 +                        swipeUpTriggered && currentRimeArrows -> currentOnKeyPress("shift_space")
 +                        swipeUpTriggered -> currentOnGestureAction?.invoke(GestureAction.TOGGLE_ASCII, "")
++                        swipeDownTriggered -> currentOnSwipeDown?.invoke()
 +                        cursorMoved -> Unit // 横滑步进已在拖动中发出
 +                        cursorSwipe -> Unit // 默认布局：横向滑动交给键盘级光标手势，不点空格
 +                        !longPressTriggered -> currentOnKeyPress("space")
@@ -3087,7 +3112,7 @@ index 6235137..58674da 100644
              }
              .padding(LocalKeyVisualPadding.current)
              .fillMaxWidth()
-@@ -2318,3 +4148,112 @@ private fun SpaceKey(
+@@ -2318,3 +4173,112 @@ private fun SpaceKey(
          }
      }
  }

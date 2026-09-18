@@ -1,10 +1,10 @@
 # 相对上游的专属改动
 
-- 本仓 HEAD：`72f5c7d`（main）
+- 本仓 HEAD：`186f585`（main）
 - 上游 HEAD：`277eebe Merge pull request #886 from kingzcheung/main`
 - 分叉点：`2751c9c2adad680100d9ae232d5cecf2651a989a`
-- 专属提交：92 个（未计入本归档提交）
-- 新增 26 个文件，修改 34 个，删除 0 个
+- 专属提交：93 个（未计入本归档提交）
+- 新增 27 个文件，修改 34 个，删除 0 个
 
 对照仓库：
 
@@ -41,6 +41,7 @@
 - `app/src/test/java/com/kingzcheung/xime/ui/keyboard/Landscape46SemicolonRowTest.kt`
 - `app/src/test/java/com/kingzcheung/xime/ui/keyboard/LongPressDefaultIndexTest.kt`
 - `app/src/test/java/com/kingzcheung/xime/ui/keyboard/ShiftSwipeZoneTest.kt`
+- `app/src/test/java/com/kingzcheung/xime/ui/keyboard/SplitSchemaSpaceLabelTest.kt`
 
 ## 修改
 

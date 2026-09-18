@@ -21,9 +21,9 @@ class Landscape46SemicolonRowTest {
     }
 
     @Test
-    fun `行宽是五字母加分号字母宽距不变`() {
+    fun `行宽是四字母加分号H对齐Y`() {
         val m = landscape46SemicolonRowMetrics(panelWidth = 360.dp)
-        assertEquals(m.letterWidth.value * 5 + m.semicolonWidth.value, m.rowWidth.value, tolerance)
-        assertEquals(72f * 5 + m.semicolonWidth.value, m.rowWidth.value, tolerance)
+        assertEquals(m.letterWidth.value * 4 + m.semicolonWidth.value, m.rowWidth.value, tolerance)
+        assertEquals(72f * 4 + m.semicolonWidth.value, m.rowWidth.value, tolerance)
     }
 }
