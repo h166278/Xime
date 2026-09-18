@@ -153,7 +153,7 @@ class InputBoxComposingPlanTest {
         assertTrue(
             previewStolenByHost(
                 commitPreview = true,
-                previewComposingActive = true,
+                engineComposing = true,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -161,7 +161,7 @@ class InputBoxComposingPlanTest {
         assertFalse(
             previewStolenByHost(
                 commitPreview = true,
-                previewComposingActive = true,
+                engineComposing = true,
                 composingStart = 0,
                 composingEnd = 2,
             ),
@@ -169,7 +169,7 @@ class InputBoxComposingPlanTest {
         assertFalse(
             previewStolenByHost(
                 commitPreview = false,
-                previewComposingActive = true,
+                engineComposing = true,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -177,7 +177,7 @@ class InputBoxComposingPlanTest {
         assertFalse(
             previewStolenByHost(
                 commitPreview = true,
-                previewComposingActive = false,
+                engineComposing = false,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -190,6 +190,16 @@ class InputBoxComposingPlanTest {
             shouldSwallowImeCommitComposingLoss(
                 commitPreview = true,
                 remaining = 3,
+                previewComposingActive = false,
+                composingStart = -1,
+                composingEnd = -1,
+            ),
+        )
+        assertFalse(
+            shouldSwallowImeCommitComposingLoss(
+                commitPreview = true,
+                remaining = 3,
+                previewComposingActive = true,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -198,6 +208,7 @@ class InputBoxComposingPlanTest {
             shouldSwallowImeCommitComposingLoss(
                 commitPreview = true,
                 remaining = 0,
+                previewComposingActive = false,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -206,6 +217,7 @@ class InputBoxComposingPlanTest {
             shouldSwallowImeCommitComposingLoss(
                 commitPreview = false,
                 remaining = 3,
+                previewComposingActive = false,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -214,6 +226,7 @@ class InputBoxComposingPlanTest {
             shouldSwallowImeCommitComposingLoss(
                 commitPreview = true,
                 remaining = 3,
+                previewComposingActive = false,
                 composingStart = 0,
                 composingEnd = 2,
             ),
@@ -228,7 +241,13 @@ class InputBoxComposingPlanTest {
                 previewAbandoned = true,
                 abandonedInput = "ni",
                 incomingInput = "ni",
-                incomingComposing = true,
+            ),
+        )
+        assertTrue(
+            shouldDropStalePreviewWrite(
+                previewAbandoned = true,
+                abandonedInput = "ni",
+                incomingInput = "",
             ),
         )
         assertFalse(
@@ -236,15 +255,6 @@ class InputBoxComposingPlanTest {
                 previewAbandoned = true,
                 abandonedInput = "ni",
                 incomingInput = "hao",
-                incomingComposing = true,
-            ),
-        )
-        assertFalse(
-            shouldDropStalePreviewWrite(
-                previewAbandoned = true,
-                abandonedInput = "ni",
-                incomingInput = "ni",
-                incomingComposing = false,
             ),
         )
         assertFalse(
@@ -252,7 +262,110 @@ class InputBoxComposingPlanTest {
                 previewAbandoned = false,
                 abandonedInput = "ni",
                 incomingInput = "ni",
-                incomingComposing = true,
+            ),
+        )
+        assertTrue(
+            shouldDropStalePreviewWrite(
+                previewAbandoned = true,
+                abandonedInput = "",
+                incomingInput = "",
+            ),
+        )
+        assertFalse(
+            shouldDropStalePreviewWrite(
+                previewAbandoned = true,
+                abandonedInput = "",
+                incomingInput = "ni",
+            ),
+        )
+    }
+
+    @Test
+    fun `空刷新不拆截胡守卫新码才拆`() {
+        assertFalse(
+            shouldClearAbandonedPreview(
+                previewAbandoned = true,
+                abandonedInput = "ni",
+                incomingInput = "",
+            ),
+        )
+        assertFalse(
+            shouldClearAbandonedPreview(
+                previewAbandoned = true,
+                abandonedInput = "ni",
+                incomingInput = "ni",
+            ),
+        )
+        assertTrue(
+            shouldClearAbandonedPreview(
+                previewAbandoned = true,
+                abandonedInput = "ni",
+                incomingInput = "hao",
+            ),
+        )
+        assertTrue(
+            shouldClearAbandonedPreview(
+                previewAbandoned = false,
+                abandonedInput = "ni",
+                incomingInput = "",
+            ),
+        )
+        assertFalse(
+            shouldClearAbandonedPreview(
+                previewAbandoned = true,
+                abandonedInput = "",
+                incomingInput = "",
+            ),
+        )
+        assertTrue(
+            shouldClearAbandonedPreview(
+                previewAbandoned = true,
+                abandonedInput = "",
+                incomingInput = "ni",
+            ),
+        )
+    }
+
+    @Test
+    fun `发送后空框当截胡探针失败不当空`() {
+        assertTrue(editorLooksEmpty("", ""))
+        assertTrue(editorLooksEmpty(null, ""))
+        assertTrue(editorLooksEmpty("", null))
+        assertFalse(editorLooksEmpty(null, null))
+        assertFalse(editorLooksEmpty("你", ""))
+        assertTrue(editorLooksEmpty(null, null, ""))
+        assertFalse(editorLooksEmpty(null, null, "你"))
+        assertFalse(editorLooksEmpty("", "x", ""))
+        assertTrue(
+            shouldAbandonPreviewOnRestart(
+                commitPreview = true,
+                restarting = true,
+                engineComposing = true,
+                editorEmpty = true,
+            ),
+        )
+        assertFalse(
+            shouldAbandonPreviewOnRestart(
+                commitPreview = true,
+                restarting = true,
+                engineComposing = true,
+                editorEmpty = false,
+            ),
+        )
+        assertFalse(
+            shouldAbandonPreviewOnRestart(
+                commitPreview = true,
+                restarting = false,
+                engineComposing = true,
+                editorEmpty = true,
+            ),
+        )
+        assertFalse(
+            shouldAbandonPreviewOnRestart(
+                commitPreview = true,
+                restarting = true,
+                engineComposing = false,
+                editorEmpty = true,
             ),
         )
     }

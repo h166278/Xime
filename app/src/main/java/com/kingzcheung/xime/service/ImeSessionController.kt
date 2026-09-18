@@ -19,8 +19,17 @@ import kotlinx.coroutines.withContext
  * 方案名称/开关刷新与切换、T9 切离提交等逻辑。共享状态通过 service 引用访问。
  */
 internal class ImeSessionController(private val service: XimeInputMethodService) {
-    /** 刚被宿主截胡清掉的那串码。过期 UI 刷新对上就丢掉，别把预览贴回去。 */
+    /** 刚被宿主截胡。过期 UI 刷新丢掉，别把预览贴回去。不靠码非空，T9 半提交码可能是空串。 */
+    private var previewAbandoned = false
     private var abandonedPreviewInput = ""
+
+    internal fun hasAbandonedPreview(): Boolean = previewAbandoned
+
+    /** 新输入会话：上一轮截胡守卫作废。 */
+    internal fun resetAbandonedPreview() {
+        previewAbandoned = false
+        abandonedPreviewInput = ""
+    }
 
     internal fun applyComposition(
         composition: com.kingzcheung.xime.rime.RimeComposition,
@@ -119,16 +128,20 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
 
         val incomingInput = if (isT9Schema) displayText else inputText
         if (shouldDropStalePreviewWrite(
-                previewAbandoned = abandonedPreviewInput.isNotEmpty(),
+                previewAbandoned = previewAbandoned,
                 abandonedInput = abandonedPreviewInput,
                 incomingInput = incomingInput,
-                incomingComposing = isComposing,
             )
         ) {
-            abandonedPreviewInput = ""
             return
         }
-        if (incomingInput.isEmpty() || incomingInput != abandonedPreviewInput) {
+        if (shouldClearAbandonedPreview(
+                previewAbandoned = previewAbandoned,
+                abandonedInput = abandonedPreviewInput,
+                incomingInput = incomingInput,
+            )
+        ) {
+            previewAbandoned = false
             abandonedPreviewInput = ""
         }
 
@@ -186,6 +199,7 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         isComposing: Boolean = service.candidateState.value.isComposing,
     ) {
         if (service.uiState.value.toolPanelInputFocused) return
+        if (previewAbandoned) return
         val location = SettingsPreferences.getInputTextLocation(service)
         val planned = planInputBoxComposing(
             location,
@@ -214,18 +228,23 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
      * QQ 发送键把 composing 读走、span 变成 -1，键盘还开着。
      * 不 finish（会把字钉在输入框），不二次 commitText，只记用户词并清引擎。
      * 若宿主把预览留成已提交文本，删掉这段后缀。
+     *
+     * 主线程先钉守卫、清候选栏。记用户词和清引擎丢到 key-process，
+     * 免得 tryLocked 拿不到锁当没清，后面 updateUI 又把预览写回去。
      */
     internal fun abandonPreviewStolenByHost() {
         if (!SettingsPreferences.isCommitPreview(service)) return
         if (service.uiState.value.toolPanelInputFocused) return
         val cs = service.candidateState.value
-        val t9Prefix = service.t9PartialSegments.joinToString("") { it.text }
+        val t9Segs = service.t9PartialSegments.toList()
+        val t9Prefix = t9Segs.joinToString("") { it.text }
         if (!cs.isComposing && t9Prefix.isEmpty()) return
+        val highlight = service.currentHighlightIndex()
         val planned = planInputBoxComposing(
             SettingsPreferences.INPUT_TEXT_COMMIT_PREVIEW,
             cs.preeditText.ifEmpty { cs.inputText },
             cs.candidates,
-            service.currentHighlightIndex(),
+            highlight,
             cs.isComposing || t9Prefix.isNotEmpty(),
         )
         val text = composingTextWithT9Prefix(planned, t9Prefix).orEmpty()
@@ -235,7 +254,8 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
             service.armCommitCode(cs.inputText)
             service.recordCommitWithoutSending(text)
         }
-        memorizePreviewAndClearEngine(cs, text)
+        previewAbandoned = true
+        abandonedPreviewInput = cs.inputText
         service.candidateState.value = cs.copy(
             candidates = emptyList(),
             candidateComments = emptyList(),
@@ -249,7 +269,9 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         service.t9PartialSegments.clear()
         service.keyRouter.setSbxlmWordBuffer(false)
         service.resetHighlightIndex()
-        abandonedPreviewInput = cs.inputText
+        service.keyRouter.postRimeJob {
+            memorizePreviewAndClearEngine(cs, text, highlight, t9Segs)
+        }
     }
 
     /**
@@ -260,13 +282,15 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         if (!SettingsPreferences.isCommitPreview(service)) return false
         if (service.uiState.value.toolPanelInputFocused) return false
         val cs = service.candidateState.value
-        val t9Prefix = service.t9PartialSegments.joinToString("") { it.text }
+        val t9Segs = service.t9PartialSegments.toList()
+        val t9Prefix = t9Segs.joinToString("") { it.text }
         if (!cs.isComposing && t9Prefix.isEmpty()) return false
+        val highlight = service.currentHighlightIndex()
         val planned = planInputBoxComposing(
             SettingsPreferences.INPUT_TEXT_COMMIT_PREVIEW,
             cs.preeditText.ifEmpty { cs.inputText },
             cs.candidates,
-            service.currentHighlightIndex(),
+            highlight,
             cs.isComposing || t9Prefix.isNotEmpty(),
         )
         val text = composingTextWithT9Prefix(planned, t9Prefix) ?: return false
@@ -274,18 +298,22 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         service.finishInputBoxComposing()
         service.armCommitCode(cs.inputText)
         service.recordCommitWithoutSending(text)
-        memorizePreviewAndClearEngine(cs, text)
+        memorizePreviewAndClearEngine(cs, text, highlight, t9Segs)
         return true
     }
 
-    private fun memorizePreviewAndClearEngine(cs: CandidateState, text: String) {
-        val highlight = service.currentHighlightIndex()
+    private fun memorizePreviewAndClearEngine(
+        cs: CandidateState,
+        text: String,
+        highlight: Int,
+        t9Segs: List<T9PartialSegment>,
+    ) {
         val action = cs.candidateActions.getOrNull(highlight)
         val comment = cs.candidateComments.getOrNull(highlight).orEmpty()
         val isT9 = isT9Schema(service.uiState.value.currentSchemaId)
         if (isT9) {
             val pinyin = buildString {
-                service.t9PartialSegments.forEachIndexed { i, seg ->
+                t9Segs.forEachIndexed { i, seg ->
                     if (i > 0) append(' ')
                     append(seg.pinyin)
                 }
@@ -386,16 +414,20 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
 
         val newInput = if (isT9Schema) displayText else result.inputText
         if (shouldDropStalePreviewWrite(
-                previewAbandoned = abandonedPreviewInput.isNotEmpty(),
+                previewAbandoned = previewAbandoned,
                 abandonedInput = abandonedPreviewInput,
                 incomingInput = newInput,
-                incomingComposing = isComposing,
             )
         ) {
-            abandonedPreviewInput = ""
             return
         }
-        if (newInput.isEmpty() || newInput != abandonedPreviewInput) {
+        if (shouldClearAbandonedPreview(
+                previewAbandoned = previewAbandoned,
+                abandonedInput = abandonedPreviewInput,
+                incomingInput = newInput,
+            )
+        ) {
+            previewAbandoned = false
             abandonedPreviewInput = ""
         }
 
