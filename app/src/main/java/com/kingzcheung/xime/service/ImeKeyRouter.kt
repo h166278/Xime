@@ -1150,7 +1150,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
      * 46 底行 / , . quote46 点按。空闲字面跟 YAML：/ 顿号、引号弯引号对；
      * 逗号句号空闲仍走 Rime punctuator（，。）。
      * 一码半角进 popping（j/ → 简；j, → 机；j. → 计）。
-     * `/ , .` 两码以上先交高亮再贴（jk/ → 叫，；jk, → 叫，；jk. → 叫。）。
+     * `/ , .` 两码以上先交高亮再贴（jk/ → 叫、；jk, → 叫，；jk. → 叫。）。
      * quote46 三码以上贴 “”（hui' → 遑“”）。
      */
     private suspend fun handleLayout46SymbolTap(keyId: String, asciiMode: Boolean) {
@@ -1242,7 +1242,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
 
     /**
      * 46 底行 / , . quote46 和分号上滑。有码先交高亮候选，再贴 YAML 上滑字面
-     * （yu + 句号上滑 → 用》；quote46 有码 → “”，光标进中间）。
+     * （yu + 句号上滑 → 用》；quote46 有码 → ‘’，光标进中间）。
      * 空闲仍直贴，quote46 空闲仍 ‘’。不进 punctuator，直贴 YAML 上滑字面（/ 是 ？）。
      */
     private suspend fun handleLayout46SymbolSwipe(keyId: String, asciiMode: Boolean) {
