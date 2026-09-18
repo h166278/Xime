@@ -2054,11 +2054,9 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         )
         if (ignoreHostComposingLoss) return
         val commitPreview = SettingsPreferences.isCommitPreview(this)
-        val engineComposing = candidateState.value.isComposing || t9PartialSegments.isNotEmpty()
         if (shouldSwallowImeCommitComposingLoss(
                 commitPreview,
                 imeCommitComposingLossRemaining,
-                hasInputBoxComposing(),
                 candidatesStart,
                 candidatesEnd,
             )
@@ -2068,9 +2066,10 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         }
         if (!previewStolenByHost(
                 commitPreview,
-                engineComposing,
+                hasInputBoxComposing(),
                 candidatesStart,
                 candidatesEnd,
+                imeCommitComposingLossRemaining,
             )
         ) return
         sessionController.abandonPreviewStolenByHost()
@@ -2192,11 +2191,18 @@ class XimeInputMethodService : InputMethodService(), LifecycleOwner, SavedStateR
         inputBoxComposingActive = true
     }
 
-    /** 写预览 composing，短暂挡住 onUpdateSelection，避免中间态 span=-1 被当成宿主偷走。 */
+    /**
+     * 写预览 composing。同步 span=-1 靠 ignoreHostComposingLoss；
+     * 异步连发靠 remaining 吞几次。加码（hio'）不走 commitText，
+     * 只写预览也会被宿主打 -1，必须在这里置 remaining，否则截胡把字和符一起删。
+     */
     internal fun writeInputBoxComposing(text: String) {
         if (sessionController.hasAbandonedPreview()) return
         val ic = currentInputConnection ?: return
         markInputBoxComposing()
+        if (SettingsPreferences.isCommitPreview(this)) {
+            imeCommitComposingLossRemaining = IME_COMMIT_COMPOSING_LOSS_SWALLOW
+        }
         ignoreHostComposingLoss = true
         try {
             ic.beginBatchEdit()

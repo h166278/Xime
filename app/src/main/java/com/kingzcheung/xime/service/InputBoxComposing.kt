@@ -41,16 +41,18 @@ internal fun isCommitPreview(location: String): Boolean =
  * 宿主把 composing 拿走了（QQ 发送键常见：读走预览词，span 变成 -1），
  * 键盘还开着。这时不能再 setComposingText 写回去，也不能 finish 把字钉死在输入框。
  *
- * 引擎仍有码就算截胡：inputBoxComposingActive 可能已被自己 commit 清掉，
- * 但候选栏还在。只认 span=-1 会漏掉 QQ 先 finish 再清空的路径。
+ * 只认输入框预览还在。顶功已经 commit，引擎里是下一码，不能当截胡。
+ * remaining>0 是自己刚 commit 的迟到 -1，哪怕新预览已经写上也不截胡。
+ * QQ 先 finish 再清空走 restartInput 空框，不走这条。
  */
 internal fun previewStolenByHost(
     commitPreview: Boolean,
-    engineComposing: Boolean,
+    previewComposingActive: Boolean,
     composingStart: Int,
     composingEnd: Int,
+    remainingImeCommitLoss: Int = 0,
 ): Boolean {
-    if (!commitPreview || !engineComposing) return false
+    if (!commitPreview || !previewComposingActive || remainingImeCommitLoss > 0) return false
     return composingStart < 0 && composingEnd < 0
 }
 
@@ -59,19 +61,18 @@ internal fun previewStolenByHost(
  * 不是截胡：顶功已经把预览交出去，引擎里是下一码。
  * 只吞有限几次，不能挡到正 span——正 span 一清，迟到的 -1 又会进来。
  *
- * remaining 只在本机刚 commit 且 composing 标记已清时有效。
- * 预览还在输入框时那串 -1 是宿主截胡，不能吞。
+ * 顶功会立刻写下一码预览。迟到的 -1 来时输入框已经有新 composing，
+ * 仍要吞：那是上一笔 commit 的回执，不是宿主发送。
  */
 internal const val IME_COMMIT_COMPOSING_LOSS_SWALLOW = 3
 
 internal fun shouldSwallowImeCommitComposingLoss(
     commitPreview: Boolean,
     remaining: Int,
-    previewComposingActive: Boolean,
     composingStart: Int,
     composingEnd: Int,
 ): Boolean {
-    if (!commitPreview || remaining <= 0 || previewComposingActive) return false
+    if (!commitPreview || remaining <= 0) return false
     return composingStart < 0 && composingEnd < 0
 }
 
