@@ -153,7 +153,7 @@ class InputBoxComposingPlanTest {
         assertTrue(
             previewStolenByHost(
                 commitPreview = true,
-                engineComposing = true,
+                previewComposingActive = true,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -161,7 +161,7 @@ class InputBoxComposingPlanTest {
         assertFalse(
             previewStolenByHost(
                 commitPreview = true,
-                engineComposing = true,
+                previewComposingActive = true,
                 composingStart = 0,
                 composingEnd = 2,
             ),
@@ -169,7 +169,7 @@ class InputBoxComposingPlanTest {
         assertFalse(
             previewStolenByHost(
                 commitPreview = false,
-                engineComposing = true,
+                previewComposingActive = true,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -177,7 +177,7 @@ class InputBoxComposingPlanTest {
         assertFalse(
             previewStolenByHost(
                 commitPreview = true,
-                engineComposing = false,
+                previewComposingActive = false,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -190,16 +190,6 @@ class InputBoxComposingPlanTest {
             shouldSwallowImeCommitComposingLoss(
                 commitPreview = true,
                 remaining = 3,
-                previewComposingActive = false,
-                composingStart = -1,
-                composingEnd = -1,
-            ),
-        )
-        assertFalse(
-            shouldSwallowImeCommitComposingLoss(
-                commitPreview = true,
-                remaining = 3,
-                previewComposingActive = true,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -208,7 +198,6 @@ class InputBoxComposingPlanTest {
             shouldSwallowImeCommitComposingLoss(
                 commitPreview = true,
                 remaining = 0,
-                previewComposingActive = false,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -217,7 +206,6 @@ class InputBoxComposingPlanTest {
             shouldSwallowImeCommitComposingLoss(
                 commitPreview = false,
                 remaining = 3,
-                previewComposingActive = false,
                 composingStart = -1,
                 composingEnd = -1,
             ),
@@ -226,12 +214,63 @@ class InputBoxComposingPlanTest {
             shouldSwallowImeCommitComposingLoss(
                 commitPreview = true,
                 remaining = 3,
-                previewComposingActive = false,
                 composingStart = 0,
                 composingEnd = 2,
             ),
         )
         assertEquals(3, IME_COMMIT_COMPOSING_LOSS_SWALLOW)
+    }
+
+    @Test
+    fun `顶功下一码预览已写迟到负一不截胡`() {
+        assertTrue(
+            shouldSwallowImeCommitComposingLoss(
+                commitPreview = true,
+                remaining = 3,
+                composingStart = -1,
+                composingEnd = -1,
+            ),
+        )
+        assertFalse(
+            previewStolenByHost(
+                commitPreview = true,
+                previewComposingActive = true,
+                composingStart = -1,
+                composingEnd = -1,
+                remainingImeCommitLoss = 3,
+            ),
+        )
+        assertTrue(
+            previewStolenByHost(
+                commitPreview = true,
+                previewComposingActive = true,
+                composingStart = -1,
+                composingEnd = -1,
+                remainingImeCommitLoss = 0,
+            ),
+        )
+    }
+
+    @Test
+    fun `加码只写预览迟到负一也不截胡`() {
+        // hio'：Rime 把 ' 加进码，不 commitText。写预览后宿主仍可能打 -1。
+        assertTrue(
+            shouldSwallowImeCommitComposingLoss(
+                commitPreview = true,
+                remaining = 3,
+                composingStart = -1,
+                composingEnd = -1,
+            ),
+        )
+        assertFalse(
+            previewStolenByHost(
+                commitPreview = true,
+                previewComposingActive = true,
+                composingStart = -1,
+                composingEnd = -1,
+                remainingImeCommitLoss = 3,
+            ),
+        )
     }
 
     @Test

@@ -1,5 +1,5 @@
 diff --git a/app/src/main/assets/xime.yaml b/app/src/main/assets/xime.yaml
-index eb17182..681df09 100644
+index eb17182..9a09bc8 100644
 --- a/app/src/main/assets/xime.yaml
 +++ b/app/src/main/assets/xime.yaml
 @@ -349,7 +349,8 @@ color_schemes:
@@ -43,7 +43,7 @@ index eb17182..681df09 100644
        # ── 第三行 ──
        z: { tap: "z", swipe_up: { label: "＊", value: "*" }, swipe_down: { label: "", action: "none", display: "key" }, long_press: { display: "bubble", values: [ "z","Z"] } }
        x: { tap: "x", swipe_up: { label: "＠", value: "@" }, swipe_down: { label: "弓匕纟幺弓𠤎", action: "none", display: "bubble" }, long_press: { display: "bubble", values: ["x", "X"] } }
-@@ -461,7 +477,71 @@ keyboard:
+@@ -461,7 +477,73 @@ keyboard:
        "'": { tap: { label: "，", value: "," }, swipe_up: { label: "。", value: "." } , long_press: { display: "bubble", values: [ ",","."] }}
        # 中/英切换键，label 为按键显示文字
        earth: { tap: { label: "@language", action: "toggle_ascii" }, long_press: { display: "bubble", values: [ { label: "选择输入法", action: "command", value: "show_ime_picker" } ] } }
@@ -54,7 +54,9 @@ index eb17182..681df09 100644
 +      # 分号键点按已改全角直上屏，不在这组。
 +      # 上滑书名号：空闲直上屏；有码先交高亮再贴字面（yu + 句号上滑 → 用》），不进 punctuator。
 +      # 逗号/句号长按气泡：〈<>≤≥，选中走 commit 直上屏（别走 Rime，< 会被 punctuator 交成《）。
-+      # /：中文空闲点按顿号、上滑 ？（全角问号，不是 Big5 小问号 ﹖）、长按松手直上屏 /。quote46 空闲点按 “”、上滑 ‘’（光标进中间）；有码上滑 “”（先交高亮，光标进中间），不是 "。键帽右上仍 "。
++      # /：中文空闲点按顿号、上滑 ？（全角问号，不是 Big5 小问号 ﹖）、长按松手直上屏 /。两码以上点按先交高亮再贴逗号（jk/ → 叫，），一码仍进标点字。
++      # , .：空闲 punctuator 出 ，。；一码标点字；两码以上交词再贴 ，。（jk, → 叫，；jk. → 叫。）。
++      # quote46 空闲点按 “”、上滑 ‘’（光标进中间）；有码上滑 “”（先交高亮，光标进中间），不是 "。键帽右上仍 "。两码仍进组词，三码以上点按贴 “”（hui' → 遑“”）。
 +      # 分号上滑 ： 同样：有码交高亮再贴，空闲直贴。
 +      # 拉丁上屏后五个键改英文脸：组合态不套脸；覆盖脸点按仍问引擎，有码进 popping，空闲才贴 '。
 +      # 两码后点 ' 偶尔直上屏，就是覆盖脸没清、Compose isComposing 滞后。
@@ -116,7 +118,7 @@ index eb17182..681df09 100644
    # 英文键盘布局
    qwerty_en:
      # ── 按键布局模式 ──
-@@ -485,6 +565,19 @@ keyboard:
+@@ -485,6 +567,19 @@ keyboard:
        i: { tap: "i", swipe_up: "8", long_press: { display: "bubble", values: ["i", "I"] } }
        o: { tap: "o", swipe_up: "9", long_press: { display: "bubble", values: ["o", "O"] } }
        p: { tap: "p", swipe_up: "0", long_press: { display: "bubble", values: ["p", "P"] } }
@@ -136,7 +138,7 @@ index eb17182..681df09 100644
        # ── 第二行 ──
        a: { tap: "a", swipe_up: "~", long_press: { display: "bubble", values: ["a", "A"] } }
        s: { tap: "s", swipe_up: "/", long_press: { display: "bubble", values: ["s", "S"] } }
-@@ -495,6 +588,8 @@ keyboard:
+@@ -495,6 +590,8 @@ keyboard:
        j: { tap: "j", swipe_up: "-", long_press: { display: "bubble", values: ["j", "J"] } }
        k: { tap: "k", swipe_up: "(", long_press: { display: "bubble", values: ["k", "K"] } }
        l: { tap: "l", swipe_up: ")", long_press: { display: "bubble", values: ["l", "L"] } }
@@ -145,7 +147,7 @@ index eb17182..681df09 100644
        # ";": { tap: ";", shift: ":" }
  
        # ── 第三行 ──
-@@ -507,9 +602,65 @@ keyboard:
+@@ -507,9 +604,65 @@ keyboard:
        m: { tap: "m", swipe_up: "#", long_press: { display: "bubble", values: ["m", "M"] } }
        #  逗号键，label 为中文显示，value 为英文显示+提交值
        "'": { tap: { label: ".", value: "." }, swipe_up: { label: ",", value: "," } }

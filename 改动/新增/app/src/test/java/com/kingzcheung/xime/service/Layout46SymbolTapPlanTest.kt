@@ -23,19 +23,49 @@ class Layout46SymbolTapPlanTest {
     }
 
     @Test
-    fun `中文有码一律进 Rime`() {
+    fun `中文一码进 Rime 斜杠两码交词引号三码交词`() {
         assertEquals(
             Layout46SymbolTapAction.PROCESS,
-            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = "、"),
+            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = "、", inputLength = 1, keyId = "/"),
+        )
+        assertEquals(
+            Layout46SymbolTapAction.SELECT_THEN_COMMIT,
+            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = "、", inputLength = 2, keyId = "/"),
         )
         assertEquals(
             Layout46SymbolTapAction.PROCESS,
-            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = "“”"),
+            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = "“”", inputLength = 2, keyId = "quote46"),
+        )
+        assertEquals(
+            Layout46SymbolTapAction.SELECT_THEN_COMMIT,
+            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = "“”", inputLength = 3, keyId = "quote46"),
         )
         assertEquals(
             Layout46SymbolTapAction.PROCESS,
-            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = null),
+            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = null, inputLength = 1, keyId = ","),
         )
+        assertEquals(
+            Layout46SymbolTapAction.SELECT_THEN_COMMIT,
+            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = null, inputLength = 2, keyId = ","),
+        )
+        assertEquals(
+            Layout46SymbolTapAction.PROCESS,
+            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = null, inputLength = 1, keyId = "."),
+        )
+        assertEquals(
+            Layout46SymbolTapAction.SELECT_THEN_COMMIT,
+            planLayout46SymbolTap(engineHasInput = true, asciiMode = false, idle = null, inputLength = 2, keyId = "."),
+        )
+    }
+
+    @Test
+    fun `两码以上点按贴逗号分号弯引号`() {
+        assertEquals("，", layout46ComposingPunctLiteral("/", "、"))
+        assertEquals("，", layout46ComposingPunctLiteral(",", null))
+        assertEquals("。", layout46ComposingPunctLiteral(".", null))
+        assertEquals("；", layout46ComposingPunctLiteral(";", null))
+        assertEquals("“”", layout46ComposingPunctLiteral("quote46", "“”"))
+        assertEquals("“”", layout46ComposingPunctLiteral("quote46", null))
     }
 
     @Test

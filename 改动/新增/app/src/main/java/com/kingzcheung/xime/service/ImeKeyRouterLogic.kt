@@ -47,15 +47,22 @@ internal enum class IdleDeleteAction {
 internal enum class FullwidthSemicolonTapAction {
     SEND_SEMICOLON,
     COMMIT,
+    SELECT_THEN_COMMIT,
 }
 
-/** 中文有编码：分号进声笔组词。空闲/英文：直上屏。 */
+/**
+ * 中文一码：`;` 进标点字。两码仍进组词（ss+;）。
+ * 三码以上先交高亮再贴 `；`（hui; → 遑；）。空闲/英文直上屏。
+ */
 internal fun planFullwidthSemicolonTap(
     chineseMode: Boolean,
     composing: Boolean,
-): FullwidthSemicolonTapAction =
-    if (chineseMode && composing) FullwidthSemicolonTapAction.SEND_SEMICOLON
-    else FullwidthSemicolonTapAction.COMMIT
+    inputLength: Int = 0,
+): FullwidthSemicolonTapAction = when {
+    !chineseMode || !composing -> FullwidthSemicolonTapAction.COMMIT
+    inputLength >= 3 -> FullwidthSemicolonTapAction.SELECT_THEN_COMMIT
+    else -> FullwidthSemicolonTapAction.SEND_SEMICOLON
+}
 
 /**
  * 空码退格：造词缓冲还开着就只关缓冲，不回删已上屏字。
@@ -79,6 +86,7 @@ internal enum class Layout46SymbolTapAction {
     PROCESS,
     COMMIT_IDLE,
     COMMIT_TAP,
+    SELECT_THEN_COMMIT,
 }
 
 internal fun parseLayout46SymbolKey(key: String): String? =
@@ -132,20 +140,46 @@ internal fun layout46SymbolAsciiKey(keyId: String, tap: String): Char {
 }
 
 /**
- * 中文有码：半角进 Rime 标点字。空闲有 YAML idle（/ 顿号、引号弯引号）直上屏。
+ * 中文一码：半角进 Rime 标点字（j/ → 简，j, → 机，j. → 计）。
+ * `/ , .` 两码以上交词再贴（jk/ → 叫，；jk, → 叫，；jk. → 叫。）。
+ * quote46 / 分号两码仍进组词（sx+'、ss+;），三码以上才贴 “” / ；（hui' → 遑“”；hui; → 遑；）。
+ * 空闲有 YAML idle（/ 顿号、引号弯引号）直上屏。
  * 空闲无 idle（逗号句号）仍 processKey，punctuator 出 ，。
  * 英文盘不进 Rime：空闲 / 仍 ､，其余半角直上屏。
  */
+internal fun layout46SelectThenCommitMinLength(keyId: String): Int = when (keyId) {
+    "quote46", ";" -> 3
+    "/", ",", "." -> 2
+    else -> 2
+}
+
 internal fun planLayout46SymbolTap(
     engineHasInput: Boolean,
     asciiMode: Boolean,
     idle: String?,
+    inputLength: Int = 0,
+    keyId: String = "",
 ): Layout46SymbolTapAction = when {
     asciiMode && !engineHasInput && !idle.isNullOrEmpty() -> Layout46SymbolTapAction.COMMIT_IDLE
     asciiMode -> Layout46SymbolTapAction.COMMIT_TAP
+    engineHasInput && inputLength >= layout46SelectThenCommitMinLength(keyId) ->
+        Layout46SymbolTapAction.SELECT_THEN_COMMIT
     engineHasInput -> Layout46SymbolTapAction.PROCESS
     !idle.isNullOrEmpty() -> Layout46SymbolTapAction.COMMIT_IDLE
     else -> Layout46SymbolTapAction.PROCESS
+}
+
+/**
+ * 两码以上点按贴的字面。/ 空闲是顿号，顶功后要逗号（jk/ → 叫，）。
+ * quote46 用 idle “”；逗号句号跟 punctuator。
+ */
+internal fun layout46ComposingPunctLiteral(keyId: String, idle: String?): String = when (keyId) {
+    "/" -> "，"
+    "," -> "，"
+    "." -> "。"
+    ";" -> "；"
+    "quote46" -> idle?.takeIf { it.isNotEmpty() } ?: "“”"
+    else -> idle?.takeIf { it.isNotEmpty() } ?: keyId
 }
 
 internal val MIDDLE_DOT_CANDIDATES = listOf("·", "・", "･")
