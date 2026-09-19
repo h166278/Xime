@@ -266,6 +266,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     chineseMode = !state.isAsciiMode,
                     composing = engineHasInput,
                     inputLength = input.length,
+                    input = input,
+                    schemaId = state.currentSchemaId,
                 )) {
                     FullwidthSemicolonTapAction.SEND_SEMICOLON -> {
                         sendRimeKeyBlocking(';'.code, 0)
@@ -1166,7 +1168,15 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         val input = service.rimeEngine.getInputBlocking()
         val engineHasInput = input.isNotEmpty() ||
             service.candidateState.value.pendingEnglishText.isNotEmpty()
-        when (planLayout46SymbolTap(engineHasInput, asciiMode, idle, input.length, keyId)) {
+        when (planLayout46SymbolTap(
+            engineHasInput,
+            asciiMode,
+            idle,
+            input.length,
+            keyId,
+            input,
+            service.uiState.value.currentSchemaId,
+        )) {
             Layout46SymbolTapAction.PROCESS -> {
                 val ascii = layout46SymbolAsciiKey(keyId, tap)
                 val processed = sendRimeKeyBlocking(ascii.code, 0)

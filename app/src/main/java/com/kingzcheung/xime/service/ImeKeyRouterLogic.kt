@@ -53,14 +53,19 @@ internal enum class FullwidthSemicolonTapAction {
 /**
  * 中文一码：`;` 进标点字。两码仍进组词（ss+;）。
  * 三码以上先交高亮再贴 `；`（hui; → 遑；）。空闲/英文直上屏。
+ * [input]/[schemaId] 命中进码例外时三码以上仍发 `;`（反查、扩标点、整句组合）。
  */
 internal fun planFullwidthSemicolonTap(
     chineseMode: Boolean,
     composing: Boolean,
     inputLength: Int = 0,
+    input: String = "",
+    schemaId: String = "",
 ): FullwidthSemicolonTapAction = when {
     !chineseMode || !composing -> FullwidthSemicolonTapAction.COMMIT
-    inputLength >= 3 -> FullwidthSemicolonTapAction.SELECT_THEN_COMMIT
+    inputLength >= 3 &&
+        !layout46PunctStaysInEngine(input, schemaId, ";") ->
+        FullwidthSemicolonTapAction.SELECT_THEN_COMMIT
     else -> FullwidthSemicolonTapAction.SEND_SEMICOLON
 }
 
@@ -143,6 +148,7 @@ internal fun layout46SymbolAsciiKey(keyId: String, tap: String): Char {
  * 中文一码：半角进 Rime 标点字（j/ → 简，j, → 机，j. → 计）。
  * `/ , .` 两码以上交词再贴（jk/ → 叫、；jk, → 叫，；jk. → 叫。）。
  * quote46 / 分号两码仍进组词（sx+'、ss+;），三码以上才贴 “” / ；（hui' → 遑“”；hui; → 遑；）。
+ * [input]/[schemaId] 命中进码例外时仍 processKey（反查 `a`/`e`、飞系扩标点、整句分隔）。
  * 空闲有 YAML idle（/ 顿号、引号弯引号）直上屏。
  * 空闲无 idle（逗号句号）仍 processKey，punctuator 出 ，。
  * 英文盘不进 Rime：空闲 / 仍 ､，其余半角直上屏。
@@ -153,16 +159,116 @@ internal fun layout46SelectThenCommitMinLength(keyId: String): Int = when (keyId
     else -> 2
 }
 
+internal const val SB_INITIALS = "bpmfdtnlgkhjqxzcsrywv"
+private val SB_INITIAL_SET = SB_INITIALS.toSet()
+private val SB_STROKE_SET = "aeuio".toSet()
+private val LAYOUT46_PUNCT_KEYS = setOf("quote46", ";", "/", ",", ".")
+
+private fun isSbInitial(c: Char): Boolean = c in SB_INITIAL_SET
+private fun isSbStroke(c: Char): Boolean = c in SB_STROKE_SET
+
+private fun layout46PunctChar(keyId: String): Char? = when (keyId) {
+    "quote46" -> '\''
+    ";", "/", ",", "." -> keyId[0]
+    else -> null
+}
+
+private fun schemaFamily(schemaId: String): String = when (schemaId) {
+    "sbfm", "sbfd", "sbfy" -> "feixi"
+    "sbft", "sbmf" -> "feitian"
+    "sbxm" -> "xiangma"
+    "sbjm" -> "jianma"
+    "sbxh", "sbzr" -> "shuangpin"
+    "sbpy", "sbyp", "sbjp", "sbzz", "sbhz" -> "sentence"
+    else -> schemaId
+}
+
+/**
+ * 长度切到交词再贴之后，这些码仍该进引擎。
+ * 已做完的一码标点字、两码组词、hui'/hui; 交词贴字面，不走这里。
+ */
+internal fun layout46PunctStaysInEngine(
+    input: String,
+    schemaId: String,
+    keyId: String,
+): Boolean {
+    if (keyId !in LAYOUT46_PUNCT_KEYS) return false
+    if (input.isEmpty()) return false
+    val family = schemaFamily(schemaId)
+    val punct = layout46PunctChar(keyId) ?: return false
+    val isQuote = punct == '\''
+    val isSemicolon = punct == ';'
+
+    // 拼音/emoji 反查：' 进码补笔。,./; 结束反查，交词贴字面。
+    if (input.matches(Regex("^a[$SB_INITIALS][a-z']*$")) ||
+        input.matches(Regex("^e[$SB_INITIALS][a-z']*$"))
+    ) {
+        return isQuote
+    }
+    // 两分 / 自定义 / 纯笔画：只在字词方案里当反查结束。整句 i/u/aoe 本身就是拼音。
+    if (family != "sentence") {
+        if (input.matches(Regex("^i[$SB_INITIALS][a-z]*$")) ||
+            input.matches(Regex("^u[$SB_INITIALS][a-z]*$"))
+        ) {
+            return false
+        }
+        if (input.all { it in SB_STROKE_SET }) {
+            return false
+        }
+    }
+
+    when (family) {
+        "feixi" -> {
+            val n = input.length
+            if (n < 3) return false
+            val c0 = input[0]
+            val c1 = input[1]
+            val c2 = input[2]
+            if (!isSbInitial(c0)) return false
+            // ssb + 五键：扩标点字（hka' / hka,）。
+            if (n == 3 && isSbInitial(c1) && isSbStroke(c2)) return true
+            // sxs / sss：;' 进码（顶屏 / binder）。,./ 已做完交词贴字面，不动。
+            if (n == 3 && isSbInitial(c2) && (isQuote || isSemicolon)) return true
+            // 四码以上字母 + 五键：顶大写 / 扩标点。
+            if (n >= 4 && input.all { it.isLetter() }) return true
+            // 码里已经有标点（j/a、j;'）再加码，继续进 popping。
+            if (input.any { it in ";',./" }) return true
+            return false
+        }
+        "feitian", "xiangma" -> {
+            // 三码以上五键都是第四码 / 选重。hui 这种 sbb 在飞天也进码，不是交词贴引号。
+            return input.length >= 3 && input.all { it.isLetter() || it in "0123456789;',./" }
+        }
+        "jianma" -> {
+            // alphabet 只有 ;'。三码 ' 拆词；; 三码以上仍交词贴 ；。
+            return isQuote && input.length >= 3
+        }
+        "shuangpin" -> {
+            // alphabet 只有 ;'。三码以上 ;' 进码，,./ 仍交词贴字面。
+            return (isQuote || isSemicolon) && input.length >= 3
+        }
+        "sentence" -> {
+            // ' 音节分隔 / 补笔 / binder；; 组合上屏。,./ 顶屏出标点。
+            return (isQuote || isSemicolon) && input.length >= 3
+        }
+        else -> return false
+    }
+}
+
 internal fun planLayout46SymbolTap(
     engineHasInput: Boolean,
     asciiMode: Boolean,
     idle: String?,
     inputLength: Int = 0,
     keyId: String = "",
+    input: String = "",
+    schemaId: String = "",
 ): Layout46SymbolTapAction = when {
     asciiMode && !engineHasInput && !idle.isNullOrEmpty() -> Layout46SymbolTapAction.COMMIT_IDLE
     asciiMode -> Layout46SymbolTapAction.COMMIT_TAP
-    engineHasInput && inputLength >= layout46SelectThenCommitMinLength(keyId) ->
+    engineHasInput &&
+        inputLength >= layout46SelectThenCommitMinLength(keyId) &&
+        !layout46PunctStaysInEngine(input, schemaId, keyId) ->
         Layout46SymbolTapAction.SELECT_THEN_COMMIT
     engineHasInput -> Layout46SymbolTapAction.PROCESS
     !idle.isNullOrEmpty() -> Layout46SymbolTapAction.COMMIT_IDLE
