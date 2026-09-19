@@ -167,4 +167,89 @@ class Layout46SymbolTapPlanTest {
             planLayout46OverlayTap(rimeHasInput = false),
         )
     }
+
+    private fun tap(
+        input: String,
+        schemaId: String,
+        keyId: String,
+        idle: String? = null,
+    ) = planLayout46SymbolTap(
+        engineHasInput = true,
+        asciiMode = false,
+        idle = idle,
+        inputLength = input.length,
+        keyId = keyId,
+        input = input,
+        schemaId = schemaId,
+    )
+
+    @Test
+    fun `空方案三码引号仍交词`() {
+        assertEquals(
+            Layout46SymbolTapAction.SELECT_THEN_COMMIT,
+            tap("hui", "", "quote46", idle = "“”"),
+        )
+        assertEquals(
+            Layout46SymbolTapAction.SELECT_THEN_COMMIT,
+            tap("jk", "", "/"),
+        )
+    }
+
+    @Test
+    fun `飞系三码引号交词扩标点进引擎`() {
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("hui", "sbfd", "quote46"))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("hui", "sbfd", ";"))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("hui", "sbfd", ","))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hka", "sbfd", "quote46"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hka", "sbfm", "/"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hkb", "sbfy", ";"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hkj", "sbfd", "quote46"))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("hkj", "sbfd", "/"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("huk", "sbfd", ";"))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("huk", "sbfd", ","))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("huib", "sbfd", "quote46"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("j/a", "sbfd", "/"))
+    }
+
+    @Test
+    fun `拼音反查后引号进引擎`() {
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("anihao", "sbfd", "quote46"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("anihao", "sbpy", "quote46"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("enihao", "sbfd", "quote46"))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("anihao", "sbfd", ","))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("inihao", "sbfd", "quote46"))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("aeiou", "sbfd", "quote46"))
+    }
+
+    @Test
+    fun `飞天象码三码五键进引擎`() {
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hui", "sbft", "quote46"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hui", "sbxm", "/"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hui", "sbmf", ";"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hkb", "sbxm", "."))
+    }
+
+    @Test
+    fun `整句引号分号进引擎斜杠仍交词`() {
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("nihao", "sbpy", "quote46"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("aoe", "sbpy", "quote46"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hui", "sbyp", ";"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hkj", "sbzz", "quote46"))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("nihao", "sbpy", ","))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("nihao", "sbpy", "/"))
+    }
+
+    @Test
+    fun `简码三码引号拆词分号仍交词`() {
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hkj", "sbjm", "quote46"))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("hui", "sbjm", ";"))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("hui", "sbjm", ","))
+    }
+
+    @Test
+    fun `双拼三码引号分号进引擎斜杠交词`() {
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hui", "sbxh", "quote46"))
+        assertEquals(Layout46SymbolTapAction.PROCESS, tap("hui", "sbzr", ";"))
+        assertEquals(Layout46SymbolTapAction.SELECT_THEN_COMMIT, tap("hui", "sbxh", "/"))
+    }
 }

@@ -40,4 +40,36 @@ class FullwidthSemicolonTapPlanTest {
             planFullwidthSemicolonTap(chineseMode = false, composing = false),
         )
     }
+
+    @Test
+    fun `飞系三码交词扩标点进引擎`() {
+        assertEquals(
+            FullwidthSemicolonTapAction.SELECT_THEN_COMMIT,
+            planFullwidthSemicolonTap(true, true, 3, "hui", "sbfd"),
+        )
+        assertEquals(
+            FullwidthSemicolonTapAction.SEND_SEMICOLON,
+            planFullwidthSemicolonTap(true, true, 3, "hka", "sbfd"),
+        )
+        assertEquals(
+            FullwidthSemicolonTapAction.SEND_SEMICOLON,
+            planFullwidthSemicolonTap(true, true, 4, "huib", "sbfm"),
+        )
+    }
+
+    @Test
+    fun `飞天象码整句三码仍发分号`() {
+        assertEquals(
+            FullwidthSemicolonTapAction.SEND_SEMICOLON,
+            planFullwidthSemicolonTap(true, true, 3, "hui", "sbft"),
+        )
+        assertEquals(
+            FullwidthSemicolonTapAction.SEND_SEMICOLON,
+            planFullwidthSemicolonTap(true, true, 3, "hui", "sbxm"),
+        )
+        assertEquals(
+            FullwidthSemicolonTapAction.SEND_SEMICOLON,
+            planFullwidthSemicolonTap(true, true, 5, "nihao", "sbpy"),
+        )
+    }
 }
