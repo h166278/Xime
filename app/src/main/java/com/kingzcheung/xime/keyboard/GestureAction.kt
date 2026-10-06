@@ -55,125 +55,13 @@ interface ActionExecutor {
 enum class GestureAction(val value: String) {
 
     /** 上屏文本，value 为上屏内容。 */
-    COMMIT("commit") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.commitText(value)
-        }
-    },
+    COMMIT("commit"),
 
-    /** 执行内置命令，value 为命令名（如 "clear_composition"）。 */
-    COMMAND("command") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.executeCommand(value)
-        }
-    },
+    /** 46 键上滑数字、符号或方案专用按键，交给 Rime 路由处理。 */
+    PROCESS_RIME_KEY("process_rime_key"),
 
-    /** 全选。 */
-    SELECT_ALL("select_all") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.performEditorMenuAction(android.R.id.selectAll)
-        }
-    },
-
-    /** 复制。 */
-    COPY("copy") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.performEditorMenuAction(android.R.id.copy)
-        }
-    },
-
-    /** 剪切。 */
-    CUT("cut") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.performEditorMenuAction(android.R.id.cut)
-        }
-    },
-
-    /** 粘贴。 */
-    PASTE("paste") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.performEditorMenuAction(android.R.id.paste)
-        }
-    },
-
-    /** 移动到行首。 */
-    LINE_START("line_start") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.sendKeyEvent(KeyEvent.KEYCODE_MOVE_HOME)
-        }
-    },
-
-    /** 移动到行尾。 */
-    LINE_END("line_end") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.sendKeyEvent(KeyEvent.KEYCODE_MOVE_END)
-        }
-    },
-
-    /** 撤销上一笔本键盘上屏。走 IME 上屏栈，不发 Ctrl+Z。 */
-    UNDO("undo") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.executeCommand("undo_commit")
-        }
-    },
-
-    /** 重做刚撤销的那笔。走 IME 上屏栈，不发 Ctrl+Shift+Z。 */
-    REDO("redo") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.executeCommand("redo_commit")
-        }
-    },
-
-    /** 仅显示，无操作。 */
-    NONE("none") {
-        override fun execute(context: ActionExecutor, value: String) { /* no-op */ }
-    },
-
-    /** 重复上一次输入。 */
-    REPEAT("repeat") {
-        override fun execute(context: ActionExecutor, value: String) {
-            context.repeatLastInput()
-        }
-    },
-
-    /** 切换键盘路由/面板（如打开 emoji、符号面板）。
-     *  由 KeyboardView 拦截处理，[ActionExecutor] 层 no-op。 */
-    SWITCH_ROUTE("switch_route") {
-        override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
-    },
-
-    /** 切换中/英文输入模式。
-     *  由 KeyboardView 拦截处理，发送 "ime_switch" 指令到服务层。 */
-    TOGGLE_ASCII("toggle_ascii") {
-        override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
-    },
-
-    /** 删除/退格。由 UI 层拦截处理，调用 onKeyPress("delete")。 */
-    DELETE("delete") {
-        override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
-    },
-
-    /** 切换符号键盘。由 UI 层拦截处理。 */
-    TOGGLE_SYMBOLS("toggle_symbols") {
-        override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
-    },
-
-    /**
-     * 把按键送给 Rime（X11 keysym），不直接上屏。
-     * 由 UI 层转成 onKeyPress，[ActionExecutor] 层 no-op。
-     * value：tab / shift_tab / shift_space / shift_enter / ctrl_enter / rime_left / rime_right / 单字符如 `\`。
-     */
-    PROCESS_RIME_KEY("process_rime_key") {
-        override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
-    },
-
-    /**
-     * 46 键上滑 N：切换飞系字根助记键帽。
-     * 由 UI 层拦截，[ActionExecutor] 层 no-op。
-     */
-    TOGGLE_MNEMONIC("toggle_mnemonic") {
-        override fun execute(context: ActionExecutor, value: String) { /* no-op, handled at UI layer */ }
-    };
+    /** 46 键上滑 N：切换飞系字根助记键帽。 */
+    TOGGLE_MNEMONIC("toggle_mnemonic"),
 
     /**
      * 提交给 rime 引擎：value 作为按键输入走引擎组合路径（与物理键盘敲键同一条
@@ -204,6 +92,9 @@ enum class GestureAction(val value: String) {
 
     /** 撤销。 */
     UNDO("undo"),
+
+    /** 重做刚撤销的那笔，走 IME 上屏栈。 */
+    REDO("redo"),
 
     /** 仅显示，无操作。 */
     NONE("none"),

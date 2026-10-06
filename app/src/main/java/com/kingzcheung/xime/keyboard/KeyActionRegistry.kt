@@ -87,6 +87,8 @@ object KeyActionRegistry {
     init {
         register("commit", ActionDomain.SERVICE, GestureAction.COMMIT) { c, v -> c.service.commitText(v) }
         register("send_rime", ActionDomain.SERVICE, GestureAction.SEND_RIME) { c, v -> c.service.dispatchKey(v) }
+        register("process_rime_key", ActionDomain.UI, GestureAction.PROCESS_RIME_KEY) { _, _ -> }
+        register("toggle_mnemonic", ActionDomain.UI, GestureAction.TOGGLE_MNEMONIC) { _, _ -> }
         register("command", ActionDomain.SERVICE, GestureAction.COMMAND) { c, v ->
             val handler = fromCommand(v)
             if (handler != null) handler.execute(c, v) else c.service.executeCommand(v)
@@ -111,6 +113,9 @@ object KeyActionRegistry {
         }
         register("undo", ActionDomain.SERVICE, GestureAction.UNDO) { c, _ ->
             c.service.performEditorMenuAction(android.R.id.undo)
+        }
+        register("redo", ActionDomain.SERVICE, GestureAction.REDO) { c, _ ->
+            c.service.executeCommand("redo_commit")
         }
         register("none", ActionDomain.SERVICE, GestureAction.NONE) { _, _ -> }
         register("repeat", ActionDomain.SERVICE, GestureAction.REPEAT) { c, _ -> c.service.repeatLastInput() }
