@@ -3,6 +3,7 @@ package com.kingzcheung.xime.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.kingzcheung.xime.settings.MarketUpdateChecker
 import com.kingzcheung.xime.settings.FileConflictInfo
 import com.kingzcheung.xime.settings.SchemaManifestManager
 import com.kingzcheung.xime.settings.SchemaManager
@@ -239,6 +240,7 @@ class SchemaLocalViewModel(application: Application) : AndroidViewModel(applicat
                 if (dir.exists()) { dir.deleteRecursively(); true } else false
             }
             showToast(if (ok) "已删除" else "删除失败")
+            if (ok) MarketUpdateChecker.refreshNow(context)
             loadLocalPackages()
         }
     }
@@ -259,6 +261,7 @@ class SchemaLocalViewModel(application: Application) : AndroidViewModel(applicat
                 }
             }
             showToast("已卸载")
+            MarketUpdateChecker.refreshNow(context)
             loadLocalPackages()
         }
     }

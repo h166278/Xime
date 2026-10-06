@@ -1,33 +1,26 @@
 package com.kingzcheung.xime.ui.settings
 
-import android.content.Context
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +30,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -49,14 +44,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.kingzcheung.xime.R
 import com.kingzcheung.xime.plugin.ExtensionManager
 import com.kingzcheung.xime.plugin.core.api.PluginIcon
 import com.kingzcheung.xime.plugin.core.model.PluginCategory
@@ -86,7 +78,9 @@ data class AsrProvider(
 fun SpeechToTextSettingsContent(
     onBack: () -> Unit,
     onNavigateToPluginSettings: (String) -> Unit = {},
-    onNavigateToPlugins: () -> Unit = {}
+    onNavigateToPlugins: () -> Unit = {},
+    /** 跳转扩展商店的模型页（本地模型未安装时，模型卡片的去下载去处）。 */
+    onNavigateToModelMarket: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -96,6 +90,10 @@ fun SpeechToTextSettingsContent(
 
     var useLocal by remember {
         mutableStateOf(OfflineAsrSettings.isSupported() && SettingsPreferences.isSttUseLocal(context))
+    }
+
+    var keepEngineAlive by remember {
+        mutableStateOf(SettingsPreferences.isSttKeepEngineAlive(context))
     }
 
     val onlineProviders = remember(activeAsrPluginId) {
@@ -191,20 +189,65 @@ fun SpeechToTextSettingsContent(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 if (useLocal) {
-                    // 本地模型下载/管理卡片
-                    OfflineAsrSettings.ModelSection()
+                    // 引擎常驻开关（仅本地模式显示/生效）：语音结束后保留引擎，闲置后再用免重建。
+                    // 在线插件常驻需保持 WebSocket 长连接（耗电、占用服务端资源），不提供该选项。
+                    // 注意：必须放在 ModelSection 之前——其内部 Column 为 fillMaxSize，
+                    // 放在它后面会被挤出可视区
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "保持引擎常驻",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "语音结束后模型不自动释放（约150MB常驻内存），闲置后再用免重新加载，响应更快",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
+                                )
+                            }
+                            Switch(
+                                checked = keepEngineAlive,
+                                onCheckedChange = {
+                                    keepEngineAlive = it
+                                    SettingsPreferences.setSttKeepEngineAlive(context, it)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                                )
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
+
+                    // 本地模型下载/管理卡片（内部 fillMaxSize 自滚动，须放在本分支最后）
+                    OfflineAsrSettings.ModelSection(onNavigateToDownload = onNavigateToModelMarket)
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             if (!useLocal) {
                 OnlineAsrTab(
                     providers = onlineProviders,
-                    onProviderClick = { provider ->
-                        if (provider.isActive) {
-                            onNavigateToPluginSettings(provider.id)
-                            return@OnlineAsrTab
-                        }
+                    activeProviderId = activeAsrPluginId,
+                    onProviderSelect = { provider ->
                         val wasConfigured = provider.isConfigured
                         scope.launch(Dispatchers.IO) {
                             // 单选激活：同一时间只能使用 1 个在线 ASR 插件
@@ -230,13 +273,21 @@ fun SpeechToTextSettingsContent(
     }
 }
 
+/**
+ * 在线 ASR：只显示**当前使用**的服务（一行），切换走单选弹窗（[SettingsSingleChoiceDialog]）。
+ * 服务商再多页面长度也恒定，选完即切换；未配置的服务切换后自动跳到它的配置页。
+ */
 @Composable
 fun OnlineAsrTab(
     providers: List<AsrProvider>,
-    onProviderClick: (AsrProvider) -> Unit,
+    activeProviderId: String,
+    onProviderSelect: (AsrProvider) -> Unit,
     onManagePlugins: () -> Unit = {},
     onSettings: (String) -> Unit = {}
 ) {
+    val activeProvider = providers.firstOrNull { it.id == activeProviderId }
+    var showPicker by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -251,11 +302,17 @@ fun OnlineAsrTab(
             )
         }
 
-        items(providers) { provider ->
-            AsrProviderCardModern(
-                provider = provider,
-                onClick = { onProviderClick(provider) },
-                onSettings = { onSettings(provider.id) }
+        item {
+            SettingsSection(
+                title = "当前服务",
+                content = {
+                    // 入口始终可见：只装 1 个服务时也能点开确认候选与配置状态
+                    CurrentAsrProviderItem(
+                        provider = activeProvider,
+                        onSwitch = { showPicker = true },
+                        onSettings = { activeProvider?.let { onSettings(it.id) } }
+                    )
+                }
             )
         }
 
@@ -281,166 +338,77 @@ fun OnlineAsrTab(
             )
         }
     }
+
+    if (showPicker) {
+        SettingsSingleChoiceDialog(
+            title = "选择语音识别服务",
+            options = providers.map { provider ->
+                SettingsChoiceOption(
+                    id = provider.id,
+                    title = provider.name,
+                    subtitle = buildString {
+                        append(provider.description)
+                        if (provider.features.isNotEmpty()) {
+                            append("\n")
+                            append(provider.features.joinToString(" · "))
+                        }
+                        // 未配置的服务选中后会跳到配置页，这里先说明状态
+                        append(if (provider.isConfigured) "\n已配置" else "\n未配置")
+                    }
+                )
+            },
+            selectedId = activeProviderId,
+            onSelect = { pickedId ->
+                showPicker = false
+                providers.firstOrNull { it.id == pickedId }?.let(onProviderSelect)
+            },
+            onDismiss = { showPicker = false }
+        )
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * 当前使用的在线识别服务（一行）：插件自己的图标 + 名称/描述 + 能力标签，
+ * 右侧齿轮进配置页、整行可点打开服务选择弹窗。整行**始终可点**——只装一个服务时，
+ * 这个入口是页面上唯一能确认候选与配置状态的地方。
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AsrProviderCardModern(
-    provider: AsrProvider,
-    onClick: () -> Unit,
-    onSettings: () -> Unit = {}
+private fun CurrentAsrProviderItem(
+    provider: AsrProvider?,
+    onSwitch: () -> Unit,
+    onSettings: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSwitch)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            if (provider.iconRes != null)
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            else if (provider.isActive)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (provider.iconRes != null) {
-                        Icon(
-                            painter = painterResource(provider.iconRes),
-                            contentDescription = null,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    } else if (provider.icon != null) {
-                        Icon(
-                            imageVector = provider.icon,
-                            contentDescription = null,
-                            tint = if (provider.isActive)
-                                MaterialTheme.colorScheme.onPrimary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    } else {
-                        PluginIconView(
-                            icon = provider.pluginIcon,
-                            category = PluginCategory.ASR,
-                            modifier = Modifier.size(36.dp),
-                            showBackground = false
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = provider.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (provider.isActive)
-                            MaterialTheme.colorScheme.onSurface
-                        else
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = provider.description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (provider.isActive)
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
-                }
-
-                if (provider.isActive) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primary
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Text(
-                                text = "当前使用中",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                } else {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (provider.isConfigured)
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                        else
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                text = if (provider.isConfigured) "已配置" else "未配置",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (provider.isConfigured)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-
-                if (provider.isActive || provider.isConfigured) {
-                    IconButton(onClick = onSettings) {
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = "设置",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
-
-            if (provider.features.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
+        PluginIconView(
+            icon = provider?.pluginIcon,
+            category = PluginCategory.ASR
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = provider?.name ?: "未选择服务",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = provider?.description ?: "请选择要使用的在线语音识别服务",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (!provider?.features.isNullOrEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                // 标签用 FlowRow 换行而不是挤在一行：行尾常驻「选择/切换」+ 箭头后，
+                // 单行 Row 会把每个标签压窄、文字折成两行（观感"变形"）
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     provider.features.forEach { feature ->
                         Surface(
@@ -451,6 +419,8 @@ fun AsrProviderCardModern(
                                 text = feature,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.tertiary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -458,5 +428,25 @@ fun AsrProviderCardModern(
                 }
             }
         }
+        if (provider != null) {
+            IconButton(onClick = onSettings) {
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "配置 ${provider.name}",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Text(
+            text = if (provider == null) "选择" else "切换",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

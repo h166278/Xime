@@ -10,18 +10,20 @@ class ManifestParseTest {
     @Test
     fun `正常 manifest 解析成功且字段正确`() {
         val content = """
-            id: kaomoji
-            name: 颜文字
-            version: 2.1.0
-            description: 内置颜文字
-            type: emoji
-            entry: main.lua
-            minHostVersion: 2.6.0
-            maxHostVersion: 3.0.0
-            network:
-              hosts:
-                - dashscope.aliyuncs.com
-              allowCustomHosts: true
+            {
+              "id": "kaomoji",
+              "name": "颜文字",
+              "version": "2.1.0",
+              "description": "内置颜文字",
+              "type": "emoji",
+              "entry": "main.js",
+              "minHostVersion": "2.6.0",
+              "maxHostVersion": "3.0.0",
+              "network": {
+                "hosts": ["dashscope.aliyuncs.com"],
+                "allowCustomHosts": true
+              }
+            }
         """.trimIndent()
 
         val result = InstallerManager.parseManifestContent(content)
@@ -30,7 +32,7 @@ class ManifestParseTest {
         assertEquals("颜文字", config.name)
         assertEquals("2.1.0", config.version)
         assertEquals("emoji", config.type)
-        assertEquals("main.lua", config.entryScript)
+        assertEquals("main.js", config.entryScript)
         assertEquals("2.6.0", config.minHostVersion)
         assertEquals("3.0.0", config.maxHostVersion)
         assertEquals(listOf("dashscope.aliyuncs.com"), config.declaredHosts)
@@ -39,60 +41,129 @@ class ManifestParseTest {
 
     @Test
     fun `可选字段缺省时使用默认值`() {
-        val content = """
-            id: mini
-        """.trimIndent()
+        val content = """{ "id": "mini" }"""
 
         val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
         assertEquals("mini", config.id)
         assertEquals("mini", config.name)
         assertEquals("0.0.0", config.version)
         assertEquals("unknown", config.type)
-        assertEquals("main.lua", config.entryScript)
+        assertEquals("main.js", config.entryScript)
         assertEquals("", config.description)
         assertEquals(emptyList<String>(), config.declaredHosts)
     }
 
     @Test
     fun `缺少必填 id 字段时返回可读错误`() {
-        val content = """
-            name: 没有 id
-        """.trimIndent()
+        val content = """{ "name": "没有 id" }"""
 
         val result = InstallerManager.parseManifestContent(content)
         val reason = (result as PluginParseResult.Failure).reason
-        assertTrue("错误应说明解析失败, 实际: $reason", reason.startsWith("manifest.yaml 解析失败"))
+        assertTrue("错误应说明解析失败, 实际: $reason", reason.startsWith("manifest.json 解析失败"))
         assertTrue("错误应提到 id, 实际: $reason", reason.contains("id"))
     }
 
     @Test
     fun `字段类型错误时返回可读错误`() {
         val content = """
-            id: demo
-            type: [a, b]
+            {
+              "id": "demo",
+              "type": ["a", "b"]
+            }
         """.trimIndent()
 
         val result = InstallerManager.parseManifestContent(content)
         val reason = (result as PluginParseResult.Failure).reason
-        assertTrue("错误应说明解析失败, 实际: $reason", reason.startsWith("manifest.yaml 解析失败"))
+        assertTrue("错误应说明解析失败, 实际: $reason", reason.startsWith("manifest.json 解析失败"))
     }
 
     @Test
-    fun `YAML 语法错误时返回可读错误`() {
-        val content = "id: [未闭合"
+    fun `JSON 语法错误时返回可读错误`() {
+        val content = """{ "id": """
 
         val result = InstallerManager.parseManifestContent(content)
         val reason = (result as PluginParseResult.Failure).reason
-        assertTrue("错误应说明解析失败, 实际: $reason", reason.startsWith("manifest.yaml 解析失败"))
+        assertTrue("错误应说明解析失败, 实际: $reason", reason.startsWith("manifest.json 解析失败"))
+    }
+
+    @Test
+    fun `宽松语法支持行注释与块注释`() {
+        val content = """
+            // 顶层注释
+            {
+              "id": "demo", // 行内注释
+              /* 块注释 */
+              "version": "1.0.0"
+            }
+        """.trimIndent()
+
+        val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
+        assertEquals("demo", config.id)
+        assertEquals("1.0.0", config.version)
+    }
+
+    @Test
+    fun `clipboard_sync 声明的 attachments 被解析为支持图片附件`() {
+        val content = """
+            {
+              "id": "webdav_sync",
+              "type": "clipboard_sync",
+              "capabilities": {
+                "clipboard_sync": { "protocols": ["webdav"], "attachments": true }
+              }
+            }
+        """.trimIndent()
+
+        val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
+        val clipboardSync = config.capabilities?.clipboardSync
+        assertEquals(listOf("webdav"), clipboardSync?.protocols)
+        assertTrue("应解析出 attachments", clipboardSync?.attachments == true)
+    }
+
+    @Test
+    fun `未声明 attachments 时缺省 false（旧插件自动降级为文本同步）`() {
+        val content = """
+            {
+              "id": "legacy_sync",
+              "type": "clipboard_sync",
+              "capabilities": { "clipboard_sync": { "protocols": ["webdav"] } }
+            }
+        """.trimIndent()
+
+        val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
+        assertEquals(false, config.capabilities?.clipboardSync?.attachments)
+    }
+
+    @Test
+    fun `宽松语法支持尾逗号`() {
+        val content = """
+            {
+              "id": "demo",
+              "network": { "hosts": ["api.openai.com"], },
+            }
+        """.trimIndent()
+
+        val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
+        assertEquals("demo", config.id)
+        assertEquals(listOf("api.openai.com"), config.declaredHosts)
+    }
+
+    @Test
+    fun `字符串中的斜杠不被当作注释`() {
+        val content = """{ "id": "demo", "description": "https://example.com/a" }"""
+
+        val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
+        assertEquals("https://example.com/a", config.description)
     }
 
     @Test
     fun `多余字段在非严格模式下被忽略`() {
         val content = """
-            id: demo
-            extraField: 123
-            custom:
-              - a
+            {
+              "id": "demo",
+              "extraField": 123,
+              "custom": ["a"]
+            }
         """.trimIndent()
 
         val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
@@ -101,15 +172,16 @@ class ManifestParseTest {
 
     @Test
     fun `capabilities 的 snake_case 键应解析为 clipboardSync protocols`() {
-        // 回归：clipboardSync 缺 SerialName("clipboard_sync") 时 kaml 静默忽略该键，
+        // 回归：clipboardSync 缺 SerialName("clipboard_sync") 时解析器静默忽略该键，
         // 宿主因 protocols 为空拒绝启动剪贴板同步插件
         val content = """
-            id: sync
-            type: clipboard_sync
-            capabilities:
-              clipboard_sync:
-                protocols:
-                  - webdav
+            {
+              "id": "sync",
+              "type": "clipboard_sync",
+              "capabilities": {
+                "clipboard_sync": { "protocols": ["webdav"] }
+              }
+            }
         """.trimIndent()
 
         val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
@@ -137,16 +209,15 @@ class ManifestParseTest {
     @Test
     fun `toolbarButtons manifest 解析为按钮列表`() {
         val content = """
-            id: ai_reply
-            name: AI 智能回复
-            type: tool
-            toolbarButtons:
-              - id: ai_reply
-                label: AI 回复
-                icon: ai_reply.png
-              - id: ai_write
-                label: AI 帮写
-                action: custom_action
+            {
+              "id": "ai_reply",
+              "name": "AI 智能回复",
+              "type": "tool",
+              "toolbarButtons": [
+                { "id": "ai_reply", "label": "AI 回复", "icon": "ai_reply.png" },
+                { "id": "ai_write", "label": "AI 帮写", "action": "custom_action" }
+              ]
+            }
         """.trimIndent()
 
         val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
@@ -166,18 +237,19 @@ class ManifestParseTest {
 
     @Test
     fun `toolbarButtons 缺省为空列表`() {
-        val config = (InstallerManager.parseManifestContent("id: mini") as PluginParseResult.Success).config
+        val config = (InstallerManager.parseManifestContent("""{ "id": "mini" }""") as PluginParseResult.Success).config
         assertEquals("toolbarButtons 缺省应为空", emptyList<PluginToolbarButton>(), config.toolbarButtons)
     }
 
     @Test
     fun `toolbarButtons 空白 action 回落 open_panel`() {
         val content = """
-            id: ai_reply
-            toolbarButtons:
-              - id: ai_reply
-                label: AI 回复
-                action: "   "
+            {
+              "id": "ai_reply",
+              "toolbarButtons": [
+                { "id": "ai_reply", "label": "AI 回复", "action": "   " }
+              ]
+            }
         """.trimIndent()
 
         val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
@@ -187,12 +259,13 @@ class ManifestParseTest {
     @Test
     fun `toolbarButtons 非法 id 被过滤`() {
         val content = """
-            id: ai_reply
-            toolbarButtons:
-              - id: "a,b"
-                label: 含逗号非法
-              - id: 合法_按钮
-                label: 合法
+            {
+              "id": "ai_reply",
+              "toolbarButtons": [
+                { "id": "a,b", "label": "含逗号非法" },
+                { "id": "合法_按钮", "label": "合法" }
+              ]
+            }
         """.trimIndent()
 
         val buttons = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config.toolbarButtons
@@ -215,30 +288,36 @@ class ManifestParseTest {
     @Test
     fun `manifest 顶层 icon 解析透传`() {
         val content = """
-            id: ai_translate
-            name: AI 翻译
-            type: tool
-            icon: 译
+            {
+              "id": "ai_translate",
+              "name": "AI 翻译",
+              "type": "tool",
+              "icon": "译"
+            }
         """.trimIndent()
 
         val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
         assertEquals("译", config.icon)
 
-        val noIcon = (InstallerManager.parseManifestContent("id: mini") as PluginParseResult.Success).config
+        val noIcon = (InstallerManager.parseManifestContent("""{ "id": "mini" }""") as PluginParseResult.Success).config
         assertEquals("缺省 icon 为 null", null, noIcon.icon)
     }
 
     @Test
     fun `非法网络域名声明被过滤`() {
         val content = """
-            id: demo
-            network:
-              hosts:
-                - api.openai.com
-                - "*.wildcard.example.com"
-                - "http://evil.example.com/path"
-                - "169.254.169.254"
-                - ""
+            {
+              "id": "demo",
+              "network": {
+                "hosts": [
+                  "api.openai.com",
+                  "*.wildcard.example.com",
+                  "http://evil.example.com/path",
+                  "169.254.169.254",
+                  ""
+                ]
+              }
+            }
         """.trimIndent()
 
         val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
@@ -259,6 +338,28 @@ class ManifestParseTest {
         assertTrue("带端口非法", !InstallerManager.isValidDeclaredHost("example.com:8080"))
         assertTrue("空白非法", !InstallerManager.isValidDeclaredHost(""))
         assertTrue("含下划线非法", !InstallerManager.isValidDeclaredHost("under_score.example.com"))
+    }
+
+    @Test
+    fun `平台声明解析并归一化空白项`() {
+        val content = """
+            {
+              "id": "demo",
+              "platforms": ["android", " ios ", ""]
+            }
+        """.trimIndent()
+
+        val config = (InstallerManager.parseManifestContent(content) as PluginParseResult.Success).config
+        assertEquals(listOf("android", "ios"), config.platforms)
+    }
+
+    @Test
+    fun `平台声明缺省或空数组视为 android`() {
+        val absent = (InstallerManager.parseManifestContent("""{ "id": "mini" }""") as PluginParseResult.Success).config
+        assertEquals(listOf("android"), absent.platforms)
+
+        val empty = (InstallerManager.parseManifestContent("""{ "id": "mini", "platforms": [] }""") as PluginParseResult.Success).config
+        assertEquals(listOf("android"), empty.platforms)
     }
 
     @Test

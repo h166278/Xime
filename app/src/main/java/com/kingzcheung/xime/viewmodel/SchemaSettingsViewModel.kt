@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.kingzcheung.xime.plugin.core.runtime.PluginManager
 import com.kingzcheung.xime.rime.RimeConfigHelper
 import com.kingzcheung.xime.rime.RimeEngine
+import com.kingzcheung.xime.settings.MarketUpdateChecker
+import com.kingzcheung.xime.settings.FileConflictInfo
 import com.kingzcheung.xime.settings.ImportManager
 import com.kingzcheung.xime.settings.KeysConfigHelper
 import com.kingzcheung.xime.settings.PersonalDictManager
@@ -130,9 +132,12 @@ class SchemaSettingsViewModel(application: Application) : AndroidViewModel(appli
                     refresh()
                     _importCompleted.tryEmit(Unit)
                     showToast(
-                        if (!result.success) "导入失败"
-                        else if (result.installedDirect) "导入成功，已放入 rime 目录"
-                        else "导入成功，请到「本地方案」安装"
+                        when {
+                            result.conflicts.isNotEmpty() -> conflictMessage(result.conflicts)
+                            !result.success -> "导入失败"
+                            result.installedDirect -> "导入成功，已放入 rime 目录"
+                            else -> "导入成功，请到「本地方案」安装"
+                        }
                     )
                 }
                 is ImportManager.ImportResult.Plugin -> {
@@ -175,20 +180,35 @@ class SchemaSettingsViewModel(application: Application) : AndroidViewModel(appli
             refresh()
             loadMarketPackages()
             showToast("已卸载")
+            // 卸载后该项不再计入可更新，立即重算角标
+            MarketUpdateChecker.refreshNow(context)
         }
     }
 
     fun importFromUrl(url: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isDownloading = true) }
-            val success = withContext(Dispatchers.IO) {
+            val result = withContext(Dispatchers.IO) {
                 SchemaManager.importFromUrl(getApplication(), url)
             }
             _uiState.update { it.copy(isDownloading = false) }
             refresh()
             _importCompleted.tryEmit(Unit)
-            showToast(if (success) "导入成功" else "下载或解压失败，请检查链接")
+            showToast(
+                when {
+                    result.conflicts.isNotEmpty() -> conflictMessage(result.conflicts)
+                    result.success -> "导入成功"
+                    else -> "下载或解压失败，请检查链接"
+                }
+            )
         }
+    }
+
+    /** 冲突提示：同名文件已被其他方案以不同内容安装，拒绝覆盖。 */
+    private fun conflictMessage(conflicts: List<FileConflictInfo>): String {
+        val first = conflicts.first()
+        val owner = first.claimedBy.firstOrNull() ?: "其他方案"
+        return "导入失败：${first.fileName} 已由「$owner」以不同内容安装，为避免覆盖已取消"
     }
 
     fun deploySchema() {

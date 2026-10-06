@@ -31,14 +31,14 @@ data class BackupResult(
 )
 
 /**
- * 备份插件能力接口（宿主侧，由 Lua 适配器实现，协议逻辑在 Lua）。
+ * 备份插件能力接口（宿主侧，由 JS 适配器实现，协议逻辑在 JS）。
  *
  * 分工与 [ClipboardSyncPlugin] 一致：备份包的**生成与恢复**（zip 打包、路径校验、
  * 落盘）全部由宿主 BackupManager 承载，插件只负责**传输协议**
  * （WebDAV / S3 / 自建 HTTP），用 `host.http` + `host.crypto` + `host.config` 实现。
  * 服务器地址、账号等配置由插件 getSettingsSchema 表单承载（host.config 存取）。
  *
- * 归档数据为 zip 字节流，经 Lua 侧二进制安全的 LuaString 传递，
+ * 归档数据为 zip 字节流，经 JS 侧二进制安全的 Uint8Array 传递，
  * 插件可直接作为 host.http.request 的 body 上传。
  */
 interface BackupPlugin : IPluginEntryClass, IPluginConfigurable {

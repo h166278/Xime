@@ -2,8 +2,8 @@ package com.kingzcheung.xime.plugin
 
 import android.content.Context
 import com.kingzcheung.xime.clipboard.ClipboardManager
-import com.kingzcheung.xime.plugin.core.lua.QuickSendHostApi
-import com.kingzcheung.xime.plugin.core.lua.QuickSendItem
+import com.kingzcheung.xime.plugin.core.js.QuickSendHostApi
+import com.kingzcheung.xime.plugin.core.js.QuickSendItem
 
 /**
  * 快捷发送只读 API 实现：同步读 [ClipboardManager] 进程单例的内存缓存

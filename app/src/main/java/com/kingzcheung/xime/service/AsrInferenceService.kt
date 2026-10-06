@@ -33,6 +33,9 @@ class AsrInferenceService : Service() {
     private var asrHandle: Long = 0L
     private var asrCallback: IInferenceAsrCallback? = null
     private val asrLock = Any()
+    // "保持引擎常驻"：开启时跳过空闲自动释放，模型常驻内存换响应速度
+    @Volatile
+    private var keepModelAlive = false
 
     private val idleHandler = Handler(Looper.getMainLooper())
     private val idleReleaseRunnable = Runnable {
@@ -47,6 +50,7 @@ class AsrInferenceService : Service() {
     }
 
     private fun scheduleIdleRelease() {
+        if (keepModelAlive) return
         idleHandler.removeCallbacks(idleReleaseRunnable)
         idleHandler.postDelayed(idleReleaseRunnable, IDLE_RELEASE_DELAY_MS)
     }
@@ -136,6 +140,18 @@ class AsrInferenceService : Service() {
                 }
                 asrCallback = null
             }
+        }
+
+        override fun setKeepModelAlive(keepAlive: Boolean) {
+            keepModelAlive = keepAlive
+            if (keepAlive) {
+                // 取消可能已排期的空闲释放
+                cancelIdleRelease()
+            } else if (synchronized(asrLock) { asrHandle } != 0L) {
+                // 从常驻切回默认：模型仍在内存，恢复空闲回收
+                scheduleIdleRelease()
+            }
+            FileLogger.i(TAG, "setKeepModelAlive: $keepAlive")
         }
     }
 

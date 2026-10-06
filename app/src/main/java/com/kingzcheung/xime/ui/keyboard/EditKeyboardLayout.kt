@@ -1,12 +1,12 @@
 package com.kingzcheung.xime.ui.keyboard
 
-import android.content.res.Configuration
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -40,7 +40,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -81,18 +80,22 @@ fun EditKeyboardLayout(
 ) {
     val keyBg = keyBgColor
     var isSelecting by remember { mutableStateOf(false) }
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val sideGap = if (isLandscape) 50.dp else 8.dp
 
     fun arrowAction(base: String): String = if (isSelecting) "select_$base" else base
+
+    // 布局按父容器真实宽度自适应（悬浮卡片/键盘收窄/分屏的容器宽 ≠ 屏幕宽），
+    // 不再读屏幕方向：宽容器（横屏全屏）用大边距与两列布局，其余按竖屏形态
+    BoxWithConstraints(modifier = modifier) {
+        val isWide = maxWidth >= WIDE_CONTAINER_WIDTH
+        val sideGap = if (isWide) 50.dp else 8.dp
 
     CompositionLocalProvider(
         LocalKeyCornerRadius provides keyCornerRadius,
         LocalKeyVisualPadding provides PaddingValues(horizontal = 2.dp, vertical = 2.dp),
     ) {
     Column(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .background(backgroundColor)
     ) {
         Box(
@@ -133,7 +136,7 @@ fun EditKeyboardLayout(
                     "复制" to "copy", "粘贴" to "paste",
                     "全选" to "select_all", "剪切" to "cut"
                 ),
-                columns = if (isLandscape) 2 else 1,
+                columns = if (isWide) 2 else 1,
                 onAction = onAction,
                 keyBg = keyBg,
                 textColor = textColor,
@@ -149,7 +152,7 @@ fun EditKeyboardLayout(
                     .fillMaxHeight(),
                 contentAlignment = Alignment.Center
             ) {
-                val circleModifier = if (isLandscape) {
+                val circleModifier = if (isWide) {
                     Modifier.fillMaxHeight(1f).aspectRatio(1f)
                 } else {
                     Modifier.fillMaxWidth(0.85f).aspectRatio(1f)
@@ -177,7 +180,7 @@ fun EditKeyboardLayout(
                     "段首" to "home", "段尾" to "end",
                     "删除" to "delete", "回车" to "enter"
                 ),
-                columns = if (isLandscape) 2 else 1,
+                columns = if (isWide) 2 else 1,
                 onAction = onAction,
                 keyBg = keyBg,
                 textColor = textColor,
@@ -191,6 +194,7 @@ fun EditKeyboardLayout(
         Spacer(
             modifier = Modifier.height(bottomPaddingDp.dp)
         )
+    }
     }
     }
 }

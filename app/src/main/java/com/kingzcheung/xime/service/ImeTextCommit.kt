@@ -1,5 +1,6 @@
 package com.kingzcheung.xime.service
 
+import com.kingzcheung.xime.util.FileLogger
 import android.os.Build
 import android.util.Log
 import android.view.KeyEvent
@@ -9,7 +10,9 @@ import android.provider.MediaStore
 import android.content.ContentValues
 import android.os.Environment
 import android.net.Uri
+import android.widget.Toast
 import androidx.core.content.FileProvider
+import com.kingzcheung.xime.clipboard.ClipboardItem
 import java.io.File
 import java.io.FileInputStream
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +52,7 @@ internal class ImeTextCommit(private val service: XimeInputMethodService) {
         return try {
             val imageFile = File(imagePath)
             if (!imageFile.exists()) {
-                Log.e(XimeInputMethodService.TAG, "Image file not found: $imagePath")
+                FileLogger.e(XimeInputMethodService.TAG, "Image file not found: $imagePath")
                 return false
             }
 
@@ -99,7 +102,7 @@ internal class ImeTextCommit(private val service: XimeInputMethodService) {
             service.currentInputConnection?.commitContent(inputContentInfo, flags, null) ?: false
             
         } catch (e: Exception) {
-            Log.e(XimeInputMethodService.TAG, "Failed to commit image", e)
+            FileLogger.e(XimeInputMethodService.TAG, "Failed to commit image", e)
             false
         }
     }
@@ -131,6 +134,40 @@ internal class ImeTextCommit(private val service: XimeInputMethodService) {
         service.clipboardManager.copyToSystemClipboard(text)
     }
 
+    /**
+     * 剪贴板**图片**条目点选。
+     *
+     * 两条路径（与 Emoji 图片发送一致，复用 [commitImage] 的 MIME 探测）：
+     * 1. 宿主输入框声明支持图片 MIME → `commitContent` 直插（如部分笔记/邮件应用）；
+     * 2. 否则（微信/Telegram 等）→ 写入系统剪贴板，提示用户长按输入框粘贴发送。
+     *
+     * 图片条目没有文本上屏，但同样标记 consumed（候选栏/列表不再提示"新内容"）。
+     */
+    internal fun selectClipboardImage(item: ClipboardItem) {
+        service.clipboardManager.markConsumedById(item.id)
+        val file = service.clipboardManager.imageFileOf(item)
+        if (file == null) {
+            FileLogger.w(XimeInputMethodService.TAG, "Clipboard image file missing: ${item.imagePath}")
+            Toast.makeText(service, "图片已不在本地，无法发送", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val mimeType = item.mimeType.ifEmpty { "image/jpeg" }
+        if (commitImage(file.absolutePath, mimeType)) return
+
+        val copied = service.clipboardManager.copyImageToSystemClipboard(
+            imagePath = file.absolutePath,
+            label = "xime_clipboard_image",
+            // 直接共享 files/clipboard_images 原文件（配合淘汰保护集），
+            // 避免再拷一份到 cache 造成重复占用
+            shareCacheCopy = false,
+        )
+        Toast.makeText(
+            service,
+            if (copied) "已复制图片，长按输入框粘贴" else "复制图片失败",
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
+
     internal fun commitClipboardText(text: String) {
         service.commitPastedText(text)
     }
@@ -155,9 +192,9 @@ internal class ImeTextCommit(private val service: XimeInputMethodService) {
                 imageFile
             )
         } catch (e: IllegalArgumentException) {
-            Log.w(XimeInputMethodService.TAG, "FileProvider unavailable, falling back to MediaStore", e)
+            FileLogger.w(XimeInputMethodService.TAG, "FileProvider unavailable, falling back to MediaStore", e)
         } catch (e: Exception) {
-            Log.w(XimeInputMethodService.TAG, "FileProvider getUriForFile failed, falling back to MediaStore", e)
+            FileLogger.w(XimeInputMethodService.TAG, "FileProvider getUriForFile failed, falling back to MediaStore", e)
         }
 
         return insertImageToMediaStore(imageFile, mimeType)
@@ -166,7 +203,7 @@ internal class ImeTextCommit(private val service: XimeInputMethodService) {
     /** 把图片插入 MediaStore（Pictures/Xime），返回系统 content URI。 */
     private fun insertImageToMediaStore(imageFile: File, mimeType: String): Uri? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            Log.e(XimeInputMethodService.TAG, "MediaStore fallback requires API 29+, image commit failed")
+            FileLogger.e(XimeInputMethodService.TAG, "MediaStore fallback requires API 29+, image commit failed")
             return null
         }
         return try {
@@ -193,7 +230,7 @@ internal class ImeTextCommit(private val service: XimeInputMethodService) {
                 throw e
             }
         } catch (e: Exception) {
-            Log.e(XimeInputMethodService.TAG, "MediaStore insert failed", e)
+            FileLogger.e(XimeInputMethodService.TAG, "MediaStore insert failed", e)
             null
         }
     }

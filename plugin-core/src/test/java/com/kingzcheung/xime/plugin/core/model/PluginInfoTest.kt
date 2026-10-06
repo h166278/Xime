@@ -136,17 +136,17 @@ class PluginInfoTest {
     @Test
     fun `PluginInfo can have entryScript`() {
         val pluginInfo = PluginInfo(
-            id = "lua_plugin",
-            name = "Lua",
+            id = "js_plugin",
+            name = "QuickJS",
             iconResId = 0,
             versionCode = 0,
             versionName = "1.0",
-            path = "/data/plugins/lua_plugin/main.lua",
+            path = "/data/plugins/js_plugin/main.js",
             description = "",
-            entryScript = "main.lua"
+            entryScript = "main.js"
         )
-        
-        assertEquals("main.lua", pluginInfo.entryScript)
+
+        assertEquals("main.js", pluginInfo.entryScript)
     }
 
     @Test

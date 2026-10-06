@@ -10,6 +10,7 @@ import com.kingzcheung.xime.plugin.ExtensionManager
 import com.kingzcheung.xime.plugin.core.api.PluginIcon
 import com.kingzcheung.xime.plugin.core.model.PluginInfo
 import com.kingzcheung.xime.plugin.core.runtime.PluginManager
+import com.kingzcheung.xime.settings.MarketUpdateChecker
 import com.kingzcheung.xime.settings.ImportManager
 import com.kingzcheung.xime.settings.SettingsPreferences
 import kotlinx.coroutines.Dispatchers
@@ -170,6 +171,8 @@ class PluginsSettingsViewModel(application: Application) : AndroidViewModel(appl
             _uiState.update { state ->
                 state.copy(extensions = state.extensions.filter { it.id != pluginId })
             }
+            // 卸载后该项不再计入可更新，立即重算角标
+            MarketUpdateChecker.refreshNow(context)
         }
     }
 }

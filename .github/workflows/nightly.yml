@@ -1,4 +1,4 @@
-﻿name: Nightly Build
+name: Nightly Build
 
 on:
   schedule:
@@ -73,11 +73,15 @@ jobs:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
+          cache-dependency-path: |
+            gradle/libs.versions.toml
+            **/*.gradle*
+            **/gradle-wrapper.properties
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
@@ -85,9 +89,9 @@ jobs:
           # Google 已下架过时的 `tools` 包，默认 packages 会让 sdkmanager 直接失败。
           packages: platform-tools
 
-      - name: Install NDK
+      - name: Install NDK and SDK platform
         run: |
-          sdkmanager "ndk;29.0.14206865"
+          sdkmanager "ndk;29.0.14206865" "platforms;android-37.2"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
           echo "ANDROID_NDK=$ANDROID_HOME/ndk/29.0.14206865" >> $GITHUB_ENV
 
@@ -107,7 +111,7 @@ jobs:
             native-${{ runner.os }}-
 
       - name: Download native deps (ONNX Runtime)
-        run: ./gradlew downloadOnnx --no-daemon
+        run: ./gradlew downloadOnnx --no-daemon --refresh-dependencies
 
       - name: Cache CMake build
         uses: actions/cache@v6

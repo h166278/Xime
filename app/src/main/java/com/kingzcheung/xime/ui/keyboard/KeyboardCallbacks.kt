@@ -12,11 +12,25 @@ data class KeyboardCallbacks(
     val onCandidateSelect: (Int) -> Unit,
     // 长按候选删除自造词：index 为候选栏显示索引（候选栏→服务层透传）
     val onCandidateDelete: ((Int) -> Unit)? = null,
+    /**
+     * 候选展开页点选（本地分页）：globalIndex 为跨页全量候选列表中的索引，
+     * 服务层走 select_candidate 全局索引（区别于候选栏的当前页内索引）。
+     */
+    val onGlobalCandidateSelect: ((Int) -> Unit)? = null,
+    /** 候选展开页长按删除自造词：globalIndex 为跨页全量候选列表中的索引。 */
+    val onGlobalCandidateDelete: ((Int) -> Unit)? = null,
+    /** 用户展开候选页时请求服务层拉取跨页全量候选（本地分页数据源）。 */
+    val onRequestExpandedCandidates: (() -> Unit)? = null,
     val onAssociationSelect: ((Int) -> Unit)? = null,
     val onClearAssociation: (() -> Unit)? = null,
     val onToggleDarkMode: (() -> Unit)? = null,
     val onClipboard: (() -> Unit)? = null,
     val onClipboardSelect: ((String) -> Unit)? = null,
+    /**
+     * 剪贴板**图片**条目点选：服务层先尝试 `commitContent` 直插宿主，
+     * 宿主不支持图片 MIME 时降级为写入系统剪贴板并提示用户长按输入框粘贴。
+     */
+    val onClipboardImageSelect: ((com.kingzcheung.xime.clipboard.ClipboardItem) -> Unit)? = null,
     val onCommitText: ((String) -> Unit)? = null,
     val onDeleteText: ((Int) -> Unit)? = null,
     val onQuickSend: (() -> Unit)? = null,
@@ -55,6 +69,10 @@ data class KeyboardCallbacks(
      * passive 纯展示面板的 action 节点点击（InfoPanel）：通知插件 actionId 并刷新面板数据。
      */
     val onToolPanelAction: ((actionId: String) -> Unit)? = null,
+    /**
+     * direct 控件行字段变更（文本输入/下拉选择）：实时通知插件（key = ui 节点 key）。
+     */
+    val onToolPanelFieldInput: ((key: String, value: String) -> Unit)? = null,
     /**
      * 通用工具面板输入框焦点变化。
      */

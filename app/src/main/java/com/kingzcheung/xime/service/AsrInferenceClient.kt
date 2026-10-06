@@ -151,4 +151,11 @@ class AsrInferenceClient(private val context: Context) {
             requireService().releaseAsr()
         } catch (_: Exception) {}
     }
+
+    /** 同步"保持引擎常驻"设置到 :asr 进程（服务端据此决定是否空闲自动释放模型）。 */
+    suspend fun setKeepModelAlive(keepAlive: Boolean) {
+        try {
+            requireService().setKeepModelAlive(keepAlive)
+        } catch (_: Exception) {}
+    }
 }

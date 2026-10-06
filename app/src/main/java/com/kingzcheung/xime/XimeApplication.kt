@@ -20,6 +20,7 @@ import com.kingzcheung.xime.ui.theme.KeyboardThemes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.File
 
 class XimeApplication : Application(), ImageLoaderFactory {
 
@@ -54,13 +55,17 @@ class XimeApplication : Application(), ImageLoaderFactory {
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
                 FileLogger.e("CrashHandler", "Uncaught exception on thread: ${thread.name}", throwable)
-                FileLogger.flush()
+                FileLogger.flushNow()
             } catch (_: Exception) {
             }
             defaultHandler?.uncaughtException(thread, throwable)
         }
 
         val isDebug = BuildConfig.DEBUG
+        if (isDebug) {
+            // 插件 console 日志落盘（xipm dev/logs 轮询回显，规避 ROM 后台日志限流）
+            com.kingzcheung.xime.plugin.PluginDevConsoleFileSink.install(this)
+        }
         PluginManager.configStoreFactory =
             PluginManager.PluginConfigStoreFactory { app, pluginId ->
                 PluginConfigStoreImpl(app, pluginId)
@@ -83,6 +88,11 @@ class XimeApplication : Application(), ImageLoaderFactory {
         PluginManager.clipboardHostApiFactory = { _ ->
             com.kingzcheung.xime.plugin.ClipboardHostApiImpl(this)
         }
+        com.kingzcheung.xime.plugin.core.security.PluginErrorLog.initialize(
+            com.kingzcheung.xime.plugin.FilePluginErrorStore(
+                File(filesDir, "logs/plugins/errors.jsonl")
+            )
+        )
         PluginManager.initialize(this) {
             if (isDebug) {
                 PluginManager.installPluginsFromAssetsForDebug("plugins")

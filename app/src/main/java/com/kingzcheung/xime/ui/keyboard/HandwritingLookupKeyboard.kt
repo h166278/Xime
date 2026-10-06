@@ -43,6 +43,7 @@ import kotlinx.coroutines.withContext
 fun HandwritingLookupKeyboard(
     keyTextColor: Color,
     specialKeyBgColor: Color,
+    specialKeyTextColor: Color,
     keyboardBgColor: Color,
     shadowEnabled: Boolean,
     shadowElevation: androidx.compose.ui.unit.Dp,
@@ -215,9 +216,9 @@ fun HandwritingLookupKeyboard(
                     .weight(1f)
                     .padding(start = 4.dp, end = 4.dp, bottom = 8.dp)
             ) {
-                KeyButton("返回", { onExit() }, specialKeyBgColor, keyTextColor, Modifier.weight(1f), onPress = { onButtonFeedback?.invoke("exit") }, shadowEnabled = shadowEnabled, shadowElevation = shadowElevation, shadowShapeRadius = shadowShapeRadius)
+                KeyButton("返回", { onExit() }, specialKeyBgColor, specialKeyTextColor, Modifier.weight(1f), onPress = { onButtonFeedback?.invoke("exit") }, shadowEnabled = shadowEnabled, shadowElevation = shadowElevation, shadowShapeRadius = shadowShapeRadius)
                 Spacer(Modifier.weight(4f))
-                KeyButton("回车", { onKeyPress("enter") }, specialKeyBgColor, keyTextColor, Modifier.weight(1f), onPress = { onButtonFeedback?.invoke("enter") }, shadowEnabled = shadowEnabled, shadowElevation = shadowElevation, shadowShapeRadius = shadowShapeRadius)
+                KeyButton("回车", { onKeyPress("enter") }, specialKeyBgColor, specialKeyTextColor, Modifier.weight(1f), onPress = { onButtonFeedback?.invoke("enter") }, shadowEnabled = shadowEnabled, shadowElevation = shadowElevation, shadowShapeRadius = shadowShapeRadius)
             }
         }
     }

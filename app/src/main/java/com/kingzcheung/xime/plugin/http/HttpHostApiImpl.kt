@@ -5,9 +5,9 @@ import android.net.Uri
 import android.util.Log
 import com.kingzcheung.xime.plugin.ExtensionManager
 import com.kingzcheung.xime.plugin.PluginNetworkAuthHelper
-import com.kingzcheung.xime.plugin.core.lua.http.HttpHostApi
-import com.kingzcheung.xime.plugin.core.lua.http.HttpResponse
-import com.kingzcheung.xime.plugin.core.lua.ws.NetworkPolicy
+import com.kingzcheung.xime.plugin.core.js.http.HttpHostApi
+import com.kingzcheung.xime.plugin.core.js.http.HttpResponse
+import com.kingzcheung.xime.plugin.core.js.ws.NetworkPolicy
 import com.kingzcheung.xime.plugin.core.runtime.PluginManager
 import com.kingzcheung.xime.plugin.core.security.PluginErrorLog
 import com.kingzcheung.xime.settings.SettingsPreferences
@@ -74,7 +74,12 @@ class HttpHostApiImpl(
         if (reason != null) {
             lastErrorMsg = reason
             Log.w(TAG, "[$pluginId] 联网被拒绝: $reason")
-            PluginErrorLog.logError(pluginId, "联网被拒绝", reason)
+            PluginErrorLog.logError(
+                pluginId,
+                "联网被拒绝",
+                reason,
+                category = com.kingzcheung.xime.plugin.core.security.ErrorCategory.NETWORK_DENIED
+            )
             PluginNetworkAuthHelper.onNetworkDenied(
                 context, pluginId, pluginInfo?.name,
                 NetworkPolicy.extractHost(url), reason
@@ -123,7 +128,13 @@ class HttpHostApiImpl(
         } catch (e: Exception) {
             lastErrorMsg = e.message ?: "request failed"
             Log.e(TAG, "[$pluginId] HTTP $method $url failed", e)
-            PluginErrorLog.logError(pluginId, "HTTP 请求失败 ($method $url)", e.message ?: "request failed", e)
+            PluginErrorLog.logError(
+                pluginId,
+                "HTTP 请求失败 ($method $url)",
+                e.message ?: "request failed",
+                e,
+                category = com.kingzcheung.xime.plugin.core.security.ErrorCategory.HTTP_ERROR
+            )
             null
         }
     }

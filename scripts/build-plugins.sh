@@ -1,50 +1,55 @@
 #!/bin/bash
-# 构建所有 Lua 插件 xipk 包
+# 构建所有 TS 插件 xipk 包（Rust CLI: tools/xime-plugin）
 #
 # 使用方式：
-#   bash scripts/build-plugins.sh
+#   bash scripts/build-plugins.sh                    # 编译 + 打包到 build/plugin-release/
+#   bash scripts/build-plugins.sh --with-assets      # 同时同步内置插件到 app assets
 #
-# Lua 脚本插件 = 纯文件目录（plugins/<name>/ 含 manifest.yaml），无需 gradle，
-# 直接 zip 打包到 build/plugin-release/*.xipk
+# 插件源码为 TypeScript（plugins/<name>/main.ts + manifest.json + resources/），
+# 由 xipm CLI 编译为 IIFE 单文件 main.js 后打包为 xipk。
 
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-OUTPUT_DIR="$PROJECT_DIR/build/plugin-release"
 
-echo "=== 构建 Lua 插件 xipk 包 ==="
-echo "输出目录: $OUTPUT_DIR"
+# 内置插件（debug 构建从 assets 自动安装的集合）
+BUNDLED_PLUGINS="ai-reply ai-translate ai-write webdav-clipboard-sync"
 
-mkdir -p "$OUTPUT_DIR"
-
-for plugin_dir in "$PROJECT_DIR"/plugins/*/; do
-  manifest="$plugin_dir/manifest.yaml"
-  if [ ! -f "$manifest" ]; then
-    continue
+WITH_ASSETS=0
+CLI_ARGS=()
+for arg in "$@"; do
+  if [ "$arg" = "--with-assets" ]; then
+    WITH_ASSETS=1
+  else
+    CLI_ARGS+=("$arg")
   fi
-
-  name=$(basename "$plugin_dir")
-  version=$(sed -n 's/^[[:space:]]*version:[[:space:]]*//p' "$manifest" | head -1 | tr -d '"')
-  version=${version:-0.0.0}
-  out="$OUTPUT_DIR/${name}-${version}.xipk"
-  rm -f "$out"
-
-  python3 - "$plugin_dir" "$out" <<'PYEOF'
-import sys, os, zipfile
-src, out = sys.argv[1], sys.argv[2]
-with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
-    for root, dirs, files in os.walk(src):
-        dirs[:] = [d for d in dirs if not d.startswith('.')]
-        for f in files:
-            if f.startswith('.'):
-                continue
-            full = os.path.join(root, f)
-            rel = os.path.relpath(full, src)
-            z.write(full, rel)
-PYEOF
-  echo "Lua : $name-$version.xipk"
 done
+
+echo "=== 构建 TS 插件 xipk 包（xipm CLI）==="
+
+cd "$PROJECT_DIR/tools/xime-plugin"
+cargo run --quiet -- pack --all \
+  --plugins-dir "$PROJECT_DIR/plugins" \
+  --out "$PROJECT_DIR/build/plugin-js" \
+  --release-dir "$PROJECT_DIR/build/plugin-release" \
+  "${CLI_ARGS[@]+"${CLI_ARGS[@]}"}"
+
+if [ "$WITH_ASSETS" = "1" ]; then
+  ASSETS_DIR="$PROJECT_DIR/app/src/main/assets/plugins"
+  echo ""
+  echo "=== 同步内置插件到 assets ==="
+  rm -f "$ASSETS_DIR"/*.xipk
+  for name in $BUNDLED_PLUGINS; do
+    if ls "$PROJECT_DIR/build/plugin-release/$name"-*.xipk >/dev/null 2>&1; then
+      cp "$PROJECT_DIR/build/plugin-release/$name"-*.xipk "$ASSETS_DIR/"
+      echo "  ↳ $name"
+    else
+      echo "  ! 未找到 $name 的 xipk 产物"
+      exit 1
+    fi
+  done
+fi
 
 echo ""
 echo "=== 完成 ==="
-ls -lh "$OUTPUT_DIR"/*.xipk
+ls -lh "$PROJECT_DIR/build/plugin-release"/*.xipk

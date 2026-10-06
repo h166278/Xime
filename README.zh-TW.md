@@ -13,7 +13,7 @@
     height="80">](https://f-droid.org/packages/com.kingzcheung.xime)
 
 
-[Xime 輸入法 (Windows 版)](https://github.com/ximeiorg/winxime) | [Xime 輸入法 (Linux 版)](https://github.com/ximeiorg/xime-wayland) | [聯想詞預測模型](https://github.com/ximeiorg/predictive-text) | [手寫輸入法模型](https://github.com/ximeiorg/ochwpro)
+[Xime 輸入法 (Windows 版)](https://github.com/ximeiorg/XimeYao) | [Xime 輸入法 (Linux 版)](https://github.com/ximeiorg/XimeChe) | [聯想詞預測模型](https://github.com/ximeiorg/predictive-text) | [手寫輸入法模型](https://github.com/ximeiorg/ochwpro)
 
 
 一款基於 <a href="https://rime.im/">Rime</a> 引擎構建的 Android 五筆/拼音輸入法，專注於簡潔高效的中文輸入體驗。

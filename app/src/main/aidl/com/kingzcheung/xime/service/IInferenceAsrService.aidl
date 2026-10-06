@@ -13,4 +13,9 @@ interface IInferenceAsrService {
     void cancelAsr();
     /** 释放 ASR 模型 */
     void releaseAsr();
+    /**
+     * "保持引擎常驻"开关：true 时服务端不做 60s 空闲自动释放，
+     * 模型常驻内存（用户已明确选择以内存换响应速度）；false 恢复默认回收。
+     */
+    oneway void setKeepModelAlive(boolean keepAlive);
 }

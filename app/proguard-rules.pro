@@ -6,19 +6,12 @@
 # Keep utility classes used by Application and services
 -keep class com.kingzcheung.xime.util.** { *; }
 
-# luaj 插件运行时: 库注册依赖反射（bind 通过 getConstructor/getMethod 按名查找实现类），
-# R8 无法静态发现 Bit32LibV 等实现类，整体保留不裁剪
--keep class org.luaj.vm2.** { *; }
-
-# luaj 可选依赖（Android 上不存在）：JSR-223 script / bcel 后端 / JDK 内部类
--dontwarn javax.script.**
--dontwarn org.apache.bcel.**
 -dontwarn com.sun.nio.file.**
 -dontwarn kotlin.Cloneable$DefaultImpls
 
-# Keep Kotlin stdlib classes used by plugins via parent classloader
-# Plugins use compileOnly(plugin-core), so Kotlin stdlib resolves from host app.
-# R8 strips unused stdlib methods — these rules ensure plugins can call them.
+# 插件系统（宿主侧 com.kingzcheung.xime.plugin.* + plugin-core）整体保留：
+# JS 桥/序列化/动态约定多，防止 R8 裁剪造成 release 行为缺失
+# （库侧自完备规则见 plugin-core/consumer-rules.pro）
 -keep class kotlin.Metadata { *; }
 
 -keep class com.kingzcheung.xime.plugin.** { *; }

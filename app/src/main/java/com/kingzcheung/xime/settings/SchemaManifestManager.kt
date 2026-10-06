@@ -556,7 +556,7 @@ object SchemaManifestManager {
     // ── Market Package Listing ──
 
     /** 判断文件是否为用户数据或系统配置（不应被清单追踪，卸载时不应被删除）。 */
-    private fun isUserDataFile(relPath: String): Boolean {
+    internal fun isUserDataFile(relPath: String): Boolean {
         if (relPath.startsWith("build/")) return true
         if (relPath.contains(".userdb/")) return true
         if (relPath.endsWith(".custom.yaml")) return true

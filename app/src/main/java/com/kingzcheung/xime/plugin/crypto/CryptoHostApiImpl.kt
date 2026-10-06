@@ -1,6 +1,6 @@
 package com.kingzcheung.xime.plugin.crypto
 
-import com.kingzcheung.xime.plugin.core.lua.crypto.CryptoHostApi
+import com.kingzcheung.xime.plugin.core.js.crypto.CryptoHostApi
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date

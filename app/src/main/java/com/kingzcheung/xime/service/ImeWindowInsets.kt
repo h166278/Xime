@@ -110,3 +110,30 @@ internal fun getActiveBottomInsetPx(imeWindow: Window?): Int {
         px
     } catch (e: Exception) { 0 }
 }
+
+/**
+ * 多类型检测左右 inset（px），取 displayCutout / systemBars / tappableElement
+ * 各方向的最大值：手机横屏时挖孔/刘海位于屏幕左右边缘，三键导航时导航栏贴左右缘；
+ * 竖屏下这三项的左右分量均为 0，不影响竖屏布局。
+ * 有意不含手势区（systemGestures / mandatorySystemGestures）：
+ * 竖屏返回手势区贴左右缘且全高，计入会把竖屏键盘内容整体内缩。
+ */
+internal fun extractHorizontalInsets(insets: WindowInsets): Pair<Int, Int> {
+    val cutout = insets.getInsets(WindowInsets.Type.displayCutout())
+    val sys = insets.getInsets(WindowInsets.Type.systemBars())
+    val tappable = insets.getInsets(WindowInsets.Type.tappableElement())
+    val left = maxOf(cutout.left, sys.left, tappable.left)
+    val right = maxOf(cutout.right, sys.right, tappable.right)
+    Log.d(INSETS_TAG, "horizontal: left=$left right=$right")
+    return left to right
+}
+
+/** 获取当前活跃的左右 inset（px）。 */
+internal fun getActiveHorizontalInsetsPx(imeWindow: Window?): Pair<Int, Int> {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return 0 to 0
+    return try {
+        val decorView = imeWindow?.decorView ?: return 0 to 0
+        val insets = decorView.rootWindowInsets ?: return 0 to 0
+        extractHorizontalInsets(insets)
+    } catch (e: Exception) { 0 to 0 }
+}

@@ -2,6 +2,10 @@ package com.kingzcheung.xime.service
 
 import android.view.KeyEvent
 
+/** 物理键码是否为左右 Shift（修饰键，不产生字符，单击语义由调用方定义）。 */
+internal fun isShiftKeyCode(keyCode: Int): Boolean =
+    keyCode == KeyEvent.KEYCODE_SHIFT_LEFT || keyCode == KeyEvent.KEYCODE_SHIFT_RIGHT
+
 /** 物理键码 → 输入法按键名。 */
 internal fun keyCodeToKey(keyCode: Int, isShifted: Boolean): String? {
     return when (keyCode) {

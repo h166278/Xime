@@ -20,8 +20,15 @@ data class InputUIState(
     val isSttEnabled: Boolean = false,
     val keyboardHeightDp: Int = 0,
     val keyboardBottomPaddingDp: Int = 0,
+    /** 键盘左边距（dp）：>0 时键盘左缘内收（宽度调节的落盘值，左右独立可偏移）。 */
+    val keyboardMarginStartDp: Int = 0,
+    /** 键盘右边距（dp）：>0 时键盘右缘内收。 */
+    val keyboardMarginEndDp: Int = 0,
     val showKeyboardResize: Boolean = false,
     val resizePreviewHeightDp: Int = 0,
+    /** 键盘调节进行中的左右边距预览值（确认后写入 keyboardMarginStart/EndDp）。 */
+    val resizePreviewMarginStartDp: Int = 0,
+    val resizePreviewMarginEndDp: Int = 0,
     val associationEnabled: Boolean = false,
     val isVoiceMode: Boolean = false,
     val voiceSticky: Boolean = false,
@@ -34,6 +41,8 @@ data class InputUIState(
     val isDeploying: Boolean = false,
     val deploymentMessage: String = "",
     val inputSessionId: Long = 0,
+    /** 本次 inputSessionId 变化是否为 restarting（同一编辑框刷新）：键盘 UI 据此跳过 ascii 记忆 reset。 */
+    val isInputSessionRestarting: Boolean = false,
     val t9ResetSignal: Long = 0,
     val swipeCancelEpoch: Long = 0,
     val t9RightCandidateSelectedCount: Long = 0,

@@ -31,6 +31,7 @@ object FileLogger {
     private val logQueue = LinkedBlockingQueue<String>(QUEUE_CAPACITY)
     private var writer: BufferedWriter? = null
     private var running = false
+    private val writeLock = Any()
     
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
     private val fileDateFormat = SimpleDateFormat("yyyyMMdd", Locale.getDefault())
@@ -82,12 +83,14 @@ object FileLogger {
                 batch.clear()
                 batch.add(logQueue.take())
                 logQueue.drainTo(batch, 99)
-                
+
                 val w = writer ?: continue
-                for (line in batch) {
-                    w.write(line)
+                synchronized(writeLock) {
+                    for (line in batch) {
+                        w.write(line)
+                    }
+                    w.flush()
                 }
-                w.flush()
             } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
                 break
@@ -119,9 +122,14 @@ object FileLogger {
         if (BuildConfig.DEBUG && verboseLoggingEnabled) writeToFile("I", tag, message)
     }
     
-    fun w(tag: String, message: String) {
-        Log.w(tag, message)
-        writeToFile("W", tag, message)
+    fun w(tag: String, message: String, throwable: Throwable? = null) {
+        Log.w(tag, message, throwable)
+        val fullMessage = if (throwable != null) {
+            "$message\n${throwable.stackTraceToString()}"
+        } else {
+            message
+        }
+        writeToFile("W", tag, fullMessage)
     }
     
     fun e(tag: String, message: String, throwable: Throwable? = null) {
@@ -242,5 +250,27 @@ object FileLogger {
 
     fun flush() {
         writer?.flush()
+    }
+
+    /**
+     * 同步把队列中尚未落盘的日志全部写出并 flush。
+     * 崩溃处理器必须用这个而不是 [flush]：[flush] 只刷 writer，
+     * 队列里的行仍依赖后台 flusher 线程，进程即将被杀时会丢失。
+     */
+    fun flushNow() {
+        if (!isInitialized) return
+        try {
+            val batch = ArrayList<String>(logQueue.size)
+            logQueue.drainTo(batch)
+            val w = writer ?: return
+            synchronized(writeLock) {
+                for (line in batch) {
+                    w.write(line)
+                }
+                w.flush()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "flushNow failed", e)
+        }
     }
 }

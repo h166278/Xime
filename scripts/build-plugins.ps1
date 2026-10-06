@@ -1,88 +1,51 @@
-# Build all Lua plugin xipk packages.
+# Build all TS plugin xipk packages (Rust CLI: tools/xime-plugin).
 #
 # Usage:
 #   .\scripts\build-plugins.ps1
+#   .\scripts\build-plugins.ps1 --with-assets
 #
-# Output: build/plugin-release/*.xipk
-#
-# Lua plugins are plain file directories (plugins/<name>/ containing
-# manifest.yaml), no Gradle build needed. Each directory is zipped
-# into a .xipk, mirroring scripts/build-plugins.sh.
+# Plugin sources are TypeScript (plugins/<name>/main.ts + manifest.json + resources/);
+# the xipm CLI compiles them to an IIFE single-file main.js and packs the xipk.
 
 $ErrorActionPreference = "Stop"
 
-# Compress-Archive / ZipFile.CreateFromDirectory 在 Windows 上会生成反斜杠
-# 路径分隔符，而 Android 侧 ZipFile 按 "/" 解析，导致 resources/ 资源错乱。
-# 这里手工构造 zip，条目名统一用 "/"。
-function Write-Xipk {
-    param(
-        [Parameter(Mandatory = $true)][string]$SourceDir,
-        [Parameter(Mandatory = $true)][string]$DestFile
-    )
-    Add-Type -AssemblyName System.IO.Compression
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $fs = [System.IO.File]::Open($DestFile, [System.IO.FileMode]::CreateNew)
-    $archive = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create)
-    try {
-        $base = (Resolve-Path $SourceDir).Path.TrimEnd('\')
-        Get-ChildItem -Path $SourceDir -Recurse -File -Force | ForEach-Object {
-            if ($_.Name.StartsWith('.') -or $_.FullName.Substring($base.Length + 1).StartsWith('.')) { return }
-            $rel = $_.FullName.Substring($base.Length + 1).Replace('\', '/')
-            $entry = $archive.CreateEntry($rel, [System.IO.Compression.CompressionLevel]::Optimal)
-            $entryStream = $entry.Open()
-            try {
-                $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
-                $entryStream.Write($bytes, 0, $bytes.Length)
-            } finally {
-                $entryStream.Dispose()
-            }
-        }
-    } finally {
-        $archive.Dispose()
-        $fs.Dispose()
-    }
+$PROJECT_DIR = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+# 内置插件（debug 构建从 assets 自动安装的集合）
+$BUNDLED_PLUGINS = @("ai-reply", "ai-translate", "ai-write", "webdav-clipboard-sync")
+
+$WITH_ASSETS = $false
+$CLI_ARGS = @()
+foreach ($arg in $args) {
+    if ($arg -eq "--with-assets") { $WITH_ASSETS = $true } else { $CLI_ARGS += $arg }
 }
 
-$PROJECT_DIR = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$OUTPUT_DIR = Join-Path $PROJECT_DIR "build\plugin-release"
-$PLUGINS_DIR = Join-Path $PROJECT_DIR "plugins"
+Write-Host "=== Building TS plugin xipk packages (xipm CLI) ==="
 
-Write-Host "=== Building Lua plugin xipk packages ==="
-Write-Host "Output dir: $OUTPUT_DIR"
+Set-Location (Join-Path $PROJECT_DIR "tools\xime-plugin")
+cargo run --quiet -- pack --all `
+  --plugins-dir (Join-Path $PROJECT_DIR "plugins") `
+  --out (Join-Path $PROJECT_DIR "build\plugin-js") `
+  --release-dir (Join-Path $PROJECT_DIR "build\plugin-release") `
+  @CLI_ARGS
 
-New-Item -ItemType Directory -Force -Path $OUTPUT_DIR | Out-Null
-
-foreach ($pluginDir in Get-ChildItem -Path $PLUGINS_DIR -Directory) {
-    $manifest = Join-Path $pluginDir.FullName "manifest.yaml"
-    if (-not (Test-Path $manifest)) { continue }
-
-    $name = $pluginDir.Name
-    $version = Get-Content -Path $manifest |
-        Where-Object { $_ -match '^\s*version:' } |
-        Select-Object -First 1 |
-        ForEach-Object { ($_ -replace '^\s*version:\s*', '').Trim('"', "'") }
-    if (-not $version) { $version = "0.0.0" }
-
-    # 清理该插件旧版本产物，避免残留（版本升级后旧 xipk 不再保留）
-    Get-ChildItem -Path $OUTPUT_DIR -Filter "$name-*.xipk" -File -ErrorAction SilentlyContinue |
+if ($WITH_ASSETS) {
+    $ASSETS_DIR = Join-Path $PROJECT_DIR "app\src\main\assets\plugins"
+    Write-Host ""
+    Write-Host "=== 同步内置插件到 assets ==="
+    Get-ChildItem -Path $ASSETS_DIR -Filter "*.xipk" -File -ErrorAction SilentlyContinue |
         Remove-Item -Force
-    Get-ChildItem -Path $OUTPUT_DIR -Filter "$name-*.zip" -File -ErrorAction SilentlyContinue |
-        Remove-Item -Force
-
-    $out = Join-Path $OUTPUT_DIR "$name-$version.xipk"
-    Remove-Item -Path $out -Force -ErrorAction SilentlyContinue
-
-    $hasEntries = Get-ChildItem -Path $pluginDir.FullName -Force |
-        Where-Object { -not $_.Name.StartsWith('.') } |
-        Select-Object -First 1
-    if (-not $hasEntries) { continue }
-
-    Write-Xipk -SourceDir $pluginDir.FullName -DestFile $out
-    Write-Host "Lua : $name-$version.xipk"
+    foreach ($name in $BUNDLED_PLUGINS) {
+        $xipk = Get-ChildItem -Path (Join-Path $PROJECT_DIR "build\plugin-release") -Filter "$name-*.xipk" -File -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if (-not $xipk) { throw "未找到 $name 的 xipk 产物" }
+        Copy-Item $xipk.FullName $ASSETS_DIR
+        Write-Host "  ↳ $($xipk.Name)"
+    }
 }
 
 Write-Host ""
 Write-Host "=== Done ==="
-Get-ChildItem -Path $OUTPUT_DIR -Filter "*.xipk" -File |
+Get-ChildItem -Path (Join-Path $PROJECT_DIR "build\plugin-release") -Filter "*.xipk" -File |
     Sort-Object Name |
     ForEach-Object { "{0,10:N1} K  {1}" -f ($_.Length / 1KB), $_.Name }

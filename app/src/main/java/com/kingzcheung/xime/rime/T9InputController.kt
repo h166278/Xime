@@ -1,5 +1,6 @@
 package com.kingzcheung.xime.rime
 
+import com.kingzcheung.xime.util.FileLogger
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -413,7 +414,7 @@ class T9InputController(
             try {
                 processDelete(callback)
             } catch (t: Throwable) {
-                Log.e(TAG, "onDeleted drain failed", t)
+                FileLogger.e(TAG, "onDeleted drain failed", t)
             }
         }
     }

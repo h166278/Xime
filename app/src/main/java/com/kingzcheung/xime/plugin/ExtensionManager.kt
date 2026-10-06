@@ -8,7 +8,7 @@ import com.kingzcheung.xime.plugin.core.api.ClipboardSyncPlugin
 import com.kingzcheung.xime.plugin.core.api.EmojiPlugin
 import com.kingzcheung.xime.plugin.core.api.IPluginEntryClass
 import com.kingzcheung.xime.plugin.core.api.PluginIcon
-import com.kingzcheung.xime.plugin.core.lua.ws.NetworkPolicy
+import com.kingzcheung.xime.plugin.core.js.ws.NetworkPolicy
 import com.kingzcheung.xime.plugin.core.model.PluginCategory
 import com.kingzcheung.xime.plugin.core.model.PluginInfo
 import com.kingzcheung.xime.plugin.core.runtime.PluginManager

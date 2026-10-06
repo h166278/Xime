@@ -1,6 +1,6 @@
 package com.kingzcheung.xime.service
 
-import com.kingzcheung.xime.plugin.core.lua.CandidateTransformItem
+import com.kingzcheung.xime.plugin.core.js.CandidateTransformItem
 import com.kingzcheung.xime.rime.RimeCandidate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

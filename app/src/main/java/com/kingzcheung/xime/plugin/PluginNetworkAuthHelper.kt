@@ -31,12 +31,13 @@ object PluginNetworkAuthHelper {
         val host = unauthorized.first()
         val firstTime = SettingsPreferences.addPluginPendingHost(context, pluginId, host)
         mainHandler.post {
-            Toast.makeText(
-                context,
-                "插件「${info.name}」需要授权后才能联网访问 $host\n已为您打开授权页面，请授权后重试",
-                Toast.LENGTH_LONG
-            ).show()
             if (firstTime) {
+                // 仅首次断 Toast 引导（避免反复未授权时持续打扰），错误详情在插件中心/日志查看器
+                Toast.makeText(
+                    context,
+                    "插件「${info.name}」需要授权后才能联网访问 $host\n已为您打开授权页面，请授权后重试",
+                    Toast.LENGTH_LONG
+                ).show()
                 runCatching {
                     context.startActivity(MainActivity.buildPluginAuthIntent(context, pluginId))
                 }
@@ -55,13 +56,14 @@ object PluginNetworkAuthHelper {
         if (host == null) return
         val firstTime = SettingsPreferences.addPluginPendingHost(context, pluginId, host)
         mainHandler.post {
-            val name = pluginName ?: pluginId
-            Toast.makeText(
-                context,
-                "插件「$name」联网被拒绝：$reason\n请在插件设置中授权后重试",
-                Toast.LENGTH_LONG
-            ).show()
             if (firstTime) {
+                // 仅首次断 Toast 引导（避免插件重试/轮询时连环弹提示），后续被拒静默进错误日志
+                val name = pluginName ?: pluginId
+                Toast.makeText(
+                    context,
+                    "插件「$name」联网被拒绝：$reason\n请在插件设置中授权后重试",
+                    Toast.LENGTH_LONG
+                ).show()
                 runCatching {
                     context.startActivity(MainActivity.buildPluginAuthIntent(context, pluginId))
                 }

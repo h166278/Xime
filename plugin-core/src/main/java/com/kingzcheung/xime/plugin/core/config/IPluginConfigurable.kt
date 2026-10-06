@@ -31,7 +31,7 @@ enum class UiNodeType {
 /**
  * 统一声明式 UI 节点（令牌化，宿主渲染，插件给数据）。
  *
- * Lua 契约字段与 Kotlin 一致；旧字段名（title/content/actionId/action）由解析层兼容
+ * JS 契约字段与 Kotlin 一致；旧字段名（title/content/actionId/action）由解析层兼容
  * （仅新字段写入文档）。
  * - [key]：表单字段的 configStore key，或 BUTTON 的 action id
  * - [value]：当前值（面板由插件动态提供；设置页初始读 configStore[key]）
@@ -69,7 +69,7 @@ interface IPluginConfigurable {
     /**
      * 处理表单 BUTTON 节点点击（key 见 [UiNode.key]）。
      *
-     * 默认实现：把 [action] 当作插件 Lua 导出的函数名调用，返回其返回值
+     * 默认实现：把 [action] 当作插件 JS 导出的方法名调用，返回其返回值
      * （nil/空 = 成功，否则为错误消息）。
      *
      * @return null 表示成功；非 null 为错误消息（表单层提示用户）

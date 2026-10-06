@@ -10,6 +10,7 @@ import android.os.Looper
 import android.util.Log
 
 import androidx.annotation.RequiresPermission
+import com.kingzcheung.xime.plugin.ActivePluginSelection
 import com.kingzcheung.xime.plugin.ExtensionManager
 import com.kingzcheung.xime.settings.SettingsPreferences
 import com.kingzcheung.xime.util.FileLogger
@@ -23,6 +24,16 @@ class SpeechRecognitionManager(private val context: Context) {
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         private const val BUFFER_SIZE_SECONDS = 0.1f
         private const val SPEECH_THRESHOLD = 25
+
+        /** 停止时等待录音线程退出的超时：覆盖 backend.stop() 同步等待最终结果的耗时。 */
+        private const val JOIN_TIMEOUT_MS = 5000L
+
+        /**
+         * 停止后延迟释放后端的窗口：在线插件 stop() 只发送结束信号，最终结果由
+         * 服务端处理完尾点后经 WebSocket 异步回调（1~2s），需比
+         * VoiceRecognitionHandler.FINISH_TIMEOUT_MS 更长，保证回调通道存活。
+         */
+        private const val BACKEND_RELEASE_DELAY_MS = 3500L
     }
 
     private var backend: AsrBackend? = null
@@ -31,6 +42,24 @@ class SpeechRecognitionManager(private val context: Context) {
 
     // 会话序号：用于区分连续语音会话，防止旧会话的回收线程误释放新会话的后端
     private var sessionId = 0
+    // 待执行的延迟释放所对应的会话序号（-1 表示无待释放）
+    @Volatile
+    private var pendingReleaseSession = -1
+    private val pendingBackendRelease = Runnable {
+        val session = pendingReleaseSession
+        pendingReleaseSession = -1
+        // 主线程只取引用；release() 含跨进程 IPC/断连，放后台线程执行
+        val b = synchronized(preloadLock) {
+            if (session != -1 && sessionId == session) {
+                val tmp = backend
+                backend = null
+                tmp
+            } else null
+        }
+        if (b != null) {
+            Thread { b.release() }.start()
+        }
+    }
     // 后台加载 ASR 模型的进行中标记与取消标记
     @Volatile
     private var loadingInProgress = false
@@ -121,6 +150,10 @@ class SpeechRecognitionManager(private val context: Context) {
         val currentBackend = synchronized(preloadLock) { backend } ?: return
         synchronized(preloadLock) { sessionId++ }
 
+        // 新会话复用后端：取消上一次会话遗留的延迟释放
+        mainHandler.removeCallbacks(pendingBackendRelease)
+        pendingReleaseSession = -1
+
         // 预启动的 AudioRecord 已运行 ~250ms，直接交给录音线程
         var preStarted: AudioRecord? = null
         synchronized(this) {
@@ -131,6 +164,21 @@ class SpeechRecognitionManager(private val context: Context) {
 
         recordingThread = RecordingThread(currentBackend, preStarted)
         recordingThread!!.start()
+    }
+
+    /**
+     * 延迟释放后端：给在线插件的异步最终结果留出送达窗口。窗口内新会话开始
+     * （startRecording）会取消释放并复用后端；释放前校验会话序号，避免误释放
+     * 新会话正在使用的后端。
+     * "引擎常驻"开启时不安排释放——后端跨会话保留，闲置后再用免重建
+     * （重新加载模型/重建 Lua 后端与连接正是"闲置后首次使用慢"的根源）；
+     * 关闭设置后自然回退为延迟释放，无需主动清理。
+     */
+    private fun scheduleBackendRelease(session: Int) {
+        if (SettingsPreferences.isSttKeepEngineAlive(context)) return
+        pendingReleaseSession = session
+        mainHandler.removeCallbacks(pendingBackendRelease)
+        mainHandler.postDelayed(pendingBackendRelease, BACKEND_RELEASE_DELAY_MS)
     }
 
     fun stopRecognition() {
@@ -149,31 +197,23 @@ class SpeechRecognitionManager(private val context: Context) {
         recordingThread = null
         thread.stopRequested = true
         val session = synchronized(preloadLock) { sessionId }
-        thread.interrupt()
+        // 不能 interrupt：录音线程可能正阻塞在 backend.stop() 同步等待最终结果
+        // （本地 stopAsr 的 runBlocking），中断会吞掉最终文本；forceStopAudio 释放
+        // AudioRecord 使 read() 返回错误、循环自然退出后执行 stop()
         thread.forceStopAudio()
         Thread {
             try {
                 // join 超时兜底：录音线程若卡在 Lua 调用中（最坏 CALL_TIMEOUT_MS=180s），
                 // 不能让后端释放无限期阻塞（否则 WebSocket 与麦克风一直占着）
-                thread.join(3000)
+                thread.join(JOIN_TIMEOUT_MS)
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
             }
-            val releaseBackend = true
-            // release() 含跨进程 IPC，放到后台线程执行，避免阻塞主线程；
-            // 仅当会话序号未变化时释放并置空，避免误释放新会话正在使用的后端
-            if (releaseBackend) {
-                val b = synchronized(preloadLock) {
-                    if (sessionId == session) {
-                        val tmp = backend
-                        backend = null
-                        tmp
-                    } else null
-                }
-                if (b != null) {
-                    b.release()
-                }
+            if (thread.isAlive) {
+                // 卡死兜底：标记中断，尽快从可中断调用中退出
+                thread.interrupt()
             }
+            scheduleBackendRelease(session)
             mainHandler.post {
                 setState(RecognitionState.IDLE)
             }
@@ -196,29 +236,18 @@ class SpeechRecognitionManager(private val context: Context) {
         recordingThread = null
         thread.stopRequested = true
         val session = synchronized(preloadLock) { sessionId }
-        thread.interrupt()
+        // 同 stopRecognition：不打断 backend.stop()，避免破坏引擎收尾状态
         thread.forceStopAudio()
         Thread {
             try {
-                thread.join(3000)
+                thread.join(JOIN_TIMEOUT_MS)
             } catch (_: InterruptedException) {
                 Thread.currentThread().interrupt()
             }
-            val releaseBackend = true
-            // release() 含跨进程 IPC，放到后台线程执行，避免阻塞主线程；
-            // 仅当会话序号未变化时释放并置空，避免误释放新会话正在使用的后端
-            if (releaseBackend) {
-                val b = synchronized(preloadLock) {
-                    if (sessionId == session) {
-                        val tmp = backend
-                        backend = null
-                        tmp
-                    } else null
-                }
-                if (b != null) {
-                    b.release()
-                }
+            if (thread.isAlive) {
+                thread.interrupt()
             }
+            scheduleBackendRelease(session)
             mainHandler.post {
                 setState(RecognitionState.IDLE)
             }
@@ -274,6 +303,8 @@ class SpeechRecognitionManager(private val context: Context) {
     fun release() {
         Log.d(TAG, "Releasing speech recognition")
         cancelPreStart()
+        mainHandler.removeCallbacks(pendingBackendRelease)
+        pendingReleaseSession = -1
         cancelRecognition()
         val b = synchronized(preloadLock) {
             val tmp = backend
@@ -345,7 +376,11 @@ class SpeechRecognitionManager(private val context: Context) {
         if (enabledPlugins.isEmpty()) return null
 
         val selectedId = SettingsPreferences.getSttOnlinePluginId(context)
-        val selected = enabledPlugins.firstOrNull { it.first == selectedId }
+        // 与插件管理页共用同一判定规则（ActivePluginSelection）：偏好不可用时回退首个已启用插件，
+        // 并回填偏好，避免"识别在跑、插件页显示未使用"
+        val resolvedId = ActivePluginSelection.resolve(selectedId, enabledPlugins.map { it.first })
+        if (resolvedId != selectedId) SettingsPreferences.setSttOnlinePluginId(context, resolvedId)
+        val selected = enabledPlugins.firstOrNull { it.first == resolvedId }
             ?: enabledPlugins.firstOrNull()
         val (_, plugin) = selected ?: return null
 
@@ -387,9 +422,9 @@ class SpeechRecognitionManager(private val context: Context) {
         /**
          * 停止请求标志：不能只依赖线程中断标志停止循环。
          *
-         * processAudioChunk 会经 LuaScriptRuntime.runGuarded 的 FutureTask.get 执行，
+         * processAudioChunk 会经 JsScriptRuntime.runGuarded 的 FutureTask.get 执行，
          * FutureTask.awaitDone 内部用 Thread.interrupted() 检查中断状态并**清除中断标志**，
-         * 随后 LuaScriptRuntime.call 吞掉 InterruptedException 正常返回 NIL——
+         * 随后 JsScriptRuntime.call 吞掉 InterruptedException 正常返回 NIL——
          * 于是中断标志被消费后 while (!interrupted()) 永远为真，录音线程无法停止，
          * stopRecognition 的 join() 永不返回，后端（WebSocket）与麦克风一直后台占用。
          */

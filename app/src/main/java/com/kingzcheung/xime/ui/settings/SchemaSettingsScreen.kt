@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.twotone.CloudDownload
 import androidx.compose.material.icons.twotone.Computer
+import androidx.compose.material.icons.twotone.Description
 import androidx.compose.material.icons.twotone.DriveFolderUpload
 import androidx.compose.material.icons.twotone.Storefront
 import androidx.compose.material3.AlertDialog
@@ -90,6 +91,7 @@ fun SchemaSettingsContent(
     onBack: () -> Unit,
     onNavigateToMarket: () -> Unit = {},
     onNavigateToRimeFileBrowser: () -> Unit = {},
+    onNavigateToSchemaDictBrowser: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val viewModel: SchemaSettingsViewModel = viewModel()
@@ -486,6 +488,22 @@ fun SchemaSettingsContent(
                                 },
                                 leadingIcon = {
                                     Icon(Icons.TwoTone.DriveFolderUpload, null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp))
+                                }
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(horizontal = 12.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
+                            DropdownMenuItem(
+                                text = { Text("方案词表") },
+                                onClick = {
+                                    showMenu = false
+                                    onNavigateToSchemaDictBrowser()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.TwoTone.Description, null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp))
                                 }

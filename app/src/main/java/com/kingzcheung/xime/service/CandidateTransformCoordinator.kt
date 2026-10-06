@@ -1,11 +1,11 @@
 package com.kingzcheung.xime.service
 
 import android.util.Log
-import com.kingzcheung.xime.plugin.core.lua.CandidateTransformCandidate
-import com.kingzcheung.xime.plugin.core.lua.CandidateTransformItem
-import com.kingzcheung.xime.plugin.core.lua.CandidateTransformOutcome
-import com.kingzcheung.xime.plugin.core.lua.CandidateTransformRequest
-import com.kingzcheung.xime.plugin.core.lua.LuaScriptRuntime
+import com.kingzcheung.xime.plugin.core.js.CandidateTransformCandidate
+import com.kingzcheung.xime.plugin.core.js.CandidateTransformItem
+import com.kingzcheung.xime.plugin.core.js.CandidateTransformOutcome
+import com.kingzcheung.xime.plugin.core.js.CandidateTransformRequest
+import com.kingzcheung.xime.plugin.core.js.JsScriptRuntime
 import com.kingzcheung.xime.plugin.core.runtime.PluginManager
 import com.kingzcheung.xime.rime.RimeCandidate
 import com.kingzcheung.xime.rime.RimeProcessResult
@@ -61,7 +61,7 @@ internal class CandidateTransformCoordinator(private val service: XimeInputMetho
         internal fun buildDisplay(
             items: List<CandidateTransformItem>,
             engineCandidates: List<RimeCandidate>,
-            maxCandidates: Int = LuaScriptRuntime.TRANSFORM_MAX_CANDIDATES,
+            maxCandidates: Int = JsScriptRuntime.TRANSFORM_MAX_CANDIDATES,
         ): CandidateTransformResult? {
             val display = ArrayList<RimeCandidate>(items.size)
             val actions = ArrayList<CandidateAction>(items.size)
@@ -215,7 +215,7 @@ internal class CandidateTransformCoordinator(private val service: XimeInputMetho
 
     /** 第一个声明 candidate_transform 且已加载的插件运行时（v1 单插件；链式变换为后续增强）。
      *  返回 (插件 id, 运行时)；无可用插件返回 null。 */
-    private fun findRuntime(): Pair<String, LuaScriptRuntime>? {
+    private fun findRuntime(): Pair<String, JsScriptRuntime>? {
         for ((pluginId, loaded) in PluginManager.loadedPluginsFlow.value) {
             if (loaded.pluginInfo.capabilities?.candidateTransform != true) continue
             val script = loaded.script ?: continue

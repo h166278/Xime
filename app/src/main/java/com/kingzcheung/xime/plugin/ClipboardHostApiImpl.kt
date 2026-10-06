@@ -2,7 +2,7 @@ package com.kingzcheung.xime.plugin
 
 import android.content.Context
 import com.kingzcheung.xime.clipboard.ClipboardManager
-import com.kingzcheung.xime.plugin.core.lua.ClipboardHostApi
+import com.kingzcheung.xime.plugin.core.js.ClipboardHostApi
 
 /**
  * 剪贴板只读 API 实现：读系统剪贴板当前文本。

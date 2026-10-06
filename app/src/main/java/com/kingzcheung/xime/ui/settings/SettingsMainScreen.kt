@@ -25,6 +25,7 @@ import androidx.compose.material.icons.twotone.Backup
 import androidx.compose.material.icons.twotone.Ballot
 
 import androidx.compose.material.icons.twotone.Build
+import androidx.compose.material.icons.twotone.ContentPaste
 import androidx.compose.material.icons.twotone.Description
 import androidx.compose.material.icons.twotone.Extension
 import androidx.compose.material.icons.twotone.GraphicEq
@@ -34,7 +35,6 @@ import androidx.compose.material.icons.twotone.KeyboardAlt
 import androidx.compose.material.icons.twotone.Palette
 import androidx.compose.material.icons.twotone.Storefront
 import androidx.compose.material.icons.twotone.Straighten
-import androidx.compose.material.icons.twotone.Sync
 import androidx.compose.material.icons.twotone.TableChart
 import androidx.compose.material.icons.twotone.ToggleOn
 import androidx.compose.material.icons.twotone.TypeSpecimen
@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +60,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kingzcheung.xime.settings.MarketUpdateChecker
 import com.kingzcheung.xime.settings.SettingsPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
@@ -79,12 +82,18 @@ fun SettingsMainContent(
     onNavigateToSmartPrediction: () -> Unit,
     onNavigateToSpeechToText: () -> Unit,
     onNavigateToAbout: () -> Unit,
-    onNavigateToClipboardSync: () -> Unit = {},
+    onNavigateToClipboard: () -> Unit = {},
     onNavigateToBackup: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    
+
+    // 扩展商店可更新计数：进主页恢复缓存并按节流后台刷新（失败静默），展示在入口角标
+    LaunchedEffect(Unit) {
+        MarketUpdateChecker.maybeRefresh(context)
+    }
+    val marketUpdates by MarketUpdateChecker.summary.collectAsStateWithLifecycle()
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.surface,
@@ -256,7 +265,7 @@ fun SettingsMainContent(
                     SettingsItem(
                         icon = Icons.TwoTone.Ballot,
                         title = "词库管理",
-                        subtitle = "管理个人词库和自定义短语",
+                        subtitle = "用户词库、快捷短语与词条搬运",
                         onClick = onNavigateToDictionary,
                         showArrow = true
                     )
@@ -270,7 +279,9 @@ fun SettingsMainContent(
                         title = "扩展商店",
                         subtitle = "下载输入方案 / 模型 / 插件",
                         onClick = onNavigateToMarket,
-                        showArrow = true
+                        showArrow = true,
+                        badgeText = marketUpdates.totalUpdates.takeIf { it > 0 }
+                            ?.let { "$it 项可更新" }
                     )
                     HorizontalDivider(
                         modifier = Modifier.padding(start = 56.dp),
@@ -332,19 +343,25 @@ fun SettingsMainContent(
             }
 
             item {
-                SettingsSection(                title = "同步与备份", content = {
+                // 分组含两类"本地数据/数据流向"设置：剪贴板（内容与同步）优先，其后是词典与配置的同步备份
+                SettingsSection(title = "数据与同步", content = {
                     SettingsItem(
-                        icon = Icons.TwoTone.Backup,
-                        title = "云备份",
-                        subtitle = "通过备份插件将配置备份到云端并恢复",
-                        onClick = onNavigateToBackup,
+                        icon = Icons.TwoTone.ContentPaste,
+                        title = "剪贴板",
+                        subtitle = "图片记录、体积限制、占用清理与剪贴板同步",
+                        onClick = onNavigateToClipboard,
                         showArrow = true
                     )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 56.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
                     SettingsItem(
-                        icon = Icons.TwoTone.Sync,
-                        title = "剪贴板同步",
-                        subtitle = "通过插件将剪贴板与远端设备双向同步",
-                        onClick = onNavigateToClipboardSync,
+                        icon = Icons.TwoTone.Backup,
+                        title = "同步与备份",
+                        subtitle = "多设备词典互通与配置备份",
+                        onClick = onNavigateToBackup,
                         showArrow = true
                     )
                 })

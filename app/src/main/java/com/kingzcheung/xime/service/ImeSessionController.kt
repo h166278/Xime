@@ -7,6 +7,7 @@ import com.kingzcheung.xime.rime.buildT9DisplayState
 import com.kingzcheung.xime.settings.SchemaManager
 import com.kingzcheung.xime.settings.SettingsPreferences
 import com.kingzcheung.xime.ui.keyboard.isT9Schema
+import com.kingzcheung.xime.ui.keyboard.isHandwritingSchema
 import com.kingzcheung.xime.util.FileLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -77,7 +78,7 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
                 inputText.isEmpty() -> ""
                 else -> service.candidateState.value.preeditText
             }
-            FileLogger.i(
+            FileLogger.d(
                 XimeInputMethodService.TAG,
                 "T9 display: enginePreedit='$preeditText' rawPreedit='$rawPreedit' input='$inputText' partials=${service.t9PartialSegments.size}"
             )
@@ -162,15 +163,18 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
             hasNextPage = hasNextPage,
             hasPrevPage = hasPrevPage,
             // 候选词变换映射（全键盘 pluginActions / T9 平行 actions；防御空）
-            candidateActions = if (isT9Schema) t9CandidateActions else pluginActions
+            candidateActions = if (isT9Schema) t9CandidateActions else pluginActions,
+            preeditCaretPos = displayCaretOffset(displayText, inputText)
         )
         if (isAsciiMode != service.uiState.value.isAsciiMode) {
             FileLogger.i(XimeInputMethodService.TAG, "applyComposition: ascii ${service.uiState.value.isAsciiMode}->$isAsciiMode")
         }
+        // 展开态时刷新跨页全量候选并重置页码（编码已变化）
+        service.refreshExpandedCandidates()
         // composing 快照 → 插件（input_changed 事件；T9 与候选栏同源显示态）
         service.pluginEvents.dispatchInputChanged(if (isT9Schema) displayText else inputText)
 
-        if (pendingEnglish.isNotEmpty() && service.supportsEnglishCandidateReplace()) {
+        if (pendingEnglish.isNotEmpty() && !service.isSecretEditor() && service.supportsEnglishCandidateReplace()) {
             service.serviceScope.launch {
                 val candidates = service.predictionManager.getEnglishAssociations(pendingEnglish, PredictionManager.MAX_ASSOCIATION_COUNT)
                 withContext(Dispatchers.Main) {
@@ -355,6 +359,47 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         service.writeInputBoxComposing(displayText)
     }
 
+    /** 取刚组装进 candidateState 的显示光标偏移（输入框 composing 光标用）。 */
+    private fun preeditCaretOffsetForInputBox(displayText: String): Int {
+        return service.candidateState.value.preeditCaretPos.takeIf { displayText.isNotEmpty() } ?: -1
+    }
+
+    /**
+     * 计算编码显示串中的光标偏移（字符，-1 = 末尾/非编辑态）。
+     *
+     * 编辑光标由宿主维护（service.editingCaretPos，相对 raw input）；librime caret
+     * 恒在编码末尾，引擎返回的光标信息不反映编辑位置。此处把 raw 偏移映射到显示串：
+     * 逐字符对应、跳过音节分隔符（' 或空格）——全拼的音节分隔回显可精确对应；
+     * 显示格式差异大的方案（双拼展开等）仅影响竖线视觉位置，编辑位置仍按 raw input。
+     *
+     * 失同步自愈：编码为空、光标越界，或编码与编辑态快照不一致（Shift+字母清组合、
+     * 选词、外部 clearComposition 等非编辑路径改动过编码）时复位编辑态，
+     * 防止残留位置导致竖线错位或编辑拦截在错误位置删除/插入。
+     */
+    private fun displayCaretOffset(displayText: String, inputText: String): Int {
+        val editingCaret = service.editingCaretPos
+        if (editingCaret < 0 || inputText.isEmpty() || displayText.isEmpty() ||
+            editingCaret >= inputText.length || service.editingCaretInput != inputText
+        ) {
+            service.editingCaretPos = -1
+            service.editingCaretInput = ""
+            return -1
+        }
+        if (displayText == inputText) return editingCaret
+        var raw = 0
+        var disp = 0
+        while (disp < displayText.length && raw < editingCaret) {
+            val ch = displayText[disp]
+            if (ch == '\'' || ch == ' ') {
+                disp++
+                continue
+            }
+            raw++
+            disp++
+        }
+        return if (disp >= displayText.length) -1 else disp
+    }
+
     internal fun updateUIWithResult(
         result: com.kingzcheung.xime.rime.RimeProcessResult,
         pluginActions: List<CandidateAction> = emptyList(),
@@ -447,13 +492,18 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
             hasNextPage = result.hasNextPage,
             hasPrevPage = result.hasPrevPage,
             // 候选词变换映射（T9 不接入变换，防御清空；ascii 时调用方不产生 actions）
-            candidateActions = if (isT9Schema) emptyList() else pluginActions
+            candidateActions = if (isT9Schema) emptyList() else pluginActions,
+            preeditCaretPos = displayCaretOffset(displayText, result.inputText)
         )
         service.uiState.value = service.uiState.value.copy(isAsciiMode = isAsciiMode)
+        // 展开态时刷新跨页全量候选并重置页码（编码已变化）
+        service.refreshExpandedCandidates()
+        // 候选展开页：编码删空（候选与联想均空）时自动收起，不留空页
+        service.maybeCollapseCandidatePage()
         // composing 快照 → 插件（input_changed 事件；空编码表示本轮输入结束）
         service.pluginEvents.dispatchInputChanged(if (isT9Schema) displayText else result.inputText)
 
-        if (pendingEnglish.isNotEmpty() && service.supportsEnglishCandidateReplace()) {
+        if (pendingEnglish.isNotEmpty() && !service.isSecretEditor() && service.supportsEnglishCandidateReplace()) {
             service.serviceScope.launch {
                 val candidates = service.predictionManager.getEnglishAssociations(pendingEnglish, PredictionManager.MAX_ASSOCIATION_COUNT)
                 withContext(Dispatchers.Main) {
@@ -482,12 +532,17 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
             val engineSchemaId = service.rimeEngine.getCurrentSchema()
             // session 未就绪时 getCurrentSchema() 返回空串：用持久化方案兜底，
             // 避免空值覆盖已正确的 currentSchemaId/schemaName 导致键盘退化为全键盘
-            val currentSchemaId = if (isHandwritingMode) {
-                HANDWRITING_SCHEMA_ID
-            } else if (engineSchemaId.isNotEmpty()) {
-                engineSchemaId
-            } else {
-                SettingsPreferences.getCurrentSchema(context)
+            val currentSchemaId = when {
+                // 引擎已切到非手写方案时以引擎为准：键盘若仍停留手写页（部署期间
+                // fallback 的残留），钉死 handwriting 会让 UI 与引擎永久脱节，
+                // 表现为选完方案后键盘卡在手写页
+                engineSchemaId.isNotEmpty() && !isHandwritingSchema(engineSchemaId) -> engineSchemaId
+                // 手写页在态时报告当前持久化的手写方案 id（内置为 handwriting，
+                // 第三方手写方案报告其自身 id，方案名/图标显示才正确）
+                isHandwritingMode -> SettingsPreferences.getCurrentSchema(context)
+                    .takeIf { isHandwritingSchema(it) } ?: HANDWRITING_SCHEMA_ID
+                engineSchemaId.isNotEmpty() -> engineSchemaId
+                else -> SettingsPreferences.getCurrentSchema(context)
             }
             val name = SchemaManager.getSchemaDisplayName(context, currentSchemaId)
 
@@ -556,7 +611,8 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
     internal fun toggleSchemaSwitch(sw: com.kingzcheung.xime.viewmodel.SchemaSwitchUiState) {
         service.serviceScope.launch(service.keyProcessingDispatcher) {
             if (sw.name == "ascii_mode") {
-                service.schemaController.switchInputMethod()
+                // 菜单中西切换 = 用户显式操作（USER_TOGGLE，会话级，不持久化）
+                service.asciiModeController.switchAscii(AsciiModeController.Reason.USER_TOGGLE)
             } else if (sw.name.isNotEmpty()) {
                 val newValue = !service.rimeEngine.getOption(sw.name)
                 service.rimeEngine.setOption(sw.name, newValue)
@@ -581,15 +637,17 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
         }
     }
 
-    /** 从 librime user.yaml 恢复方案选项（中/西、简/繁等），在切换方案后调用。 */
+    /** 从 librime user.yaml 恢复方案选项（简/繁等），在切换方案后调用。
+     *  ascii_mode 不在此恢复：由 AsciiModeController.applyStartDecision 按编辑框
+     *  类型与用户显式选择决策，避免通用恢复盖过会话级决策。 */
     internal fun restorePersistedSchemaOptions() {
         if (!RimeEngine.isInitialized()) return
         val schemaId = service.rimeEngine.getCurrentSchema()
         if (schemaId.isEmpty()) return
-        val rimeAsciiBefore = service.rimeEngine.isAsciiMode()
         val defs = SchemaManager.getSchemaSwitches(service, schemaId)
         for (def in defs) {
             if (def.name.isNotEmpty()) {
+                if (def.name == "ascii_mode") continue
                 service.rimeEngine.setOption(def.name, service.rimeEngine.getUserConfigBool("var/option/${def.name}"))
             } else if (def.options.isNotEmpty()) {
                 val activeIndex = def.options.indexOfFirst { service.rimeEngine.getUserConfigBool("var/option/$it") }
@@ -597,10 +655,6 @@ internal class ImeSessionController(private val service: XimeInputMethodService)
                     def.options.forEachIndexed { i, opt -> service.rimeEngine.setOption(opt, i == activeIndex) }
                 }
             }
-        }
-        val rimeAsciiAfter = service.rimeEngine.isAsciiMode()
-        if (rimeAsciiBefore != rimeAsciiAfter) {
-            FileLogger.i(XimeInputMethodService.TAG, "restorePersistedSchemaOptions: ascii $rimeAsciiBefore -> $rimeAsciiAfter (ui=${service.uiState.value.isAsciiMode})")
         }
     }
 

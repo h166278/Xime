@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kingzcheung.xime.keyboard.KeyboardDimensions
-import com.kingzcheung.xime.settings.SettingsPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -127,8 +126,8 @@ fun rememberSwipeBubbleDrawData(
     keyboardWidth: Float,
 ): BubbleDrawData? {
     val context = LocalContext.current
-    val showPressBubble = SettingsPreferences.shouldShowPressBubble(context)
-    if (!swipeState.isSwiping && !(showPressBubble && swipeState.isPressed) && !swipeState.isLongPress) return null
+    // 点按气泡恒开：非滑动、非点按、非长按时不绘制
+    if (!swipeState.isSwiping && !swipeState.isPressed && !swipeState.isLongPress) return null
 
     val isLongPressMode = swipeState.isLongPress && swipeState.longPressItems.isNotEmpty()
     val displayText = if (isLongPressMode) null

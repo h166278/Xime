@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.kingzcheung.xime.plugin.core.runtime.PluginManager
+import com.kingzcheung.xime.settings.MarketUpdateChecker
 import com.kingzcheung.xime.settings.XimeIndexSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -174,6 +175,8 @@ class PluginMarketViewModel(application: Application) : AndroidViewModel(applica
                 else -> "插件「${item.plugin.name}」已安装"
             }
             showToast(toast)
+            // 安装成功立即重算可更新计数（Tab 角标与设置主页角标实时刷新）
+            if (result.success) MarketUpdateChecker.refreshNow(context)
         }
     }
 

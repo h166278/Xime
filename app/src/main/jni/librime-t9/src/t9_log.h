@@ -85,8 +85,12 @@ struct ScopedTimer {
 // ════════════════════════════════════════
 
 #ifdef __ANDROID__
-    #define T9_DICT_LOG(...) \
-        __android_log_print(ANDROID_LOG_INFO, "RimePerf", "[T9Dict] " __VA_ARGS__)
+    #ifdef T9_ENABLE_VERBOSE_LOG
+        #define T9_DICT_LOG(...) \
+            __android_log_print(ANDROID_LOG_INFO, "RimePerf", "[T9Dict] " __VA_ARGS__)
+    #else
+        #define T9_DICT_LOG(...) do { } while (0)
+    #endif
 #else
     #define T9_DICT_LOG(...) do { } while (0)
 #endif

@@ -110,6 +110,50 @@ class DefaultCustomYamlTest {
         assertEquals(20, extractPageSize(patched))
     }
 
+    // ---- key_binder 冲突绑定清理（issue #884）----
+
+    /** 旧版模板：page_size 已是目标值，但残留抢占分号/单引号的 key_binder 绑定。 */
+    private val legacyKeyBinder = """
+        patch:
+          menu:
+            page_size: 20
+          key_binder:
+            bindings:
+              - { when: has_menu, accept: semicolon, send: 2 }  # 候选2 用分号
+              - { when: has_menu, accept: apostrophe, send: 3 } # 候选3 用单引号
+              - { when: has_menu, accept: bracketleft, send: Page_Up }
+    """.trimIndent()
+
+    @Test
+    fun `移除抢占分号单引号的key_binder绑定`() {
+        val patched = RimeConfigHelper.patchDefaultCustomContent(legacyKeyBinder, 20)!!
+        assertFalse("分号绑定移除", patched.contains("accept: semicolon"))
+        assertFalse("单引号绑定移除", patched.contains("accept: apostrophe"))
+        assertTrue("其余绑定保留", patched.contains("accept: bracketleft"))
+        assertTrue("key_binder 节保留", patched.contains("key_binder:"))
+        assertEquals(20, extractPageSize(patched))
+    }
+
+    @Test
+    fun `注释掉的选词绑定不会被误删`() {
+        val commented = """
+            patch:
+              menu:
+                page_size: 20
+              key_binder:
+                bindings:
+            #      - { when: has_menu, accept: semicolon, send: 2 }
+                  - { when: has_menu, accept: comma, send: 2 }
+        """.trimIndent()
+        assertNull(RimeConfigHelper.patchDefaultCustomContent(commented, 20))
+    }
+
+    @Test
+    fun `无冲突绑定且page_size已对齐时不动`() {
+        val clean = "patch:\n  menu:\n    page_size: 20\n  key_binder:\n    bindings:\n      - { when: has_menu, accept: bracketleft, send: Page_Up }\n"
+        assertNull(RimeConfigHelper.patchDefaultCustomContent(clean, 20))
+    }
+
     // ---- 与 replaceSchemaListBlock 的组合（setEnabledSchemas 真实路径）----
 
     @Test

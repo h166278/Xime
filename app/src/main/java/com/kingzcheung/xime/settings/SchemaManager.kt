@@ -534,6 +534,21 @@ object SchemaManager {
                name.startsWith(".registry")
     }
 
+    /**
+     * 单文件直接导入是否受清单系统追踪（冲突检测 + 可按清单卸载）。
+     * 用户数据（custom_phrase.txt、*.custom.yaml 等）、系统文件（default.yaml、xime.yaml、build/）
+     * 与清单元数据本身不追踪，保持直接落盘的历史行为；含 `..` 的路径同样不追踪。
+     */
+    internal fun shouldTrackImportedFile(name: String): Boolean =
+        !isProtectedImportName(name) &&
+            !name.startsWith(".manifests") &&
+            !SchemaManifestManager.isProtectedSystemFile(name) &&
+            !SchemaManifestManager.isUserDataFile(name) &&
+            !name.contains("..")
+
+    /** 单文件导入的清单包 id：rime 相对路径展平（manifests 文件名不能含路径分隔符）。 */
+    internal fun manifestPackageIdFor(name: String): String = name.replace('/', '_')
+
     /** macOS Apple Double 资源分支文件（__MACOSX/ 或 ._ 前缀），应当在解压时跳过。 */
     private fun isAppleDouble(name: String): Boolean =
         name.startsWith("__MACOSX/") || name.contains("/._") || name.startsWith("._")
@@ -912,7 +927,12 @@ object SchemaManager {
         return true
     }
 
-    data class ImportResult(val success: Boolean, val installedDirect: Boolean = false)
+    data class ImportResult(
+        val success: Boolean,
+        val installedDirect: Boolean = false,
+        /** 与已安装方案同名不同内容的文件冲突（清单系统判定）；非空时导入被拒绝。 */
+        val conflicts: List<FileConflictInfo> = emptyList(),
+    )
 
     /** 判断文件名是否为压缩包。 */
     fun isArchive(name: String): Boolean =
@@ -1020,21 +1040,61 @@ object SchemaManager {
             val rimeDir = getRimeDir(context)
             try {
                 rimeDir.mkdirs()
-                val target = File(rimeDir, name)
-                inputStream.use { input ->
-                    target.outputStream().use { output -> input.copyTo(output) }
-                }
-                // 如果是 .schema.yaml 文件，自动启用
-                if (autoEnable && name.endsWith(".schema.yaml")) {
-                    val schemaId = name.removeSuffix(".schema.yaml")
-                    val enabled = getEnabledSchemas(context).toMutableList()
-                    if (schemaId !in enabled) {
-                        enabled.add(schemaId)
-                        setEnabledSchemas(context, enabled)
+                // 受清单追踪的文件先暂存算 sha：与已安装方案同名不同内容时拒绝导入（不落盘，
+                // 避免静默覆盖市场方案文件）；同内容视为共享依赖放行；重新导入同一文件视为重装放行。
+                val tracked = shouldTrackImportedFile(name)
+                var stagedFile: File? = null
+                if (tracked) {
+                    val staged = File.createTempFile("import_stage_", ".tmp", context.cacheDir)
+                    inputStream.use { input ->
+                        staged.outputStream().use { output -> input.copyTo(output) }
                     }
+                    val sha = fileSha256(staged)
+                    if (sha != null) {
+                        val conflicts = SchemaManifestManager.detectConflicts(
+                            context, manifestPackageIdFor(name), listOf(name), mapOf(name to sha),
+                        )
+                        if (conflicts.isNotEmpty()) {
+                            FileLogger.w(
+                                TAG,
+                                "Import rejected, $name conflicts with: ${conflicts.flatMap { it.claimedBy }}",
+                            )
+                            staged.delete()
+                            return@withContext ImportResult(false, conflicts = conflicts)
+                        }
+                    }
+                    stagedFile = staged
                 }
-                FileLogger.i(TAG, "Imported $name -> rime/ (direct)")
-                ImportResult(true, installedDirect = true)
+                try {
+                    val target = File(rimeDir, name)
+                    val source: java.io.InputStream = stagedFile?.inputStream() ?: inputStream
+                    source.use { input ->
+                        target.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    // 如果是 .schema.yaml 文件，自动启用
+                    if (autoEnable && name.endsWith(".schema.yaml")) {
+                        val schemaId = name.removeSuffix(".schema.yaml")
+                        val enabled = getEnabledSchemas(context).toMutableList()
+                        if (schemaId !in enabled) {
+                            enabled.add(schemaId)
+                            setEnabledSchemas(context, enabled)
+                        }
+                    }
+                    if (tracked) {
+                        SchemaManifestManager.createManifest(
+                            context = context,
+                            schemeId = manifestPackageIdFor(name),
+                            displayName = name,
+                            version = "",
+                            fromMarket = false,
+                            extractedFiles = listOf(name),
+                        )
+                    }
+                    FileLogger.i(TAG, "Imported $name -> rime/ (direct${if (tracked) ", tracked" else ""})")
+                    ImportResult(true, installedDirect = true)
+                } finally {
+                    stagedFile?.delete()
+                }
             } catch (e: Exception) {
                 FileLogger.e(TAG, "Failed to import $name directly", e)
                 ImportResult(false)
@@ -1286,7 +1346,7 @@ object SchemaManager {
         expectedSha256: String? = null,
         archiveName: String? = null,
         onProgress: (Long, Long) -> Unit = { _, _ -> },
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): ImportResult = withContext(Dispatchers.IO) {
         try {
             val fileName = archiveName ?: url.substringAfterLast("/").takeIf { it.isNotBlank() }
                 ?: "download"
@@ -1301,9 +1361,9 @@ object SchemaManager {
                 val sha256Ok = client.newCall(Request.Builder().url(url).build()).execute().use { response ->
                     if (!response.isSuccessful) {
                         Log.e(TAG, "Download failed: ${response.code} $url")
-                        return@withContext false
+                        return@withContext ImportResult(false)
                     }
-                    val body = response.body ?: return@withContext false
+                    val body = response.body ?: return@withContext ImportResult(false)
                     val totalBytes = body.contentLength()
                     var downloadedBytes = 0L
                     val md = MessageDigest.getInstance("SHA-256")
@@ -1324,23 +1384,23 @@ object SchemaManager {
                         val actual = md.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
                         if (!actual.equals(expectedSha256.trim(), ignoreCase = true)) {
                             Log.e(TAG, "sha256 mismatch for $url")
-                            return@withContext false
+                            return@withContext ImportResult(false)
                         }
                     }
                     true
                 }
-                if (!sha256Ok) return@withContext false
+                if (!sha256Ok) return@withContext ImportResult(false)
 
                 // 通过统一函数保存
                 val result = saveImportedFile(context, fileName, tmpFile.inputStream())
                 Log.i(TAG, "Imported from url $url -> ${if (result.installedDirect) "rime/" else "market/"} ($fileName)")
-                result.success
+                result
             } finally {
                 tmpFile.delete()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to import from URL: $url", e)
-            false
+            ImportResult(false)
         }
     }
 

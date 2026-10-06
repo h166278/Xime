@@ -4,9 +4,9 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.kingzcheung.xime.plugin.ExtensionManager
-import com.kingzcheung.xime.plugin.core.lua.ws.NetworkPolicy
-import com.kingzcheung.xime.plugin.core.lua.ws.WsHostApi
-import com.kingzcheung.xime.plugin.core.lua.ws.WsHostListener
+import com.kingzcheung.xime.plugin.core.js.ws.NetworkPolicy
+import com.kingzcheung.xime.plugin.core.js.ws.WsHostApi
+import com.kingzcheung.xime.plugin.core.js.ws.WsHostListener
 import com.kingzcheung.xime.settings.SettingsPreferences
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -66,7 +66,12 @@ class WsHostApiImpl(
         if (reason != null) {
             lastErrorMsg = reason
             Log.w(TAG, "[$pluginId] 联网被拒绝: $reason")
-            com.kingzcheung.xime.plugin.core.security.PluginErrorLog.logError(pluginId, "联网被拒绝", reason)
+            com.kingzcheung.xime.plugin.core.security.PluginErrorLog.logError(
+                pluginId,
+                "联网被拒绝",
+                reason,
+                category = com.kingzcheung.xime.plugin.core.security.ErrorCategory.NETWORK_DENIED
+            )
             com.kingzcheung.xime.plugin.PluginNetworkAuthHelper.onNetworkDenied(
                 context, pluginId, pluginInfo?.name,
                 NetworkPolicy.extractHost(url), reason
@@ -90,19 +95,37 @@ class WsHostApiImpl(
         return true
     }
 
-    override fun sendText(message: String) {
-        try {
-            webSocket?.send(message)
+    override fun sendText(message: String): Boolean {
+        val socket = webSocket
+        if (socket == null) {
+            lastErrorMsg = "连接未建立"
+            return false
+        }
+        return try {
+            val accepted = socket.send(message)
+            if (!accepted) lastErrorMsg = "发送队列已满"
+            accepted
         } catch (e: Exception) {
+            lastErrorMsg = "发送失败: ${e.message}"
             Log.e(TAG, "sendText failed", e)
+            false
         }
     }
 
-    override fun sendBinary(data: ByteArray) {
-        try {
-            webSocket?.send(data.toByteString())
+    override fun sendBinary(data: ByteArray): Boolean {
+        val socket = webSocket
+        if (socket == null) {
+            lastErrorMsg = "连接未建立"
+            return false
+        }
+        return try {
+            val accepted = socket.send(data.toByteString())
+            if (!accepted) lastErrorMsg = "发送队列已满"
+            accepted
         } catch (e: Exception) {
+            lastErrorMsg = "发送失败: ${e.message}"
             Log.e(TAG, "sendBinary failed", e)
+            false
         }
     }
 
@@ -153,15 +176,34 @@ class WsHostApiImpl(
                 pluginId,
                 "WS 连接失败",
                 serverMsg.ifEmpty { t.message ?: "连接失败" },
-                t
+                t,
+                category = com.kingzcheung.xime.plugin.core.security.ErrorCategory.STREAM_ERROR
             )
-            state = STATE_CLOSED
+            if (!markClosed(webSocket)) return
             listener?.onError(serverMsg.ifEmpty { t.message ?: "连接失败" })
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            state = STATE_CLOSED
+            if (!markClosed(webSocket)) return
             listener?.onClose()
         }
+    }
+
+    /**
+     * 当前连接已终止：置空 socket 并复位状态。
+     *
+     * 必须置空：否则下一次 [connect] 会命中"Already connected, reusing"而返回一个**死连接**——
+     * 不再有 onOpen，插件的状态机永远停在未就绪（音频只能进 prebuffer）。
+     *
+     * @return 事件是否属于当前连接；false = 已被替换的旧连接的迟到回调（[close] 主动关闭后
+     *         OkHttp 仍会回调），此时不得清掉新连接、也不得通知新会话的监听器。
+     */
+    private fun markClosed(socket: WebSocket): Boolean {
+        synchronized(this) {
+            if (webSocket !== socket) return false
+            webSocket = null
+            state = STATE_CLOSED
+        }
+        return true
     }
 }

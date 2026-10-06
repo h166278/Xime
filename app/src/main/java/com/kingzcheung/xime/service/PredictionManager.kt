@@ -52,9 +52,6 @@ class PredictionManager(
     
     fun appendCommittedText(text: String) {
         _lastCommittedText = (_lastCommittedText + text).takeLast(MAX_CONTEXT_LENGTH)
-        if (BuildConfig.DEBUG) {
-            FileLogger.d(TAG, "Context updated: '$text' -> '$lastCommittedText' (len=${lastCommittedText.length})")
-        }
     }
     
     fun clearCommittedText() {
@@ -139,7 +136,6 @@ class PredictionManager(
                 }
                 
                 val candidates = AssociationManager.predict(contextText, MAX_ASSOCIATION_COUNT)
-                FileLogger.d(TAG, "Prediction returned ${candidates.size} candidates for '$contextText' (epoch ok: ${epoch == requestEpoch})")
 
                 withContext(Dispatchers.Main) {
                     // 代际过期说明上下文已被退格/清空修改，丢弃过期结果避免候选栏闪动

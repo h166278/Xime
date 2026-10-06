@@ -1,25 +1,20 @@
 # Plugin Core Consumer Rules
-# These rules ensure all plugin API interfaces are preserved
+#
+# 插件系统大量依赖“约定而非静态引用”：QuickJS 桥接（函数/对象绑定）、
+# kotlinx.serialization（manifest/registry/错误落盘）、suspend 调用、枚举名落盘回读等。
+# 一旦被 R8 裁剪/优化，会出现 release 与 debug 行为不一致
+# （插件加载失败、事件丢失、错误恢复失败等）。
+#
+# 因此本库整体保持（不裁剪、不优化、不改名），确保任意宿主直接依赖均可用。
+# 各包职责：api（插件契约）/ model（数据模型）/ runtime（加载与安装）/
+#          js（QuickJS 运行时与适配器）/ security（错误与分类）/ util（版本等）。
 
-# Keep all API interfaces and implementations
--keep class com.kingzcheung.xime.plugin.core.api.** { *; }
--keep interface com.kingzcheung.xime.plugin.core.api.** { *; }
+-keep class com.kingzcheung.xime.plugin.core.** { *; }
 
-# Keep all model classes
--keep class com.kingzcheung.xime.plugin.core.model.** { *; }
+# 保留 Kotlin 元数据（kotlinx.serialization / 反射场景需要）
+-keep class kotlin.Metadata { *; }
 
-# Keep all runtime classes
--keep class com.kingzcheung.xime.plugin.core.runtime.** { *; }
-
-# Keep Kotlin metadata
-#-keep class kotlin.Metadata { *; }
-#-keep @kotlin.Metadata class * { <methods>; }
-
-# Keep suspend function signatures
+# 保留 suspend 函数签名（Continuation 桥接/反射场景）
 -keepclassmembers class * {
     public *** *(kotlin.coroutines.Continuation);
 }
-
-# luaj: 库注册依赖反射（bind() 通过 getConstructor/getMethod 按名查找实现类），
-# 混淆会裁剪掉 Bit32LibV 等实现类，运行时报 NoClassDefFoundError，必须整体保留
--keep class org.luaj.vm2.** { *; }

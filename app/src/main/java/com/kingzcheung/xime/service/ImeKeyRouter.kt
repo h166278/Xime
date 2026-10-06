@@ -5,6 +5,7 @@ import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import com.kingzcheung.xime.association.AssociationManager
 import com.kingzcheung.xime.keyboard.OverlayRoute
+import com.kingzcheung.xime.rime.RimeCandidate
 import com.kingzcheung.xime.rime.resolveRimeCandidateIndex
 import com.kingzcheung.xime.settings.KeysConfigHelper
 import com.kingzcheung.xime.settings.SettingsPreferences
@@ -49,6 +50,9 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
     }
 
     internal fun handleKeyPress(key: String, isShifted: Boolean) {
+        // 空键无任何按键语义，且下游 Rime 路由按 key[0] 取码（key.lowercase()[0]），
+        // 空串会越界崩溃（2026-09-14 真机实证：滑动手势 commit 值为空时触发）。
+        if (key.isEmpty()) return
         if (service.uiState.value.toolPanelInputFocused) {
             val candState = service.candidateState.value
             val hasComposing = candState.isComposing || candState.inputText.isNotEmpty()
@@ -197,10 +201,19 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         // 常驻语音模式下开始打字：先结束语音会话（提交已识别文本），再处理按键
         val current = service.uiState.value
         if (current.isVoiceMode && current.voiceSticky) {
-            service.endVoiceSession()
+            // 回车/换行会立即触发宿主动作（聊天应用里回车即"发送"）：必须先封口，
+            // 否则收尾等待中的最终结果在发送之后才落进输入框，内容重复/错位。
+            if (key == "enter" || key == "newline") {
+                service.sealVoiceSessionForSend()
+            } else {
+                service.endVoiceSession()
+            }
         }
         // 长按退格以固定频率重复派发，走合并路径，避免 keyJobs 堆积导致候选栏抖动
         if (key == "delete") {
+            // 删除会话开始（下滑撤回删除）：按下态已开账时为空操作；数字/符号等只发
+            // key、无按下态回调的键盘在此兜底开账（会话由后续按键/撤回请求结算）。
+            service.beginDeleteSession()
             handleDeleteKey()
             return
         }
@@ -359,6 +372,9 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             }
                         }
                     }
+                    // 本次入账来自"清空"：不做落点校验（撤回语义与改动前逐字节一致）。
+                    // 置空锚同时防止上一段删除会话留下的锚误伤本次撤回。
+                    service.lastUndoAnchorText = null
                     needsUIUpdate = true
                 }
                 "undo_clear", "undo_composition" -> {
@@ -450,6 +466,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             )
                         }
                     }
+                    withContext(Dispatchers.Main) { service.sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER) }
+                    resetEnterLikeCandidates(state.currentSchemaId)
                 }
                 "space" -> {
                     val pendingEnglish = candState.pendingEnglishText
@@ -572,32 +590,9 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 }
                 "mode_change" -> {
                 }
-                "ime_switch" -> {
-                    // 乐观更新：立即按目标模式切换 UI（主键盘布局/面板字符），不等引擎异步切换，
-                    // 消除"进入面板/切键盘后才闪变"的可见延迟（引擎切换完成后权威同步，一致则无感）。
-                    val state = service.uiState.value
-                    val optimisticTarget = !state.isAsciiMode
-                    val schemaId = service.rimeEngine.getCurrentSchema()
-                    withContext(Dispatchers.Main) {
-                        service.uiState.value = service.uiState.value.copy(isAsciiMode = optimisticTarget)
-                        service.keyboardViewModel.dispatch(
-                            com.kingzcheung.xime.ui.keyboard.KeyboardDispatchAction.AsciiModeChanged(optimisticTarget, schemaId)
-                        )
-                    }
-                    // 在 key-processing 线程上执行切换：toggleAsciiMode 阻塞等待 rimeLock
-                    // （部署/维护持锁时排队，完成后自动切换），不在主线程阻塞避免 ANR。
-                    val t0 = System.nanoTime()
-                    FileLogger.i(XimeInputMethodService.TAG, "ime_switch dispatched, ui ascii=${service.uiState.value.isAsciiMode}, thread=${Thread.currentThread().name}")
-                    if (!service.schemaController.switchInputMethod()) {
-                        // 引擎不可用：回滚乐观状态
-                        withContext(Dispatchers.Main) {
-                            service.uiState.value = service.uiState.value.copy(isAsciiMode = optimisticTarget)
-                            service.keyboardViewModel.dispatch(
-                                com.kingzcheung.xime.ui.keyboard.KeyboardDispatchAction.AsciiModeChanged(optimisticTarget, schemaId)
-                            )
-                        }
-                    }
-                    FileLogger.i(XimeInputMethodService.TAG, "ime_switch handled, total ${(System.nanoTime() - t0) / 1_000_000}ms (queue+rimeLock+main)")
+                "ime_switch", "ime_switch_panel" -> {
+                    // 面板来源（ime_switch_panel）走 PANEL_SYNC：不持久化，见 dispatchAsciiSwitch
+                    dispatchAsciiSwitch(persist = key == "ime_switch")
                 }
                 "abc" -> {
                     service.calculatorEngine.clear()
@@ -742,7 +737,25 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         } else {
                             // 注：T9 数字键不经过此处（T9KeyboardLayout 直接调
                             // controller.onDigitPressed → applyComposition）。
-                            val result = service.rimeEngine.processKeyAndGetResult(keyCode, mask)
+                            // 编码编辑态：宿主把字母插入光标处并 setInput 整串重建——
+                            // librime caret 恒在编码末尾，候选始终针对整个编码转换。
+                            val editingCaret = service.editingCaretPos
+                            val editingInput = if (editingCaret >= 0) service.rimeEngine.getInput() else ""
+                            if (!state.isAsciiMode && candState.isComposing && !isShifted &&
+                                editingCaret in 0..editingInput.length && editingInput.isNotEmpty()
+                            ) {
+                                val ch = key.lowercase()[0]
+                                val newInput = editingInput.substring(0, editingCaret) + ch +
+                                    editingInput.substring(editingCaret)
+                                service.editingCaretPos = editingCaret + 1
+                                service.editingCaretInput = newInput
+                                service.rimeEngine.setInput(newInput)
+                                sendTransformedResult(service.rimeEngine.getProcessResult(true)) {
+                                    if (service.calculatorEngine.isActive()) updateCalculatorCandidates()
+                                }
+                                return@launch
+                            } else {
+                                val result = service.rimeEngine.processKeyAndGetResult(keyCode, mask)
                             if (result.processed) {
                                 if (isShiftedChinese && result.committedText != char) {
                                     service.rimeEngine.clearComposition()
@@ -808,6 +821,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                                     }
                                 }
                             }
+                            }
                         }
                     }
                 }
@@ -855,12 +869,16 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                         } else {
                             displayCandidates.map { it.text } to displayCandidates.map { it.comment }
                         }
+                        // 秘密输入框（密码/终端）禁英文联想：联想会泄漏输入前缀，
+                        // 回删替换也会破坏受限宿主的输入。NO_SUGGESTIONS 只是宿主
+                        // 不要内联补全，候选栏联想仍提供（与退格/applyComposition 路径同口径）。
+                        val secret = service.isSecretEditor()
                         service.candidateState.value = service.candidateState.value.copy(
                             inputText = capturedInputText,
                             candidates = filteredTexts,
                             candidateComments = filteredComments,
                             isComposing = capturedInputText.isNotEmpty(),
-                            associationCandidates = if ((capturedIsAscii || !service.isChineseMode) && pendingEnglish.isEmpty()) emptyList() else service.candidateState.value.associationCandidates,
+                            associationCandidates = if (secret || ((capturedIsAscii || !service.isChineseMode) && pendingEnglish.isEmpty())) emptyList() else service.candidateState.value.associationCandidates,
                             isShowingRecentClipboard = false,
                             hasNextPage = capturedHasNext,
                             hasPrevPage = capturedHasPrev,
@@ -870,7 +888,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             FileLogger.i(XimeInputMethodService.TAG, "keyRouter UI refresh: ascii ${service.uiState.value.isAsciiMode}->$capturedIsAscii")
                         }
                         service.uiState.value = service.uiState.value.copy(isAsciiMode = capturedIsAscii)
-                        if (pendingEnglish.isNotEmpty() && service.supportsEnglishCandidateReplace()) {
+                        if (pendingEnglish.isNotEmpty() && !secret && service.supportsEnglishCandidateReplace()) {
                             service.serviceScope.launch {
                                 val candidates = service.predictionManager.getEnglishAssociations(pendingEnglish, PredictionManager.MAX_ASSOCIATION_COUNT)
                                 withContext(Dispatchers.Main) {
@@ -890,6 +908,90 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             }
         }
         service.keyJobs.trySend(job)
+    }
+
+    /**
+     * 提交当前组合态编码（enter / newline 组合态共用）。
+     *
+     * T9 模式提交完整预编辑（含 partial commit 累积），非 T9 模式用 RIME input；
+     * 提交后清除组合态并结束输入框 composing。
+     */
+    private suspend fun commitComposingInput(candState: CandidateState, schemaId: String) {
+        val isT9 = isT9Schema(schemaId)
+        val input = if (isT9 && candState.preeditText.isNotEmpty()) {
+            candState.preeditText
+        } else {
+            service.rimeEngine.getInput()
+        }
+        if (input.isNotEmpty()) {
+            withContext(Dispatchers.Main) { service.commitText(input) }
+        }
+        if (isT9) {
+            // 同步清空，避免异步 postRimeJob 延迟导致后续 backspace 拿到旧状态。
+            service.t9PartialSegments.clear()
+            service.rimeEngine.setInput("")
+            service.rimeEngine.clearComposition()
+        } else {
+            service.rimeEngine.clearComposition()
+        }
+        withContext(Dispatchers.Main) { service.endComposingInputBox() }
+    }
+
+    /** 回车类按键收尾：清空候选态（enter / newline 共用），T9 方案额外复位分段选择状态。 */
+    private suspend fun resetEnterLikeCandidates(schemaId: String) {
+        withContext(Dispatchers.Main) {
+            service.candidateState.value = service.candidateState.value.copy(
+                inputText = "",
+                preeditText = "",
+                pendingEnglishText = "",
+                candidates = emptyList(),
+                candidateComments = emptyList(),
+                associationCandidates = emptyList(),
+                isComposing = false
+            )
+            if (isT9Schema(schemaId)) {
+                service.uiState.value = service.uiState.value.copy(
+                    t9ResetSignal = service.uiState.value.t9ResetSignal + 1,
+                    t9RightCandidateSelectedCount = 0,
+                    t9SelectedCandidatePinyin = ""
+                )
+            }
+        }
+    }
+
+    /**
+     * ascii 切换统一分发（key-processing 协程内执行）。
+     *
+     * 乐观更新：立即按目标模式切换 UI（主键盘布局/面板字符），不等引擎异步切换，
+     * 消除"进入面板/切键盘后才闪变"的可见延迟（引擎切换完成后权威同步，一致则无感）。
+     * [persist] 仅决定日志溯源原因（USER_TOGGLE / PANEL_SYNC）；ascii 为会话级
+     * 状态，两种来源均不写 user.yaml，收起键盘后回到默认中文。
+     */
+    private suspend fun dispatchAsciiSwitch(persist: Boolean) {
+        val original = service.uiState.value.isAsciiMode
+        val optimisticTarget = !original
+        val schemaId = service.rimeEngine.getCurrentSchema()
+        withContext(Dispatchers.Main) {
+            service.uiState.value = service.uiState.value.copy(isAsciiMode = optimisticTarget)
+            service.keyboardViewModel.dispatch(
+                com.kingzcheung.xime.ui.keyboard.KeyboardDispatchAction.AsciiModeChanged(optimisticTarget, schemaId)
+            )
+        }
+        // 在 key-processing 线程上执行切换：toggleAsciiMode 阻塞等待 rimeLock
+        // （部署/维护持锁时排队，完成后自动切换），不在主线程阻塞避免 ANR。
+        val t0 = System.nanoTime()
+        FileLogger.i(XimeInputMethodService.TAG, "dispatchAsciiSwitch(persist=$persist): ui ascii=${service.uiState.value.isAsciiMode}, thread=${Thread.currentThread().name}")
+        val reason = if (persist) AsciiModeController.Reason.USER_TOGGLE else AsciiModeController.Reason.PANEL_SYNC
+        if (!service.asciiModeController.switchAscii(reason)) {
+            // 引擎不可用：回滚乐观状态到切换前的原值
+            withContext(Dispatchers.Main) {
+                service.uiState.value = service.uiState.value.copy(isAsciiMode = original)
+                service.keyboardViewModel.dispatch(
+                    com.kingzcheung.xime.ui.keyboard.KeyboardDispatchAction.AsciiModeChanged(original, schemaId)
+                )
+            }
+        }
+        FileLogger.i(XimeInputMethodService.TAG, "dispatchAsciiSwitch handled, total ${(System.nanoTime() - t0) / 1_000_000}ms (queue+rimeLock+main)")
     }
 
     /**
@@ -925,7 +1027,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
             try {
                 processDeleteKey()
             } catch (t: Throwable) {
-                Log.e(XimeInputMethodService.TAG, "processDeleteKey failed", t)
+                FileLogger.e(XimeInputMethodService.TAG, "processDeleteKey failed", t)
             } finally {
                 maybeScheduleFollowUp()
             }
@@ -986,7 +1088,7 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             candidateActions = emptyList()
                         )
                     }
-                    if (service.supportsEnglishCandidateReplace()) {
+                    if (!service.isSecretEditor() && service.supportsEnglishCandidateReplace()) {
                         service.serviceScope.launch {
                             val candidates = service.predictionManager.getEnglishAssociations(newPending, PredictionManager.MAX_ASSOCIATION_COUNT)
                             withContext(Dispatchers.Main) {
@@ -1006,6 +1108,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                             candidateActions = emptyList()
                         )
                     }
+                    // 待确认英文已删空：候选展开页若开着则收起（无内容可展示）
+                    service.maybeCollapseCandidatePage()
                 }
             }
 
@@ -1032,14 +1136,9 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                                 service.deleteBeforeCursor(len)
                             }
                         }
-                        // undo 联动：撤销段时回滚用户词典调频。
-                        val undone = service.t9PartialSegments.removeLastOrNull()
-                        if (undone != null) {
-                            service.rimeEngine.t9Forget(undone.text, undone.pinyin)
-                        }
                     }
+                    sendTransformedResult(result) { if (service.calculatorEngine.isActive()) updateCalculatorCandidates() }
                 }
-                sendTransformedResult(result) { if (service.calculatorEngine.isActive()) updateCalculatorCandidates() }
             }
 
             // 3. 联想词、剪贴板、键盘注入标点：只清候选栏，不回删已上屏字。
@@ -1053,6 +1152,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     isShowingRecentClipboard = false,
                     candidateActions = emptyList(),
                 )
+                // 候选展开页：联想/剪贴板候选清空后无内容，收起
+                service.maybeCollapseCandidatePage()
             }
 
             // 4. 无候选也无编码：直接回删已上屏文本
@@ -1078,6 +1179,8 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     associationCandidates = emptyList(),
                     isShowingRecentClipboard = false
                 )
+                // 候选展开页：无候选无编码，收起
+                service.maybeCollapseCandidatePage()
             }
         }
     }
@@ -1407,10 +1510,17 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         service.keyJobs.trySend(job)
     }
 
-    suspend fun selectCandidateAsync(index: Int) {
-        // 插件候选（candidate_transform 变换）：直接上屏插件文本（所见即所得），不走引擎选词。
-        // 引擎引用项继续走下方引擎路径，用映射记录的引擎索引（显示 index 因插件候选插入而错位）。
-        val pendingAction = service.candidateState.value.candidateActions.getOrNull(index)
+    suspend fun selectCandidateAsync(index: Int, expandedCandidate: RimeCandidate? = null) {
+        // 展开页点选（expandedCandidate 非空）：取词/注释以展开页显示的同一份
+        // 全量列表为准（所见即所得）。index 是全量索引，不得用于索引引擎当前页的
+        // candidates/candidateComments——部分选拼音（SELECTION 态）或候选超页时
+        // 两列表错位，全局索引套在当前页上会取错词（如点长词只上屏另一短词）。
+        // 插件候选 actions 按页内索引记录，展开页索引同样不适用，直接跳过检测。
+        val pendingAction = if (expandedCandidate == null) {
+            service.candidateState.value.candidateActions.getOrNull(index)
+        } else {
+            null
+        }
         if (pendingAction != null && pendingAction.isPluginCandidate) {
             // 键盘注入候选无引擎组合，必须直接上屏。
             // 其余插件候选：中英/方案切换后引擎组合已清空但 candidateState 残留旧候选+actions，
@@ -1430,9 +1540,16 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         val codeBefore = snapshotCommitCode()
 
         val isT9 = isT9Schema(service.uiState.value.currentSchemaId)
-        val candidatePinyin = if (isT9 && index < service.candidateState.value.candidateComments.size) {
-            service.candidateState.value.candidateComments[index]
-        } else null
+        val candidatePinyin = if (isT9) {
+            expandedCandidate?.comment?.takeIf { it.isNotEmpty() }
+                ?: if (index < service.candidateState.value.candidateComments.size) {
+                    service.candidateState.value.candidateComments[index]
+                } else {
+                    null
+                }
+        } else {
+            null
+        }
 
         // 在 RIME 真正 select/commit 之前，先同步通知 T9 控制器消费数字。
         // 控制器返回 true 表示输入序列已被该候选词完整消费，服务层应视为 full commit。
@@ -1520,6 +1637,9 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                 service.armCommitCode(codeBefore)
                 service.commitText(fullCommitText)
                 service.t9PartialSegments.clear()
+                // 编码已随候选整串上屏：退出编码编辑态（光标复位到末尾语义）
+                service.editingCaretPos = -1
+                service.editingCaretInput = ""
                 service.candidateState.value = service.candidateState.value.copy(
                     inputText = "",
                     preeditText = "",
@@ -1561,6 +1681,10 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
                     // 否则与 refreshOnBackground 竞争 rimeLock，空数据覆盖候选栏。
                     service.keyboardCallbacks?.onT9ForceSendToRime?.invoke()
                 } else {
+                    // 非 T9 非 full commit（确认段未覆盖全部输入）：选词动作已结束
+                    // 编辑会话，复位编码编辑态（displayCaretOffset 亦会失同步自愈兜底）
+                    service.editingCaretPos = -1
+                    service.editingCaretInput = ""
                     service.updateUI()
                 }
             }
@@ -1742,8 +1866,13 @@ internal class ImeKeyRouter(private val service: XimeInputMethodService) {
         }
         
         if (service.candidateState.value.isShowingRecentClipboard && index >= 0 && index < service.recentClipboardItemsState.value.size) {
-            val text = service.recentClipboardItemsState.value[index].text
-            service.textCommit.selectClipboardItem(text)
+            // 文本与图片共用同一候选索引空间：图片走"commitContent 直插 → 失败落系统剪贴板"链路
+            val item = service.recentClipboardItemsState.value[index]
+            if (item.isImage) {
+                service.textCommit.selectClipboardImage(item)
+            } else {
+                service.textCommit.selectClipboardItem(item.text)
+            }
             service.candidateState.value = service.candidateState.value.copy(
                 isShowingRecentClipboard = false,
                 candidates = emptyList(),

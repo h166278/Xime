@@ -15,6 +15,7 @@ import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 宽容点击：语义同 Modifier.clickable，但点击判定改为「抬起时累计位移仍在
@@ -29,14 +30,20 @@ import androidx.compose.ui.unit.dp
  * 本手势不消费任何指针事件，父级 Pager/滚动的行为保持系统默认。
  * showRipple = false 时涟漪反馈交给调用方自绘（配合 interactionSource 的
  * Press/Release/Cancel 事件，语义与 clickable 一致）。
+ *
+ * [onLongClick] 非空时启用长按：按住超过系统长按超时且位移未超容差即触发
+ * （触发一次后抬起不再 onClick，语义同 combinedClickable）。位移超容差则
+ * 取消长按资格（视为滚动/滑动）。
  */
 fun Modifier.tolerantClick(
     enabled: Boolean = true,
     showRipple: Boolean = true,
     interactionSource: MutableInteractionSource? = null,
+    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit,
 ): Modifier = composed {
     val currentOnClick by rememberUpdatedState(onClick)
+    val currentOnLongClick by rememberUpdatedState(onLongClick)
     val currentEnabled by rememberUpdatedState(enabled)
     val source = interactionSource ?: remember { MutableInteractionSource() }
     val resolvedIndication = if (showRipple) LocalIndication.current else null
@@ -48,27 +55,53 @@ fun Modifier.tolerantClick(
     }
 
     indicationModifier.then(
-        Modifier.pointerInput(currentEnabled) {
+        Modifier.pointerInput(currentEnabled, onLongClick != null) {
             if (!currentEnabled) return@pointerInput
             val slopPx = maxOf(2f * viewConfiguration.touchSlop, 12.dp.toPx())
+            val longPressTimeoutMs = viewConfiguration.longPressTimeoutMillis
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 val press = PressInteraction.Press(down.position)
                 source.tryEmit(press)
                 var travelled = 0f
+                var travelExceeded = false
+                var longPressFired = false
+                var awaitingLongPress = onLongClick != null
+                var lastEventTime = down.uptimeMillis
                 while (true) {
-                    val event = awaitPointerEvent()
+                    val event = if (awaitingLongPress) {
+                        // 长按计时窗口：无事件（按住不动）超时即触发长按
+                        val remaining = longPressTimeoutMs - (lastEventTime - down.uptimeMillis)
+                        withTimeoutOrNull(remaining.coerceAtLeast(0L)) {
+                            awaitPointerEvent()
+                        }
+                    } else {
+                        awaitPointerEvent()
+                    }
+                    if (event == null) {
+                        // 长按超时触发
+                        longPressFired = true
+                        awaitingLongPress = false
+                        currentOnLongClick?.invoke()
+                        source.tryEmit(PressInteraction.Cancel(press))
+                        continue
+                    }
+                    event.changes.firstOrNull()?.uptimeMillis?.let { lastEventTime = it }
                     val pressedChange = event.changes.firstOrNull { it.pressed }
                     val upChange = event.changes.firstOrNull { it.changedToUp() }
                     travelled += (pressedChange ?: upChange)?.positionChange()?.getDistance() ?: 0f
                     if (pressedChange == null) {
-                        if (upChange != null && travelled <= slopPx) {
+                        if (upChange != null && !longPressFired && travelled <= slopPx) {
                             currentOnClick()
                             source.tryEmit(PressInteraction.Release(press))
                         } else {
                             source.tryEmit(PressInteraction.Cancel(press))
                         }
                         break
+                    }
+                    if (awaitingLongPress && travelled > slopPx) {
+                        // 位移超容差：取消长按资格（视为滑动），仅保留抬起判定
+                        awaitingLongPress = false
                     }
                 }
             }

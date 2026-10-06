@@ -125,6 +125,23 @@ object RimeExportManager {
         }
     }
 
+    /**
+     * 保存任意 zip 字节流到 Downloads（词库同步快照包由 SyncManager 打包后经此落盘），
+     * 返回文件名。
+     */
+    fun saveSyncArchive(context: Context, fileName: String, bytes: ByteArray): Result<String> {
+        return try {
+            val tempZip = File(context.cacheDir, fileName)
+            tempZip.writeBytes(bytes)
+            val ok = saveToDownloads(context, tempZip, fileName)
+            tempZip.delete()
+            if (ok) Result.success(fileName)
+            else Result.failure(IllegalStateException("保存到下载目录失败"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun saveToDownloads(context: Context, zipFile: File, fileName: String): Boolean {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -175,6 +192,12 @@ object RimeExportManager {
         if (mode == ExportMode.FULL_BACKUP) return true
         return when {
             relativePath.startsWith("build/") -> false
+            // 用户词典一律不走配置备份：leveldb 文件级快照有一致性风险，
+            // 且恢复=整体覆盖会吃掉其他设备后打的词——词典统一走词库同步快照（合并语义）
+            relativePath.contains(".userdb") -> false
+            // 词库同步快照有自己的传输通道（SyncManager）：
+            // 混进备份包会让旧快照随恢复回滚、已删词条借合并复活
+            relativePath == "sync" || relativePath.startsWith("sync/") -> false
             relativePath.startsWith("opencc/") -> true
             relativePath.endsWith(".bin") -> false
             relativePath.endsWith(".gram") -> false

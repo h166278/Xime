@@ -4,6 +4,7 @@ import com.kingzcheung.xime.service.PredictionManager
 import android.annotation.SuppressLint
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -25,12 +26,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.twotone.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -68,17 +73,23 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.kingzcheung.xime.R
+import com.kingzcheung.xime.clipboard.ClipboardItem
 import com.kingzcheung.xime.keyboard.KeyboardPage
 import com.kingzcheung.xime.keyboard.OverlayRoute
 import com.kingzcheung.xime.keyboard.PanelType
 import com.kingzcheung.xime.keyboard.ToolbarAction
 import com.kingzcheung.xime.settings.SettingsPreferences
 import com.kingzcheung.xime.speech.RecognitionState
+import com.kingzcheung.xime.ui.CLIPBOARD_CHIP_MAX_PX
+import com.kingzcheung.xime.ui.rememberClipboardImageRequest
+import java.io.File
 
 @Immutable
 data class CandidateBarVisuals(
@@ -101,13 +112,16 @@ data class CandidateBarCallbacks(
     val onAssociationSelect: ((Int) -> Unit)? = null,
     // 长按候选：抛事件给宿主（键盘视图内弹确认覆盖层，不弹独立窗口——
     // 焦点型弹窗会抢焦点导致 IME 被系统收起）。
-    val onCandidateLongPress: ((Int) -> Unit)? = null
+    val onCandidateLongPress: ((Int) -> Unit)? = null,
+    /** 常驻语音：点按候选栏的频谱区域结束识别（与轻触空格同一条结束路径）。 */
+    val onVoiceStop: (() -> Unit)? = null
 )
 
 @Composable
 fun CandidateBar(
     state: CandidateBarState,
     page: KeyboardPage = KeyboardPage.Main(com.kingzcheung.xime.keyboard.MainType.FULL),
+    candidatePageExpanded: Boolean = false,
     toolbarActions: List<ToolbarAction> = emptyList(),
     visuals: CandidateBarVisuals,
     callbacks: CandidateBarCallbacks,
@@ -119,10 +133,14 @@ fun CandidateBar(
     voiceSpectrum: FloatArray = FloatArray(16),
     voiceRecognitionState: RecognitionState = RecognitionState.IDLE,
     voicePluginName: String = "",
+    /** 剪贴板图片候选 → 本地文件（null 时渲染占位图标）。 */
+    clipboardImageFileOf: ((ClipboardItem) -> File?)? = null,
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = !isFloatingMode && configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    val horizontalPadding = if (isLandscape) 50.dp else 8.dp
+    // 统一 8dp 靠边；横屏挖孔/导航栏的物理避让由服务层内容容器的边衬区 padding 统一处理，
+    // 不再叠加手机横屏专用的 50dp 缩进
+    val horizontalPadding = 8.dp
     val context = LocalContext.current
 
     // M3 角色色：图标按钮背景用 surface 与 primary 的混合色调（带种子色但不过于强烈），
@@ -160,9 +178,15 @@ fun CandidateBar(
         rowPaddingPx + maxOf(moreBtn, clearBtn) + hideBtn + 8.dp.toPx()
     }
 
+    // 候选行滚动状态：需在 state 分支前声明——ChineseCandidates 的 hasAnyMore
+    // 叠加 canScrollForward 判断（见分支内注释）
+    val candidateListState = rememberLazyListState()
+
     val displayCandidates: List<String>
     val displayAssociation: List<String>
     val displayComments: List<String>
+    /** 与 [displayCandidates] 等长：图片候选条目（非图片位为 null）。 */
+    val displayImages: List<ClipboardItem?>
     val hasAnyMore: Boolean
     val showInputTextRow: Boolean
     val showLeftIcon: Boolean
@@ -172,14 +196,18 @@ fun CandidateBar(
             displayCandidates = emptyList()
             displayAssociation = emptyList()
             displayComments = emptyList()
+            displayImages = emptyList()
             hasAnyMore = false
             showLeftIcon = true
         }
         is CandidateBarState.ChineseCandidates -> {
             val taken = s.candidates.take(20)
+            // 候选栏按设置的"每页候选词数"显示引擎当前页，可左右滑动查看放不下的候选
             displayCandidates = taken
             displayComments = s.comments
-            hasAnyMore = s.hasMore
+            displayImages = emptyList()
+
+            hasAnyMore = s.hasMore || candidateListState.canScrollForward
             showLeftIcon = false
             displayAssociation = remember(
                 s.associationCandidates, taken, s.comments, s.inputText, textMeasurer, stackedComments
@@ -209,9 +237,9 @@ fun CandidateBar(
                         cellWidth(c, if (showComments) s.comments.getOrElse(i) { "" } else "").toDouble()
                     }.sum().toFloat() + cellDividerPx * taken.size.coerceAtLeast(0)
                     val dividerWidthPx = with(density) { 9.dp.toPx() }
-                    val availablePx = lazyRowWidthPx - regularWidthPx - dividerWidthPx
+                    val availablePx = rowWidthPx - regularWidthPx - dividerWidthPx
 
-                    var usedPx = 0f
+                    var used = 0f
                     val result = mutableListOf<String>()
                     for (c in s.associationCandidates) {
                         val w = cellWidth(c, "") + (if (result.isEmpty()) 0f else spacingPx + cellDividerPx)
@@ -230,6 +258,7 @@ fun CandidateBar(
             hasAnyMore = s.hasMore
             showLeftIcon = false
             displayComments = s.comments
+            displayImages = emptyList()
         }
         is CandidateBarState.EnglishCandidates -> {
             displayCandidates = s.candidates.take(20)
@@ -237,9 +266,12 @@ fun CandidateBar(
             displayAssociation = emptyList()
             hasAnyMore = false
             showLeftIcon = false
+            displayImages = emptyList()
         }
         is CandidateBarState.ClipboardDisplay -> {
+            // images 与 candidates 由服务层按同一列表同序构造，take 必须同源同步，否则索引错位
             displayCandidates = s.candidates.take(20)
+            displayImages = s.images.take(20)
             displayComments = emptyList()
             displayAssociation = emptyList()
             hasAnyMore = false
@@ -251,6 +283,7 @@ fun CandidateBar(
             displayAssociation = emptyList()
             hasAnyMore = false
             showLeftIcon = false
+            displayImages = emptyList()
         }
     }
     showInputTextRow = when (page) {
@@ -258,7 +291,6 @@ fun CandidateBar(
         else -> true
     }
 
-    val candidateListState = rememberLazyListState()
     LaunchedEffect(displayCandidates) {
         candidateListState.scrollToItem(0)
     }
@@ -269,6 +301,9 @@ fun CandidateBar(
         mutableStateOf((state as? CandidateBarState.ChineseCandidates)?.preeditText
             ?: (state as? CandidateBarState.ChineseCandidates)?.inputText ?: "")
     }
+    var preeditBubbleCaret by remember(state) {
+        mutableStateOf((state as? CandidateBarState.ChineseCandidates)?.preeditCaretPos ?: -1)
+    }
     val showPreeditBubble = showInputTextRow && preeditBubbleText.isNotEmpty() && !showInputBoxStyle
 
     Column(
@@ -277,6 +312,7 @@ fun CandidateBar(
             .height(44.dp)
             .drawPreeditBubble(
                 text = preeditBubbleText,
+                caretOffset = preeditBubbleCaret,
                 enabled = showPreeditBubble,
                 bubbleColor = visuals.backgroundColor,
                 textColor = visuals.textColor
@@ -286,11 +322,15 @@ fun CandidateBar(
         verticalArrangement = Arrangement.Center
     ) {
         if (isVoiceSticky) {
-            // 常驻语音模式：候选栏显示语音引擎名 + 频谱
+            // 常驻语音模式：候选栏显示语音引擎名 + 频谱。
+            // 整条候选栏可点：轻触频谱即结束识别，不必非去点空格。
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(),
+                    .fillMaxHeight()
+                    .clickable(enabled = callbacks.onVoiceStop != null) {
+                        callbacks.onVoiceStop?.invoke()
+                    },
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -331,6 +371,7 @@ fun CandidateBar(
         // 编码显示已改为候选栏顶部的悬浮气泡（drawBehind 绘制，见 drawPreeditBubble），
         // 栏内不再为编码保留布局空间——打字态与联想态的候选行共用同一垂直位置。
         preeditBubbleText = displayText
+        preeditBubbleCaret = (state as? CandidateBarState.ChineseCandidates)?.preeditCaretPos ?: -1
 
         Row(
             modifier = Modifier
@@ -344,7 +385,7 @@ fun CandidateBar(
                             Box(
                                 modifier = Modifier
                                     .size(32.dp)
-                                    .clip(RoundedCornerShape(16.dp))
+                                    .clip(CircleShape)
                                     .background(iconButtonContainer)
                                     .clickable { callbacks.onBack() },
                                 contentAlignment = Alignment.Center
@@ -360,7 +401,7 @@ fun CandidateBar(
                             Box(
                                 modifier = Modifier
                                     .size(32.dp)
-                                    .clip(RoundedCornerShape(16.dp))
+                                    .clip(CircleShape)
                                     .background(iconButtonContainer)
                                     .clickable { callbacks.onLogoClick?.invoke() },
                                 contentAlignment = Alignment.Center
@@ -393,24 +434,31 @@ fun CandidateBar(
             }
 
             if (inlineSuggestions.isNotEmpty()) {
-                inlineSuggestions.forEachIndexed { index, suggestion ->
-                    InlineSuggestionView(
-                        suggestion = suggestion,
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(180.dp),
-                    )
-                    if (index < inlineSuggestions.lastIndex) {
-                        InlineSuggestionDivider(color = visuals.dividerColor)
+                LazyRow(
+                    // 占满配额：内容少时建议靠左、右侧留白到收起按钮（收起按钮
+                    // 因此固定最右）；内容超出配额时占满并可横向滑动查看后续建议；
+                    // clipToBounds：滑动时滑出边界的建议裁剪掉，避免与左侧 logo 重叠
+                    modifier = Modifier
+                        .weight(1f)
+                        .clipToBounds(),
+                ) {
+                    itemsIndexed(inlineSuggestions, key = { index, _ -> index }) { _, suggestion ->
+                        Box(modifier = Modifier.fillMaxHeight()) {
+                            InlineSuggestionView(
+                                suggestion = suggestion,
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .width(180.dp),
+                            )
+                            // 每条尾部 1dp 分隔线：条目之间为间隔，最后一条的尾线
+                            // 同时充当与候选词区的分界（与旧平铺布局视觉一致）
+                            InlineSuggestionDivider(
+                                modifier = Modifier.align(Alignment.CenterEnd),
+                                color = visuals.dividerColor,
+                            )
+                        }
                     }
                 }
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .fillMaxHeight()
-                        .padding(vertical = 6.dp)
-                        .background(visuals.dividerColor),
-                )
             }
 
             LazyRow(
@@ -496,33 +544,37 @@ fun CandidateBar(
 
             when {
                 state is CandidateBarState.Idle -> {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f, fill = true)
-                            .horizontalScroll(rememberScrollState()),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                        if (toolbarActions.isNotEmpty()) {
-                            toolbarActions.forEach { action ->
-                                val interactionSource = remember { MutableInteractionSource() }
-                                val isPressed by interactionSource.collectIsPressedAsState()
-                                Box(
-                                    modifier = Modifier
-                                        .padding(horizontal = 5.dp)
-                                        .size(32.dp)
-                                        .clickable(
-                                            interactionSource = interactionSource,
-                                            indication = null,
-                                            onClick = action.onClick
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    ToolbarButtonIcon(
-                                        item = action.item,
-                                        tint = if (isPressed) iconButtonTint.copy(alpha = 0.6f) else iconButtonTint,
-                                        modifier = Modifier.size(22.dp),
-                                    )
+                    // 显示内联建议时隐藏工具栏按钮区，把宽度让给建议；logo 与
+                    // 收起按钮保留，退格回到 idle 时的状态感知不变
+                    if (inlineSuggestions.isEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .weight(1f, fill = true)
+                                .horizontalScroll(rememberScrollState()),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            if (toolbarActions.isNotEmpty()) {
+                                toolbarActions.forEach { action ->
+                                    val interactionSource = remember { MutableInteractionSource() }
+                                    val isPressed by interactionSource.collectIsPressedAsState()
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(horizontal = 5.dp)
+                                            .size(32.dp)
+                                            .clickable(
+                                                interactionSource = interactionSource,
+                                                indication = null,
+                                                onClick = action.onClick
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        ToolbarButtonIcon(
+                                            item = action.item,
+                                            tint = if (isPressed) iconButtonTint.copy(alpha = 0.6f) else iconButtonTint,
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -553,12 +605,12 @@ fun CandidateBar(
                         }
                     }
                 }
-                page is KeyboardPage.Overlay && page.route is OverlayRoute.CandidatePage -> {
+                candidatePageExpanded -> {
                     if (callbacks.onBack != null) {
                         Box(
                             modifier = Modifier
                                 .size(28.dp)
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(CircleShape)
                                 .background(iconButtonContainer)
                                 .clickable { callbacks.onBack() },
                             contentAlignment = Alignment.Center
@@ -587,7 +639,7 @@ fun CandidateBar(
                         modifier = Modifier
                             .width(30.dp)
                             .height(24.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(CircleShape)
                             .background(
                                 if (isClearPressed) (if (visuals.isDarkTheme) Color.White.copy(alpha = 0.15f) else Color.Black.copy(
                                     alpha = 0.1f
@@ -617,7 +669,7 @@ fun CandidateBar(
                         modifier = Modifier
                             .width(30.dp)
                             .height(24.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(CircleShape)
                             .background(
                                 if (isMorePressed) (if (visuals.isDarkTheme) Color.White.copy(alpha = 0.15f) else Color.Black.copy(
                                     alpha = 0.1f
@@ -631,10 +683,11 @@ fun CandidateBar(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "更多",
-                            color = if (isMorePressed) visuals.textColor.copy(alpha = 0.6f) else visuals.textColor,
-                            fontSize = 11.sp
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = "更多候选",
+                            tint = if (isMorePressed) visuals.textColor.copy(alpha = 0.6f) else visuals.textColor,
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
@@ -784,7 +837,8 @@ private fun Modifier.drawPreeditBubble(
     text: String,
     enabled: Boolean,
     bubbleColor: Color,
-    textColor: Color
+    textColor: Color,
+    caretOffset: Int = -1
 ): Modifier = composed {
     val density = LocalDensity.current
     val cornerRadiusPx = with(density) { 4.dp.toPx() }
@@ -793,6 +847,7 @@ private fun Modifier.drawPreeditBubble(
     val bubbleBottomGapPx = with(density) { 2.dp.toPx() }
     val screenMarginPx = with(density) { 4.dp.toPx() }
     val textSizePx = with(density) { 12.sp.toPx() }
+    val caretWidthPx = with(density) { 1.5.dp.toPx() }
 
     // 气泡基色：优先用传入的主题背景色；其为全透明（CandidateBarVisuals 传
     // Color.Transparent，真实背景由外层绘制）时按候选文字亮度推导，
@@ -845,6 +900,20 @@ private fun Modifier.drawPreeditBubble(
         drawIntoCanvas { composeCanvas ->
             val baselineY = top + (bubbleHeight - (fontMetrics.ascent + fontMetrics.descent)) / 2f
             composeCanvas.nativeCanvas.drawText(text, clampedLeft + horizontalPaddingPx, baselineY, bubbleTextPaint)
+        }
+
+        // 编码编辑光标：caret 在中间（offset < 文本长度）时在对应字符边界画竖线；
+        // 末尾/未知（-1）不画——默认打字态光标恒在编码末尾，保持观感不变
+        if (caretOffset in 0 until text.length) {
+            val caretCharIndex = caretOffset.coerceIn(0, text.length)
+            val caretX = clampedLeft + horizontalPaddingPx +
+                bubbleTextPaint.measureText(text, 0, caretCharIndex)
+            drawLine(
+                color = textColor,
+                start = Offset(caretX, top + verticalPaddingPx),
+                end = Offset(caretX, top + bubbleHeight - verticalPaddingPx),
+                strokeWidth = caretWidthPx
+            )
         }
     }
 }

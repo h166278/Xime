@@ -5,11 +5,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -29,7 +31,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.kingzcheung.xime.keyboard.ToolbarButton
 import com.kingzcheung.xime.keyboard.ToolbarButtonItem
 import com.kingzcheung.xime.ui.keyboard.ToolbarButtonIcon
+import com.kingzcheung.xime.ui.keyboard.WIDE_CONTAINER_WIDTH
 
 @Composable
 fun ToolbarCustomizeView(
@@ -70,14 +72,17 @@ fun ToolbarCustomizeView(
         onUpdateToolbarButtons?.invoke(newList)
     }
 
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     // 图标按钮容器色：按键背景与强调色的混合色调（带主题色但不过于强烈）
     val iconButtonContainer = androidx.compose.ui.graphics.lerp(
         keyBgColor,
         accentColor,
         0.25f
     )
+
+    // 布局按父容器真实宽度自适应（悬浮卡片/键盘收窄/分屏的容器宽 ≠ 屏幕宽），
+    // 不读屏幕方向：宽容器（横屏全屏）用大边距，其余按竖屏形态
+    BoxWithConstraints(modifier = modifier) {
+        val isWide = maxWidth >= WIDE_CONTAINER_WIDTH
 
     val itemsPerPage = 8
     val pages = allButtons.chunked(itemsPerPage).map { page ->
@@ -86,8 +91,8 @@ fun ToolbarCustomizeView(
     val pagerState = rememberPagerState(pageCount = { pages.size })
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .background(backgroundColor),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -95,7 +100,7 @@ fun ToolbarCustomizeView(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
-                .padding(horizontal = if (isLandscape) 50.dp else 8.dp),
+                .padding(horizontal = if (isWide) 50.dp else 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -233,6 +238,7 @@ fun ToolbarCustomizeView(
             }
         }
 
-        Spacer(modifier = Modifier.height(if (isLandscape) 15.dp else bottomPaddingDp.dp))
+        Spacer(modifier = Modifier.height(if (isWide) 15.dp else bottomPaddingDp.dp))
+    }
     }
 }

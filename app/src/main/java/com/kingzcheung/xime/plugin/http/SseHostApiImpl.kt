@@ -4,9 +4,9 @@ import android.content.Context
 import android.util.Log
 import com.kingzcheung.xime.plugin.ExtensionManager
 import com.kingzcheung.xime.plugin.PluginNetworkAuthHelper
-import com.kingzcheung.xime.plugin.core.lua.http.SseHostApi
-import com.kingzcheung.xime.plugin.core.lua.http.SseHostListener
-import com.kingzcheung.xime.plugin.core.lua.ws.NetworkPolicy
+import com.kingzcheung.xime.plugin.core.js.http.SseHostApi
+import com.kingzcheung.xime.plugin.core.js.http.SseHostListener
+import com.kingzcheung.xime.plugin.core.js.ws.NetworkPolicy
 import com.kingzcheung.xime.plugin.core.runtime.PluginManager
 import com.kingzcheung.xime.plugin.core.security.PluginErrorLog
 import com.kingzcheung.xime.settings.SettingsPreferences
@@ -80,7 +80,12 @@ class SseHostApiImpl(
         if (reason != null) {
             lastErrorMsg = reason
             Log.w(TAG, "[$pluginId] 联网被拒绝: $reason")
-            PluginErrorLog.logError(pluginId, "联网被拒绝", reason)
+            PluginErrorLog.logError(
+                pluginId,
+                "联网被拒绝",
+                reason,
+                category = com.kingzcheung.xime.plugin.core.security.ErrorCategory.NETWORK_DENIED
+            )
             PluginNetworkAuthHelper.onNetworkDenied(
                 context, pluginId, pluginInfo?.name,
                 NetworkPolicy.extractHost(url), reason
@@ -150,7 +155,13 @@ class SseHostApiImpl(
                     }
                     lastErrorMsg = message
                     Log.e(TAG, "[$pluginId] SSE 会话 ${s.id} 失败: $message", t)
-                    PluginErrorLog.logError(pluginId, "SSE 会话失败", message, t)
+                    PluginErrorLog.logError(
+                    pluginId,
+                    "SSE 会话失败",
+                    message,
+                    t,
+                    category = com.kingzcheung.xime.plugin.core.security.ErrorCategory.STREAM_ERROR
+                )
                     listener.onError(message)
                     sessions.remove(s.id)
                 }

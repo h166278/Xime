@@ -2,6 +2,7 @@ package com.kingzcheung.xime.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.kingzcheung.xime.clipboard.ClipboardImageStore
 import com.kingzcheung.xime.plugin.core.runtime.PluginManager
 
 object SettingsPreferences {
@@ -16,6 +17,7 @@ object SettingsPreferences {
     private const val KEY_SETUP_COMPLETED = "setup_completed"
     private const val KEY_DARK_MODE = "dark_mode"
     private const val KEY_VERBOSE_LOGGING = "verbose_logging"
+    private const val KEY_PLUGIN_DEV_MODE = "plugin_dev_mode"
     
     private const val KEY_SOUND_ENABLED = "sound_enabled"
     private const val KEY_SOUND_VOLUME = "sound_volume"
@@ -32,6 +34,7 @@ object SettingsPreferences {
     const val KEY_STT_ENABLED = "stt_enabled"
     const val KEY_STT_ONLINE_PLUGIN_ID = "stt_online_plugin_id"
     const val KEY_STT_USE_LOCAL = "stt_use_local"
+    const val KEY_STT_KEEP_ENGINE_ALIVE = "stt_keep_engine_alive"
     const val KEY_STT_DEBUG_RECORD = "stt_debug_record"
     
     /** 默认主题 ID，可从 xime.yaml 的 style.color_scheme 初始化。 */
@@ -74,13 +77,32 @@ object SettingsPreferences {
     fun setModeChangeTargetIsNumber(context: Context, isNumber: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_MODE_CHANGE_TARGET, isNumber).apply()
     }
+
+    private const val KEY_AUTO_NUMBER_KEYBOARD = "auto_number_keyboard_for_number_fields"
+
+    /** 进入纯数字输入框（号码/验证码等）时自动弹出数字键盘，默认开启。 */
+    fun isAutoNumberKeyboardEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_AUTO_NUMBER_KEYBOARD, true)
+    }
+
+    fun setAutoNumberKeyboardEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_AUTO_NUMBER_KEYBOARD, enabled).apply()
+    }
+
+    fun isHardwareKeyboardDetectionEnabled(context: Context): Boolean =
+        getPrefs(context).getBoolean(KEY_HARDWARE_KEYBOARD_DETECTION_ENABLED, true)
+
+    fun setHardwareKeyboardDetectionEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_HARDWARE_KEYBOARD_DETECTION_ENABLED, enabled).apply()
+    }
     
     private const val KEY_LAYOUT_PREFIX = "layout_pref_"
     
     private const val KEY_KEYBOARD_HEIGHT_DP = "keyboard_height_dp"
     private const val KEY_KEYBOARD_HEIGHT_DP_LANDSCAPE = "keyboard_height_dp_landscape"
     const val DEFAULT_KEYBOARD_HEIGHT_PERCENT = 35
-    const val DEFAULT_KEYBOARD_HEIGHT_PERCENT_LANDSCAPE = 49
+    /** 横屏默认高度 = 竖屏高度（长边）× 此百分比。约等于旧值（横屏短边 × 49%），但基数稳定、与竖屏语义统一 */
+    const val DEFAULT_KEYBOARD_HEIGHT_PERCENT_LANDSCAPE = 25
 
     private const val KEY_TOOLBAR_BUTTONS = "toolbar_buttons"
     private val DEFAULT_TOOLBAR_BUTTONS = com.kingzcheung.xime.keyboard.ToolbarButton.DEFAULT_VISIBLE.joinToString(",") { it.id }
@@ -251,6 +273,21 @@ object SettingsPreferences {
 
     fun setVerboseLoggingEnabled(context: Context, enabled: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_VERBOSE_LOGGING, enabled).apply()
+    }
+
+    /**
+     * 插件开发模式：开启后允许 adb 通道热安装插件（xipm dev，仅约束 release 包；
+     * debug 包 debuggable 本就全量开放，门禁直接放行）。入口隐藏（设置 → 关于 →
+     * 连点设备信息 7 次解锁），默认关闭；关闭时热安装 Activity 秒退，adb 无法注入
+     * 插件代码。状态持久化（区别于解锁 flag），否则每次冷启动都要重敲一遍才能用
+     * xipm dev。
+     */
+    fun isPluginDevModeEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_PLUGIN_DEV_MODE, false)
+    }
+
+    fun setPluginDevModeEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_PLUGIN_DEV_MODE, enabled).apply()
     }
 
     fun isSetupCompleted(context: Context): Boolean {
@@ -455,6 +492,21 @@ object SettingsPreferences {
         getPrefs(context).edit().putBoolean(KEY_STT_USE_LOCAL, useLocal).apply()
     }
 
+    /**
+     * 语音结束后是否保持识别引擎常驻（不随会话结束销毁）。
+     * 开启后闲置一段时间再使用无需重新加载引擎，"开始聆听"响应快。
+     * 仅本地（离线）模式生效：模型本就常驻 :asr 进程，保留 wrapper 代价极小；
+     * 在线插件常驻需保持 WebSocket 长连接（耗电、占用服务端资源），不提供常驻。
+     */
+    fun isSttKeepEngineAlive(context: Context): Boolean {
+        return isSttUseLocal(context) &&
+            getPrefs(context).getBoolean(KEY_STT_KEEP_ENGINE_ALIVE, false)
+    }
+
+    fun setSttKeepEngineAlive(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_STT_KEEP_ENGINE_ALIVE, enabled).apply()
+    }
+
     /** 是否把语音识别期间的录音写入文件（调试用）。 */
     fun isSttDebugRecord(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_STT_DEBUG_RECORD, false)
@@ -511,28 +563,34 @@ object SettingsPreferences {
         getPrefs(context).edit().putString("plugin_net_pending_$pluginId", "").apply()
     }
     
-    fun isSwipeUpHintsEnabled(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_SWIPE_UP_HINTS_ENABLED, true)
-    }
-    
-    fun setSwipeUpHintsEnabled(context: Context, enabled: Boolean) {
-        getPrefs(context).edit().putBoolean(KEY_SWIPE_UP_HINTS_ENABLED, enabled).apply()
-    }
-    
-    fun isSwipeDownHintsEnabled(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_SWIPE_DOWN_HINTS_ENABLED, true)
+    /** 横屏时是否使用分体键盘，默认关闭，由用户按需开启。 */
+    fun isLandscapeSplitKeyboardEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_LANDSCAPE_SPLIT_KEYBOARD_ENABLED, false)
     }
 
-    fun setSwipeDownHintsEnabled(context: Context, enabled: Boolean) {
-        getPrefs(context).edit().putBoolean(KEY_SWIPE_DOWN_HINTS_ENABLED, enabled).apply()
+    fun setLandscapeSplitKeyboardEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_LANDSCAPE_SPLIT_KEYBOARD_ENABLED, enabled).apply()
     }
 
-    fun shouldShowPressBubble(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_SHOW_PRESS_BUBBLE, true)
+    /**
+     * rime installation.yaml 的稳定安装 id（宿主接管生成）：
+     * 部署会删除 installation.yaml，词库同步前以本 id 重建，保证同步快照
+     * 目录（sync/<installation_id>/）不随部署轮换。
+     */
+    fun getRimeInstallationId(context: Context): String {
+        val prefs = getPrefs(context)
+        prefs.getString(KEY_RIME_INSTALLATION_ID, null)?.let { return it }
+        val id = java.util.UUID.randomUUID().toString()
+        prefs.edit().putString(KEY_RIME_INSTALLATION_ID, id).apply()
+        return id
     }
 
-    fun setShowPressBubble(context: Context, show: Boolean) {
-        getPrefs(context).edit().putBoolean(KEY_SHOW_PRESS_BUBBLE, show).apply()
+    /** 上次词库同步完成时间（毫秒时间戳，0=从未同步）。 */
+    fun getLastRimeSyncAt(context: Context): Long =
+        getPrefs(context).getLong(KEY_LAST_RIME_SYNC_AT, 0L)
+
+    fun setLastRimeSyncAt(context: Context, at: Long) {
+        getPrefs(context).edit().putLong(KEY_LAST_RIME_SYNC_AT, at).apply()
     }
 
     /** 获取方案偏好的键盘布局，默认全键盘 */
@@ -551,11 +609,10 @@ object SettingsPreferences {
 
     fun getKeyboardHeightDp(context: Context, isLandscape: Boolean): Int {
         val key = if (isLandscape) KEY_KEYBOARD_HEIGHT_DP_LANDSCAPE else KEY_KEYBOARD_HEIGHT_DP
-        val alt = if (isLandscape) KEY_KEYBOARD_HEIGHT_DP else KEY_KEYBOARD_HEIGHT_DP_LANDSCAPE
         val stored = getPrefs(context).getInt(key, -1)
         if (stored > 0) return stored
-        val altStored = getPrefs(context).getInt(alt, -1)
-        if (altStored > 0) return altStored
+        // 不做跨方向回退：竖屏高度（可达屏高 60%）放到横屏短边上必然超出屏幕
+        // （曾表现为"横屏键盘高得离谱"），横竖屏各自用自己的键 + 自己的默认值
         return getDefaultKeyboardHeightDp(context, isLandscape)
     }
 
@@ -565,8 +622,12 @@ object SettingsPreferences {
     }
 
     fun getDefaultKeyboardHeightDp(context: Context, isLandscape: Boolean = false): Int {
-        val percent = if (isLandscape) DEFAULT_KEYBOARD_HEIGHT_PERCENT_LANDSCAPE else DEFAULT_KEYBOARD_HEIGHT_PERCENT
-        return context.resources.configuration.screenHeightDp * percent / 100
+        val config = context.resources.configuration
+        if (!isLandscape) return config.screenHeightDp * DEFAULT_KEYBOARD_HEIGHT_PERCENT / 100
+        // 横屏以竖屏高度（长边）为基数：横屏短边随宽高比/系统栏波动大，
+        // 长边是设备稳定值，且与悬浮模式 fallback（portraitScreenHeightDp × 百分比）语义一致
+        val portraitHeightDp = maxOf(config.screenWidthDp, config.screenHeightDp)
+        return portraitHeightDp * DEFAULT_KEYBOARD_HEIGHT_PERCENT_LANDSCAPE / 100
     }
 
     private const val KEY_KEYBOARD_BOTTOM_PADDING_DP = "keyboard_bottom_padding_dp"
@@ -578,6 +639,28 @@ object SettingsPreferences {
 
     fun setKeyboardBottomPaddingDp(context: Context, paddingDp: Int) {
         getPrefs(context).edit().putInt(KEY_KEYBOARD_BOTTOM_PADDING_DP, paddingDp).apply()
+    }
+
+    /** 键盘左边距（dp）：>0 时键盘左缘内收（宽度调节；左右独立，可整体偏移）。 */
+    private const val KEY_KEYBOARD_MARGIN_START_DP = "keyboard_margin_start_dp"
+
+    /** 键盘右边距（dp）。 */
+    private const val KEY_KEYBOARD_MARGIN_END_DP = "keyboard_margin_end_dp"
+
+    fun getKeyboardMarginStartDp(context: Context): Int {
+        return getPrefs(context).getInt(KEY_KEYBOARD_MARGIN_START_DP, 0)
+    }
+
+    fun setKeyboardMarginStartDp(context: Context, marginDp: Int) {
+        getPrefs(context).edit().putInt(KEY_KEYBOARD_MARGIN_START_DP, marginDp).apply()
+    }
+
+    fun getKeyboardMarginEndDp(context: Context): Int {
+        return getPrefs(context).getInt(KEY_KEYBOARD_MARGIN_END_DP, 0)
+    }
+
+    fun setKeyboardMarginEndDp(context: Context, marginDp: Int) {
+        getPrefs(context).edit().putInt(KEY_KEYBOARD_MARGIN_END_DP, marginDp).apply()
     }
 
     fun isSchemaImportWarningDismissed(context: Context): Boolean {
@@ -684,6 +767,40 @@ object SettingsPreferences {
         getPrefs(context).edit().putString(KEY_CLIPBOARD_SYNC_PLUGIN_ID, pluginId).apply()
     }
 
+    // ── 剪贴板图片（Phase 2：采集开关 + 单张上限可配） ──────────────
+
+    /** 是否采集复制到剪贴板的图片（默认开，见 docs/clipboard-image-plan.md 决策 D1）。 */
+    const val KEY_CLIPBOARD_IMAGE_CAPTURE = "clipboard_image_capture"
+
+    private const val KEY_CLIPBOARD_IMAGE_MAX_MB = "clipboard_image_max_mb"
+
+    /** 单张上限可选项区间（设置页滑块与读取校验共用，避免脏值导致滑块越界）。 */
+    val CLIPBOARD_IMAGE_MAX_MB_RANGE = 1..20
+
+    fun isClipboardImageCaptureEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_CLIPBOARD_IMAGE_CAPTURE, true)
+    }
+
+    fun setClipboardImageCaptureEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_CLIPBOARD_IMAGE_CAPTURE, enabled).apply()
+    }
+
+    /**
+     * 单张图片上限（MB），默认 [ClipboardImageStore.MAX_IMAGE_BYTES]。
+     * 其余限制（最长边/保留数量/总容量）为内置常量，不提供设置项。
+     */
+    fun getClipboardImageMaxMb(context: Context): Int {
+        val default = (ClipboardImageStore.MAX_IMAGE_BYTES / 1024 / 1024).toInt()
+        return getPrefs(context).getInt(KEY_CLIPBOARD_IMAGE_MAX_MB, default)
+            .coerceIn(CLIPBOARD_IMAGE_MAX_MB_RANGE)
+    }
+
+    fun setClipboardImageMaxMb(context: Context, mb: Int) {
+        getPrefs(context).edit()
+            .putInt(KEY_CLIPBOARD_IMAGE_MAX_MB, mb.coerceIn(CLIPBOARD_IMAGE_MAX_MB_RANGE))
+            .apply()
+    }
+
     const val KEY_BACKUP_PLUGIN_ID = "backup_plugin_id"
 
     fun getBackupPluginId(context: Context): String {
@@ -692,5 +809,41 @@ object SettingsPreferences {
 
     fun setBackupPluginId(context: Context, pluginId: String) {
         getPrefs(context).edit().putString(KEY_BACKUP_PLUGIN_ID, pluginId).apply()
+    }
+
+    // ── 键盘布局市场：当前已应用的布局 ──────────────────────────
+
+    private const val KEY_APPLIED_LAYOUT_ID = "applied_layout_id"
+    private const val KEY_APPLIED_LAYOUT_VERSION = "applied_layout_version"
+    private const val KEY_APPLIED_LAYOUT_FILES = "applied_layout_files"
+
+    /** 已应用布局的 id（空表示未应用任何市场布局）。 */
+    fun getAppliedLayoutId(context: Context): String =
+        getPrefs(context).getString(KEY_APPLIED_LAYOUT_ID, "") ?: ""
+
+    /** 已应用布局的版本（用于「有更新」提示）。 */
+    fun getAppliedLayoutVersion(context: Context): String =
+        getPrefs(context).getString(KEY_APPLIED_LAYOUT_VERSION, "") ?: ""
+
+    /** 已应用布局释放到 rime 的相对文件清单（恢复默认时回收）。 */
+    fun getAppliedLayoutFiles(context: Context): List<String> {
+        val raw = getPrefs(context).getString(KEY_APPLIED_LAYOUT_FILES, "") ?: ""
+        return raw.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+    }
+
+    fun setAppliedLayout(context: Context, id: String, version: String, files: List<String>) {
+        getPrefs(context).edit()
+            .putString(KEY_APPLIED_LAYOUT_ID, id)
+            .putString(KEY_APPLIED_LAYOUT_VERSION, version)
+            .putString(KEY_APPLIED_LAYOUT_FILES, files.joinToString("\n"))
+            .apply()
+    }
+
+    fun clearAppliedLayout(context: Context) {
+        getPrefs(context).edit()
+            .remove(KEY_APPLIED_LAYOUT_ID)
+            .remove(KEY_APPLIED_LAYOUT_VERSION)
+            .remove(KEY_APPLIED_LAYOUT_FILES)
+            .apply()
     }
 }

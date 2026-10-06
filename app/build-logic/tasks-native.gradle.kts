@@ -1,3 +1,5 @@
+import java.nio.file.Files
+import java.nio.file.Paths
 import java.text.SimpleDateFormat
 import java.util.Date
 import org.gradle.api.tasks.PathSensitivity
@@ -355,21 +357,28 @@ val downloadKnf by tasks.registering {
 // 离线 ASR 已集成进主版本，KNF 源码始终需要，preBuild 直接依赖 downloadKnf。
 
 // ── librime native 构建输入保障（修"改了 C++ 代码 Run 不重编"）──
-// 1) librime-t9 权威源码在顶层 jni/librime-t9，编译副本 plugins/librime-t9 由
-//    Rime.cmake 在 configure 时 file(COPY) 同步。Gradle 感知不到权威源码变化、
-//    不重新 configure 时副本就是旧的。改为构建期同步（Copy 增量：源变才拷，
-//    拷后副本 mtime 更新，ninja 据此重编对应文件）。
+// 1) librime-t9 权威源码在顶层 jni/librime-t9；构建期把它符号链接为
+//    plugins/librime-t9（物理单份），既让 librime 插件构建能找到它，
+//    又避免拷贝副本被改错/被静默覆盖。Rime.cmake 在 configure 时也会
+//    幂等创建该链接，这里额外保障（如链接被误删时）。
 val syncT9Plugin by tasks.registering {
     val authoritative = file("src/main/jni/librime-t9")
     val mirror = file("src/main/jni/librime/plugins/librime-t9")
+    val expectedTarget = Paths.get("../../librime-t9")
     inputs.dir(authoritative)
-    outputs.dir(mirror)
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+        .optional(true)
     doLast {
-        copy {
-            from(authoritative)
-            into(mirror)
-            exclude("build_test/**")  // 本地单测构建产物，不入镜像
+        val link = mirror.toPath()
+        if (Files.isSymbolicLink(link) && Files.readSymbolicLink(link) == expectedTarget) {
+            return@doLast
         }
+        if (Files.isSymbolicLink(link)) {
+            Files.delete(link)
+        } else if (mirror.exists()) {
+            mirror.deleteRecursively()
+        }
+        Files.createSymbolicLink(link, expectedTarget)
     }
 }
 

@@ -20,9 +20,9 @@ object OfflineAsrSettings {
         OfflineAsrSettingsSupport.EngineSelector(useLocal, onUseLocalChange)
     }
 
-    /** 本地模型下载/管理卡片，仅在开启本地识别时渲染。 */
+    /** 本地模型下载/管理卡片，仅在开启本地识别时渲染。未安装时点击跳转 [onNavigateToDownload]。 */
     @Composable
-    fun ModelSection() {
-        OfflineAsrSettingsSupport.ModelSection()
+    fun ModelSection(onNavigateToDownload: () -> Unit = {}) {
+        OfflineAsrSettingsSupport.ModelSection(onNavigateToDownload)
     }
 }

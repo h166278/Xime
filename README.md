@@ -13,7 +13,7 @@
     height="80">](https://f-droid.org/packages/com.kingzcheung.xime)
 
 
-[Windows Version](https://github.com/ximeiorg/winxime) | [Linux Version](https://github.com/ximeiorg/xime-wayland) | [Predictive Text Model](https://github.com/ximeiorg/predictive-text) | [Handwriting Model](https://github.com/ximeiorg/ochwpro)
+[Windows Version](https://github.com/ximeiorg/XimeYao) | [Linux Version](https://github.com/ximeiorg/XimeChe) | [Predictive Text Model](https://github.com/ximeiorg/predictive-text) | [Handwriting Model](https://github.com/ximeiorg/ochwpro)
 
 An Android input method built on the [Rime](https://rime.im/) engine, designed for efficient Chinese text input with Wubi (五笔) and Pinyin support.
 

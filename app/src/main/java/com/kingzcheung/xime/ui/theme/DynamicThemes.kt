@@ -42,7 +42,8 @@ object DynamicThemes {
             id = id,
             name = name,
             specialKeyLight = p.accent1(100),
-            specialKeyDark = p.accent1(600),
+            // 700 而非 600：深色下功能键大面积铺色，取更暗一档降低饱和度刺激（与 primaryContainerDark 同档）
+            specialKeyDark = p.accent1(700),
             accentLight = accentLight,
             accentDark = accentDark,
             primaryLight = accentLight,

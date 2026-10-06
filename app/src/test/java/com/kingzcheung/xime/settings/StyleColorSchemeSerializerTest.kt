@@ -84,4 +84,43 @@ class StyleColorSchemeSerializerTest {
         assertEquals("slate_gray", merged?.colorScheme?.dark)
         assertEquals(2, merged?.darkMode)
     }
+
+    @Test
+    fun `color_schemes 的 special_key_bg_color_dark 可以解析`() {
+        val config = yaml.decodeFromString(
+            XimeConfig.serializer(),
+            "color_schemes:\n" +
+                "  sunset_orange:\n" +
+                "    name: \"落日橙光\"\n" +
+                "    primary_color: 0xE65100\n" +
+                "    special_key_bg_color_dark: 0xD97757\n"
+        )
+        val entry = config.colorSchemes?.get("sunset_orange")
+        assertNotNull(entry)
+        assertEquals(0xD97757L, entry?.specialKeyBgColorDark)
+        assertNull(entry?.specialKeyBgColor)
+    }
+
+    @Test
+    fun `mergeColorSchemes custom 只覆盖显式字段且保留 dark 功能键色`() {
+        val default = mapOf(
+            "sunset_orange" to ColorSchemeEntry(
+                name = "落日橙光",
+                primaryColor = 0xE65100,
+                specialKeyBgColorDark = 0xD97757,
+            )
+        )
+        val custom = mapOf(
+            "sunset_orange" to ColorSchemeEntry(
+                name = "落日橙光（改）",
+                primaryColor = 0xE65100,
+            )
+        )
+        val merged = KeysConfigHelper.mergeColorSchemesForTest(default, custom)
+        val entry = merged?.get("sunset_orange")
+        assertNotNull(entry)
+        assertEquals("落日橙光（改）", entry?.name)
+        // custom 未配置 special_key_bg_color_dark 时保留内置值
+        assertEquals(0xD97757L, entry?.specialKeyBgColorDark)
+    }
 }

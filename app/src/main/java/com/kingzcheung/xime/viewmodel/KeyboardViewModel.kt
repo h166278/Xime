@@ -2,8 +2,11 @@ package com.kingzcheung.xime.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import com.kingzcheung.xime.clipboard.ClipboardItem
@@ -15,13 +18,16 @@ import com.kingzcheung.xime.keyboard.PanelType
 import com.kingzcheung.xime.keyboard.ToolbarButton
 import com.kingzcheung.xime.keyboard.ToolbarButtonItem
 import com.kingzcheung.xime.plugin.core.api.PluginResultItem
+import com.kingzcheung.xime.settings.KeysConfigHelper
 import com.kingzcheung.xime.settings.SchemaInfo
+import com.kingzcheung.xime.settings.SettingsPreferences
 import com.kingzcheung.xime.speech.RecognitionState
 import com.kingzcheung.xime.ui.keyboard.KeyboardDispatchAction
 import com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState
 import com.kingzcheung.xime.ui.keyboard.transition
 import com.kingzcheung.xime.ui.keyboard.KeyboardLayoutAction
 import com.kingzcheung.xime.ui.keyboard.KeyboardViewState
+import com.kingzcheung.xime.ui.keyboard.isHandwritingSchema
 import com.kingzcheung.xime.ui.keyboard.initialKeyboardLayoutState
 import com.kingzcheung.xime.util.FileLogger
 
@@ -71,11 +77,14 @@ data class KeyboardUiState(
     val toolbarPluginButtons: List<ToolbarButtonItem.Plugin> = emptyList(),
     val isCalculatorMode: Boolean = false,
     val inputSessionId: Long = 0L,
+    /** 本次 inputSessionId 变化是否为 restarting（同一编辑框刷新，如发送消息后 app restartInput）：
+     *  restarting 不是新会话，KeyboardView 据此跳过 ascii 记忆状态机 reset（记忆被清会导致
+     *  退出面板时 fallback 到引擎的面板态，主键盘被误留英文）。 */
+    val isInputSessionRestarting: Boolean = false,
     val isFloatingMode: Boolean = false,
     val isHandwritingMode: Boolean = false,
     val floatingOffsetX: Int = 0,
     val floatingOffsetY: Int = 0,
-    val floatingMinOffsetY: Int = 0,
     val t9ResetSignal: Long = 0L,
     val swipeCancelEpoch: Long = 0L,
     val t9RightCandidateSelectedCount: Long = 0L,
@@ -150,11 +159,44 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
 
     /** 最近一次停留的主键盘布局（中文/英文全键盘、九键、笔画）；
      *  数字面板据此判断进入来源，决定「返回/符号」键的位置自适应 */
-    private val _lastMainLayout = MutableStateFlow<KeyboardLayoutState>(KeyboardLayoutState.Chinese)
+    private val _lastMainLayout = MutableStateFlow<KeyboardLayoutState>(initialKbState)
     val lastMainLayout: StateFlow<KeyboardLayoutState> = _lastMainLayout.asStateFlow()
 
     private val _page = MutableStateFlow<KeyboardPage>(KeyboardPage.Main(MainType.FULL))
     val page: StateFlow<KeyboardPage> = _page.asStateFlow()
+
+    /** 候选展开页：候选栏的在位展开态（非 Overlay——顶部保持真实候选栏，实时跟随编码/删除）。 */
+    private val _candidatePageExpanded = MutableStateFlow(false)
+    val candidatePageExpanded: StateFlow<Boolean> = _candidatePageExpanded.asStateFlow()
+
+    /** 打开/收起候选展开页。 */
+    fun setCandidatePageExpanded(expanded: Boolean) {
+        _candidatePageExpanded.value = expanded
+        if (!expanded) {
+            // 筛选开关只在展开页左栏：收起后候选栏若仍被过滤将无处可关，自动复位
+            _singleCharFilter.value = false
+        }
+    }
+
+    // ── 展开页翻页联动 ──
+    // 硬件键盘 DPAD 上/下经此事件流驱动展开页滚动一屏
+
+    /** 硬件键盘翻页事件：+1 向下滚一屏、-1 向上滚一屏 */
+    private val _expandedPageScrollEvents = MutableSharedFlow<Int>(extraBufferCapacity = 4)
+    val expandedPageScrollEvents: SharedFlow<Int> = _expandedPageScrollEvents.asSharedFlow()
+
+    /** 请求展开页滚动一屏（硬件键盘 DPAD 上/下） */
+    fun requestExpandedPageScroll(direction: Int) {
+        _expandedPageScrollEvents.tryEmit(direction)
+    }
+
+    /** "只看单字"过滤（展开页左栏底部切换按钮） */
+    private val _singleCharFilter = MutableStateFlow(false)
+    val singleCharFilter: StateFlow<Boolean> = _singleCharFilter.asStateFlow()
+
+    fun toggleSingleCharFilter() {
+        _singleCharFilter.value = !_singleCharFilter.value
+    }
 
 
     /** 是否从 handwriting 进入英文键盘，用于 ASCII 切回时恢复 handwriting */
@@ -167,17 +209,45 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
     val asciiStateMachine = KeyboardAsciiStateMachine()
 
     /** 统一视图状态（替换 keyboardState + page 双轴） */
-    private val _viewState = MutableStateFlow<KeyboardViewState>(KeyboardViewState.ChineseFull)
+    private val _viewState = MutableStateFlow<KeyboardViewState>(
+        when (initialKbState) {
+            KeyboardLayoutState.T9Pinyin -> KeyboardViewState.T9PinyinFull
+            KeyboardLayoutState.Stroke -> KeyboardViewState.StrokeFull
+            KeyboardLayoutState.English -> KeyboardViewState.EnglishFull
+            else -> KeyboardViewState.ChineseFull
+        }
+    )
     val viewState: StateFlow<KeyboardViewState> = _viewState.asStateFlow()
 
     /**
      * 单⼀状态转移入口 — 替代所有散落的 LaunchedEffect、setKeyboardState、switchMain 等。
      */
+    /**
+     * 按 action 携带（或显式传入）的 schemaId 同步键布局缓存。
+     * dispatch 的各分支都会经由 initialKeyboardLayoutState 依据 schemaId 推导布局，
+     * 合并键布局（pinyin_14jian 等）的行数据/手势缓存需在此之前切换到位。
+     */
+    private fun applySchemaLayout(action: KeyboardDispatchAction, schemaId: String) {
+        val sid = schemaId.ifEmpty {
+            when (action) {
+                is KeyboardDispatchAction.AsciiModeChanged -> action.schemaId
+                is KeyboardDispatchAction.InputSessionStarted -> action.schemaId
+                else -> ""
+            }
+        }
+        if (sid.isNotEmpty()) {
+            KeysConfigHelper.setActiveKeyboardSchema(sid)
+        }
+    }
+
     fun dispatch(
         action: KeyboardDispatchAction,
         isAsciiMode: Boolean = false,
         schemaId: String = "",
     ) {
+        // 布局随方案切换：合并键方案（pinyin_14jian 等）切换行布局与手势缓存，
+        // 必须在状态更新前同步执行，保证重组时读到新布局
+        applySchemaLayout(action, schemaId)
         val current = _viewState.value
         val (newState, newPage, newKbState) = when (action) {
             is KeyboardDispatchAction.ToggleChineseEnglish -> {
@@ -269,12 +339,12 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
             }
             is KeyboardDispatchAction.AsciiModeChanged -> {
                 if (current is KeyboardViewState.Overlay) {
-                    FileLogger.i("XimeKeyboard", "AsciiModeChanged skipped: current=$current (overlay)")
+                    FileLogger.d("XimeKeyboard", "AsciiModeChanged skipped: current=$current (overlay)")
                     Triple(current, _page.value, _keyboardState.value)
                 } else if (current is KeyboardViewState.NumberPanel || current is KeyboardViewState.CommonSymbolPanel) {
-                    FileLogger.i("XimeKeyboard", "AsciiModeChanged skipped: current=$current (panel)")
+                    FileLogger.d("XimeKeyboard", "AsciiModeChanged skipped: current=$current (panel)")
                     Triple(current, _page.value, _keyboardState.value)
-                } else if (!action.isAsciiMode && action.schemaId == "handwriting") {
+                } else if (!action.isAsciiMode && isHandwritingSchema(action.schemaId)) {
                     Triple(KeyboardViewState.Handwriting, KeyboardPage.Main(MainType.HANDWRITING), KeyboardLayoutState.Chinese)
                 } else {
                     val kb = initialKeyboardLayoutState(action.isAsciiMode, action.schemaId)
@@ -285,7 +355,7 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
                         is KeyboardLayoutState.Stroke -> KeyboardViewState.StrokeFull
                         else -> KeyboardViewState.ChineseFull
                     }
-                    FileLogger.i("XimeKeyboard", "AsciiModeChanged dispatch: current=$current, ascii=${action.isAsciiMode}, schemaId=${action.schemaId}, -> $vs / $kb")
+                    FileLogger.d("XimeKeyboard", "AsciiModeChanged dispatch: current=$current, ascii=${action.isAsciiMode}, schemaId=${action.schemaId}, -> $vs / $kb")
                     Triple(vs, KeyboardPage.Main(MainType.FULL), kb)
                 }
             }
@@ -294,7 +364,11 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
                 // 面板（数字/符号）不应被新会话事件重置，否则输入一个数字后键盘会切回全键盘
                 if (current is KeyboardViewState.NumberPanel || current is KeyboardViewState.CommonSymbolPanel) {
                     Triple(current, _page.value, _keyboardState.value)
-                } else if (currentPage is KeyboardPage.Main && currentPage.type == MainType.HANDWRITING) {
+                } else if (currentPage is KeyboardPage.Main && currentPage.type == MainType.HANDWRITING
+                    && (action.schemaId.isEmpty() || isHandwritingSchema(action.schemaId))
+                ) {
+                    // 仅在当前确为手写方案（或方案未知）时保持手写页；事件携带其他
+                    // schemaId 说明引擎已切换，手写页是残留状态，需走下方重置切回
                     Triple(_viewState.value, currentPage, _keyboardState.value)
                 } else {
                     val kb = initialKeyboardLayoutState(action.isAsciiMode, action.schemaId)
@@ -399,7 +473,7 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
         _keyboardState.value = state
         _syncViewState()
         if (prevKb != state) {
-            FileLogger.i("XimeKeyboard", "setKeyboardState: $prevKb -> $state, vs=${_viewState.value}, page=${_page.value}")
+            FileLogger.d("XimeKeyboard", "setKeyboardState: $prevKb -> $state, vs=${_viewState.value}, page=${_page.value}")
         }
     }
     
@@ -556,7 +630,7 @@ class KeyboardViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun resetKeyboard(isAsciiMode: Boolean, schemaId: String = "") {
+    fun resetKeyboard(isAsciiMode: Boolean, schemaId: String = "", forceNumberPanel: Boolean = false) {
         _isShifted.value = false
         _shiftMode.value = ShiftMode.OFF
         _englishPunctOverlay.value = false

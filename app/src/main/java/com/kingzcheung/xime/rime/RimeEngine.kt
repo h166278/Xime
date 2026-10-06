@@ -1,5 +1,6 @@
 package com.kingzcheung.xime.rime
 
+import com.kingzcheung.xime.util.FileLogger
 import android.util.Log
 import java.io.File
 import java.util.concurrent.locks.ReentrantLock
@@ -22,7 +23,11 @@ data class RimeComposition(
     val candidates: Array<RimeCandidate>,
     val hasNextPage: Boolean,
     val hasPrevPage: Boolean,
-    val isAsciiMode: Boolean
+    val isAsciiMode: Boolean,
+    /** native 快照：组合内光标（raw input 字符偏移）。当前显示层由宿主编辑光标驱动，此字段仅随快照返回。 */
+    val caretPos: Int = 0,
+    /** native 快照：preedit 中的光标（UTF-8 字节偏移）。 */
+    val preeditCursorPos: Int = 0,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -33,7 +38,9 @@ data class RimeComposition(
                 candidates.contentEquals(other.candidates) &&
                 hasNextPage == other.hasNextPage &&
                 hasPrevPage == other.hasPrevPage &&
-                isAsciiMode == other.isAsciiMode
+                isAsciiMode == other.isAsciiMode &&
+                caretPos == other.caretPos &&
+                preeditCursorPos == other.preeditCursorPos
     }
 
     override fun hashCode(): Int {
@@ -44,6 +51,8 @@ data class RimeComposition(
         result = 31 * result + hasNextPage.hashCode()
         result = 31 * result + hasPrevPage.hashCode()
         result = 31 * result + isAsciiMode.hashCode()
+        result = 31 * result + caretPos
+        result = 31 * result + preeditCursorPos
         return result
     }
 }
@@ -67,6 +76,10 @@ data class RimeProcessResult(
      * 由 JNI 一次计算，避免 Kotlin 侧重复取数。
      */
     val t9SyllableOptions: String = "",
+    /** native 快照：组合内光标（raw input 字符偏移）。当前显示层由宿主编辑光标驱动，此字段仅随快照返回。 */
+    val caretPos: Int = 0,
+    /** native 快照：preedit 中的光标（UTF-8 字节偏移）。 */
+    val preeditCursorPos: Int = 0,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -80,7 +93,9 @@ data class RimeProcessResult(
                 hasNextPage == other.hasNextPage &&
                 hasPrevPage == other.hasPrevPage &&
                 t9PanelState == other.t9PanelState &&
-                t9SyllableOptions == other.t9SyllableOptions
+                t9SyllableOptions == other.t9SyllableOptions &&
+                caretPos == other.caretPos &&
+                preeditCursorPos == other.preeditCursorPos
     }
 
     override fun hashCode(): Int {
@@ -94,6 +109,8 @@ data class RimeProcessResult(
         result = 31 * result + hasPrevPage.hashCode()
         result = 31 * result + t9PanelState.hashCode()
         result = 31 * result + t9SyllableOptions.hashCode()
+        result = 31 * result + caretPos
+        result = 31 * result + preeditCursorPos
         return result
     }
 }
@@ -108,6 +125,8 @@ fun RimeProcessResult.toComposition(): RimeComposition {
         hasNextPage = hasNextPage,
         hasPrevPage = hasPrevPage,
         isAsciiMode = isAsciiMode,
+        caretPos = caretPos,
+        preeditCursorPos = preeditCursorPos,
     )
 }
 
@@ -189,6 +208,7 @@ class RimeEngine {
                 if (!isInitialized) {
                     try {
                         this.userDataDir = userDataDir
+                        nativeInstallSignalHandler(userDataDir)
                         notifyDeploymentStatus(true, "正在加载输入法引擎...")
                         nativeInitialize(userDataDir, sharedDataDir)
                         isInitialized = true
@@ -204,7 +224,7 @@ class RimeEngine {
 
                         notifyDeploymentStatus(false, "")
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error during Rime initialization", e)
+                        FileLogger.e(TAG, "Error during Rime initialization", e)
                         notifyDeploymentStatus(false, "初始化失败")
                     }
                 }
@@ -245,7 +265,7 @@ class RimeEngine {
                 }
                 waited += 1000
             }
-            Log.w(TAG, "ensureSession: schemas not available after ${timeoutMs}ms, deployment may still be running")
+            FileLogger.w(TAG, "ensureSession: schemas not available after ${timeoutMs}ms, deployment may still be running")
             return false
         }
     }
@@ -340,6 +360,23 @@ class RimeEngine {
         }
     }
 
+    /**
+     * 跨页获取整个候选列表（与引擎分页无关），供候选展开页本地分页使用。
+     * @param maxCount 收集上限，防御超大列表
+     */
+    fun getAllCandidates(maxCount: Int = 500): Array<RimeCandidate> {
+        return tryLocked(emptyArray()) {
+            if (!nativeHasSession()) return@tryLocked emptyArray()
+            val rawCandidates = nativeGetAllCandidates(maxCount) ?: emptyArray()
+            rawCandidates.map { pair ->
+                RimeCandidate(
+                    text = pair.getOrElse(0) { "" },
+                    comment = pair.getOrElse(1) { "" }
+                )
+            }.toTypedArray()
+        }
+    }
+
     fun getInput(): String {
         return tryLocked("") {
             nativeGetInput() ?: ""
@@ -366,6 +403,17 @@ class RimeEngine {
     }
 
     /**
+     * 按候选列表全局索引选词（跨页，与 getAllCandidates 遍历顺序一致）。
+     * 候选展开页本地分页点选走此接口：本地页内索引 + 页偏移 = 全局索引。
+     */
+    fun selectCandidateByGlobalIndex(index: Int): Boolean {
+        return tryLocked(false) {
+            if (!nativeHasSession()) return@tryLocked false
+            nativeSelectCandidateByGlobalIndex(index)
+        }
+    }
+
+    /**
      * 删除当前页候选（长按候选栏删除自造词）。
      * 标准 C API delete_candidate_on_current_page：librime 对用户词典词条
      * 执行 tombstone 标记（UpdateEntry -1），键盘无关（T9/全键盘通用）。
@@ -375,6 +423,17 @@ class RimeEngine {
         return tryLocked(false) {
             if (!nativeHasSession()) return@tryLocked false
             nativeDeleteCandidateOnCurrentPage(index)
+        }
+    }
+
+    /**
+     * 按候选列表全局索引删除（跨页，与 getAllCandidates 遍历顺序一致），
+     * 供候选展开页本地分页长按删除自造词。
+     */
+    fun deleteCandidateByGlobalIndex(index: Int): Boolean {
+        return tryLocked(false) {
+            if (!nativeHasSession()) return@tryLocked false
+            nativeDeleteCandidateByGlobalIndex(index)
         }
     }
 
@@ -477,12 +536,12 @@ class RimeEngine {
         // onStartInput/selectSchema 等路径 ANR。部署完成后的 initRimeEngine
         // 流程会重新切换方案。非部署场景保持阻塞锁语义，保证切换可靠。
         if (isMaintaining()) {
-            Log.w(TAG, "switchSchema($schemaId) skipped: deployment in progress")
+            FileLogger.w(TAG, "switchSchema($schemaId) skipped: deployment in progress")
             return false
         }
         locked {
             if (!nativeHasSession()) {
-                Log.w(TAG, "switchSchema($schemaId) failed: no rime session")
+                FileLogger.w(TAG, "switchSchema($schemaId) failed: no rime session")
                 return false
             }
             // 在切换方案前，确保 T9 方案的 schema 补丁已注入
@@ -493,7 +552,7 @@ class RimeEngine {
             if (!switched) {
                 // 常见于方案未部署（不在 schema_list，如老版本升级残留）：
                 // 留证便于反馈日志定位（用户症状：键盘已切换但按键无候选）
-                Log.w(TAG, "switchSchema($schemaId) failed: schema not available, current=${getCurrentSchema()}")
+                FileLogger.w(TAG, "switchSchema($schemaId) failed: schema not available, current=${getCurrentSchema()}")
             }
             return switched
         }
@@ -528,7 +587,7 @@ class RimeEngine {
         locked {
             ensureT9SchemaPatchesForDeployedSchemas(userDataDir)
             if (!nativeStartMaintenance(false)) {
-                Log.w(TAG, "deployIncremental: startMaintenance returned false, falling back to full deploy")
+                FileLogger.w(TAG, "deployIncremental: startMaintenance returned false, falling back to full deploy")
                 return false
             }
             var waited = 0L
@@ -537,12 +596,65 @@ class RimeEngine {
                 waited += 100
             }
             if (nativeIsMaintaining()) {
-                Log.w(TAG, "deployIncremental: maintenance timed out")
+                FileLogger.w(TAG, "deployIncremental: maintenance timed out")
                 return false
             }
             // 维护完成后更新 last_build_time，避免下次启动增量检测误判需重编译
             nativeUpdateLastBuildTime()
             return true
+        }
+    }
+
+    /**
+     * 用户词典同步（librime 原生 sync）：合并 sync 目录下其他设备的快照进 userdb，
+     * 并导出本机快照（TSV 文本，时间戳合并）。持 rimeLock 独占至维护结束，
+     * 期间输入查询走 tryLocked 立即降级，不会阻塞 UI。
+     * 调用前需保证 installation.yaml 存在且 id 稳定（见 SyncManager.ensureInstallationYaml）。
+     */
+    fun syncUserData(): Boolean {
+        if (!isInitialized) return false
+        locked {
+            return nativeSyncUserData()
+        }
+    }
+
+    /**
+     * 读取用户词库词条，返回文本码表文本（每行 `词<TAB>码<TAB>频率`）。
+     * 与 [syncUserData] 同构：native 侧先销毁会话再遍历、遍历后重建会话
+     * （librime 要求这些操作前用户词典必须已关闭），故持 rimeLock 独占。
+     * 库不存在或打不开时返回空串。
+     */
+    fun readUserDictText(dictName: String): String {
+        if (!isInitialized || dictName.isEmpty()) return ""
+        locked {
+            return nativeReadUserDictText(dictName) ?: ""
+        }
+    }
+
+    /**
+     * 导出用户词库为文本码表文件（`词<TAB>码<TAB>频率` + `#@` 元数据注释头）。
+     * 走 librime `UserDictManager::Export`，与 PC 端（小狼毫/鼠须管）**同一实现**，
+     * 文件可互通；已标记删除的条目不会写出。
+     * @param textFilePath 必须是真实文件路径（librime 直接开 ofstream）。
+     * @return 导出的条目数；失败返回 -1。
+     */
+    fun exportUserDict(dictName: String, textFilePath: String): Int {
+        if (!isInitialized || dictName.isEmpty() || textFilePath.isEmpty()) return -1
+        locked {
+            return nativeExportUserDict(dictName, textFilePath)
+        }
+    }
+
+    /**
+     * 从文本码表文件导入进用户词库（**合并**语义：同词条取较大频率，负频率视为删除标记，
+     * 不会清空原有条目）。走 librime `UserDictManager::Import`。
+     * @param textFilePath 必须是真实文件路径（librime 的 TsvReader 直接开 ifstream）。
+     * @return 成功解析并写入的条目数；失败返回 -1。
+     */
+    fun importUserDict(dictName: String, textFilePath: String): Int {
+        if (!isInitialized || dictName.isEmpty() || textFilePath.isEmpty()) return -1
+        locked {
+            return nativeImportUserDict(dictName, textFilePath)
         }
     }
 
@@ -674,6 +786,7 @@ class RimeEngine {
 
     // Native 方法声明
     private external fun nativeInitialize(userDataDir: String, sharedDataDir: String)
+    private external fun nativeInstallSignalHandler(userDataDir: String)
     private external fun nativeSetVerboseLogging(enabled: Boolean)
     private external fun nativeCreateSession(): Boolean
     private external fun nativeHasSession(): Boolean
@@ -684,10 +797,13 @@ class RimeEngine {
     private external fun nativeGetProcessResult(processed: Boolean): RimeProcessResult
     private external fun nativeGetCandidates(): Array<String>?
     private external fun nativeGetCandidatesWithComments(): Array<Array<String>>?
+    private external fun nativeGetAllCandidates(maxCount: Int): Array<Array<String>>?
     private external fun nativeGetInput(): String?
     private external fun nativeGetComposition(): RimeComposition
     private external fun nativeSelectCandidate(index: Int): Boolean
+    private external fun nativeSelectCandidateByGlobalIndex(index: Int): Boolean
     private external fun nativeDeleteCandidateOnCurrentPage(index: Int): Boolean
+    private external fun nativeDeleteCandidateByGlobalIndex(index: Int): Boolean
     private external fun nativePageDown(): Boolean
     private external fun nativePageUp(): Boolean
     private external fun nativeHasNextPage(): Boolean
@@ -725,6 +841,10 @@ class RimeEngine {
         }
     }
     private external fun nativeStartMaintenance(full: Boolean): Boolean
+    private external fun nativeSyncUserData(): Boolean
+    private external fun nativeReadUserDictText(dictName: String): String?
+    private external fun nativeExportUserDict(dictName: String, textFilePath: String): Int
+    private external fun nativeImportUserDict(dictName: String, textFilePath: String): Int
     private external fun nativeDeploy(): Boolean
     private external fun nativeDeploySchema(schemaId: String): Boolean
     private external fun nativeLookupText(text: String): String

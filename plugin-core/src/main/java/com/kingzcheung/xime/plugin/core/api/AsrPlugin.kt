@@ -45,7 +45,7 @@ interface AsrPlugin : IPluginEntryClass, IPluginConfigurable {
 
     /**
      * 能力声明（manifest.capabilities.speech 的镜像，设置页与服务选型消费）。
-     * 原生插件与 Lua 插件均由元数据提供。
+     * 原生插件与 JS 插件均由元数据提供。
      */
     fun getCapabilities(): PluginCapabilities.SpeechCapabilities
 

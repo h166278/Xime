@@ -3,18 +3,19 @@ package com.kingzcheung.xime.plugin.core.runtime.installer
 import android.app.Application
 import android.net.Uri
 import android.util.Log
-import com.charleskorn.kaml.Yaml
-import com.charleskorn.kaml.YamlConfiguration
+import com.kingzcheung.xime.plugin.core.model.PluginCapabilities
 import com.kingzcheung.xime.plugin.core.model.PluginInfo
 import com.kingzcheung.xime.plugin.core.model.PluginSource
 import com.kingzcheung.xime.plugin.core.model.PluginToolbarButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.zip.ZipFile
 
-/** manifest.yaml 解析结果。 */
+/** manifest.json 解析结果。 */
 internal sealed class PluginParseResult {
     data class Success(val config: PluginConfig) : PluginParseResult()
     data class Failure(val reason: String) : PluginParseResult()
@@ -33,16 +34,18 @@ internal data class PluginConfig(
     val allowCustomHosts: Boolean = false,
     val toolbarButtons: List<PluginToolbarButton> = emptyList(),
     val icon: String? = null,
-    val capabilities: com.kingzcheung.xime.plugin.core.model.PluginCapabilities? = null
+    val capabilities: com.kingzcheung.xime.plugin.core.model.PluginCapabilities? = null,
+    /** 生效的目标平台列表（manifest.platforms 归一化；缺省视为 android）。 */
+    val platforms: List<String> = listOf(com.kingzcheung.xime.plugin.core.model.PluginInfo.PLATFORM_ANDROID)
 )
 
-/** manifest.yaml 的类型化模型，与宿主一起用 kaml 解析。 */
+/** manifest.json 的类型化模型，由 kotlinx-serialization-json 解析（宽松模式）。 */
 @Serializable
 internal data class PluginManifest(
     val id: String,
     val name: String? = null,
     val type: String = "unknown",
-    val entry: String = "main.lua",
+    val entry: String = "main.js",
     val version: String = "0.0.0",
     val description: String? = null,
     val minHostVersion: String? = null,
@@ -51,7 +54,9 @@ internal data class PluginManifest(
     val toolbarButtons: List<ToolbarButtonConfig> = emptyList(),
     /** 顶层 icon：文字（如 "译"）或 resources/ 下图片文件名。 */
     val icon: String? = null,
-    val capabilities: CapabilitiesConfig? = null
+    val capabilities: CapabilitiesConfig? = null,
+    /** 目标平台声明（缺省/为空视为 android，由安装解析归一化）。 */
+    val platforms: List<String> = emptyList()
 )
 
 @Serializable
@@ -113,7 +118,9 @@ internal data class ToolCapabilitiesConfig(
 
 @Serializable
 internal data class ClipboardSyncCapabilitiesConfig(
-    val protocols: List<String> = emptyList()
+    val protocols: List<String> = emptyList(),
+    /** 附件（图片 blob）传输支持；旧 manifest 无此键 → false（宿主按文本-only 插件处理）。 */
+    val attachments: Boolean = false
 )
 
 @Serializable
@@ -151,7 +158,8 @@ private fun CapabilitiesConfig.toModel(): com.kingzcheung.xime.plugin.core.model
         },
         clipboardSync = clipboardSync?.let {
             com.kingzcheung.xime.plugin.core.model.PluginCapabilities.ClipboardSyncCapabilities(
-                protocols = it.protocols.filter { p -> p.isNotBlank() }
+                protocols = it.protocols.filter { p -> p.isNotBlank() },
+                attachments = it.attachments
             )
         },
         backup = backup?.let {
@@ -167,23 +175,23 @@ private fun CapabilitiesConfig.toModel(): com.kingzcheung.xime.plugin.core.model
 }
 
 /**
- * 插件安装器（Lua 脚本插件）。
+ * 插件安装器（JS 脚本插件）。
  *
  * 插件包为 zip（.xipk），结构：
- *   manifest.yaml   元数据（宿主解析）
- *   main.lua        入口脚本（宿主 Lua 沙箱执行）
- *   libs/           纯 Lua 依赖库
+ *   manifest.json   元数据（宿主解析）
+ *   main.js         入口脚本（宿主 QuickJS 沙箱执行）
+ *   libs/           纯 JS 依赖模块（require 加载）
  *   resources/      资源文件
  *
  * 安装 = 解压到 files/plugins/<id>/ + 解析 manifest 写入注册表。
  */
 class InstallerManager(
     private val context: Application,
-    private val xmlManager: XmlManager
+    private val pluginRegistry: PluginRegistry
 ) {
     companion object {
         private const val PLUGINS_DIR = "plugins"
-        private const val MANIFEST_YAML = "manifest.yaml"
+        private const val MANIFEST_JSON = "manifest.json"
 
         /** xipk 包大小上限（10MB）：插件是脚本+资源，超过即拒绝安装。 */
         private const val MAX_ARCHIVE_FILE_BYTES = 10 * 1024 * 1024
@@ -230,13 +238,26 @@ class InstallerManager(
         }
 
 
-        private val manifestYaml: Yaml by lazy {
-            Yaml(configuration = YamlConfiguration(strictMode = false))
+        @OptIn(ExperimentalSerializationApi::class)
+        private val manifestJson: Json by lazy {
+            Json {
+                ignoreUnknownKeys = true
+                allowComments = true
+                allowTrailingComma = true
+            }
         }
 
-        /** 解析 manifest.yaml 文本（kam 类型化解析），失败时携带可读的错误提示。 */
+        /** 解析 manifest.json 文本（kotlinx 类型化解析），失败时携带可读的错误提示。 */
         internal fun parseManifestContent(content: String): PluginParseResult = try {
-            val manifest = manifestYaml.decodeFromString(PluginManifest.serializer(), content)
+            val manifest = manifestJson.decodeFromString<PluginManifest>(content)
+            val capabilities = manifest.capabilities?.toModel()
+            // 类型 × 能力合理性校验：内建块错配 / 横切权限非常见组合在安装时落日志提示
+            // （宿主不消费错配块，故仅告警不阻断安装；开发期硬校验由 xipm check 承担）
+            capabilities?.let {
+                val (capErrors, capWarnings) = PluginCapabilities.validateForType(manifest.type, it)
+                capErrors.forEach { msg -> Log.w("PluginManifest", "[${manifest.id}] $msg") }
+                capWarnings.forEach { msg -> Log.w("PluginManifest", "[${manifest.id}] $msg") }
+            }
             val declaredHosts = manifest.network?.hosts.orEmpty()
                 .filter { it.isNotBlank() && isValidDeclaredHost(it) }
             val toolbarButtons = manifest.toolbarButtons
@@ -249,6 +270,11 @@ class InstallerManager(
                         action = it.action.ifBlank { "open_panel" }
                     )
                 }
+            // 平台声明归一化：空白项过滤后为空视为 android（存量插件零改动）
+            val platforms = manifest.platforms
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .ifEmpty { listOf(com.kingzcheung.xime.plugin.core.model.PluginInfo.PLATFORM_ANDROID) }
 
             PluginParseResult.Success(
                 PluginConfig(
@@ -264,22 +290,22 @@ class InstallerManager(
                     allowCustomHosts = manifest.network?.allowCustomHosts ?: false,
                     toolbarButtons = toolbarButtons,
                     icon = manifest.icon?.takeIf { it.isNotBlank() },
-                    capabilities = manifest.capabilities?.toModel()
+                    capabilities = capabilities,
+                    platforms = platforms
                 )
             )
-        } catch (e: Exception) {
-            Log.e("InstallerManager", "parsePluginConfig yaml failed", e)
+        } catch (e: Exception) {            Log.e("InstallerManager", "parsePluginConfig yaml failed", e)
             PluginParseResult.Failure(manifestError(e))
         }
 
-        /** 把 manifest 解析异常整理成可读的提示（kaml 消息含行号/字段）。 */
+        /** 把 manifest 解析异常整理成可读的提示（kotlinx 消息含行号/字段）。 */
         private fun manifestError(e: Exception): String {
             val detail = e.message
                 ?.lineSequence()
                 ?.firstOrNull { it.isNotBlank() }
                 ?.trim()
                 ?: e.javaClass.simpleName
-            return "manifest.yaml 解析失败：$detail"
+            return "manifest.json 解析失败：$detail"
         }
     }
 
@@ -295,6 +321,7 @@ class InstallerManager(
     suspend fun installPlugin(
         pluginFile: File,
         forceOverwrite: Boolean = false,
+        onlyIfNewer: Boolean = false,
         source: PluginSource = PluginSource.FILE
     ): InstallResult = withContext(Dispatchers.IO) {
         if (!pluginFile.exists()) {
@@ -314,7 +341,7 @@ class InstallerManager(
         if (!isValidPluginId(pluginId)) {
             return@withContext InstallResult.Failure("非法插件 id: $pluginId（仅允许字母/数字/下划线/连字符，点号分段，最长 64）")
         }
-        val entryScript = pluginConfig.entryScript ?: "main.lua"
+        val entryScript = pluginConfig.entryScript ?: "main.js"
         if (!isValidEntryScript(entryScript)) {
             return@withContext InstallResult.Failure("非法入口脚本: $entryScript")
         }
@@ -340,10 +367,20 @@ class InstallerManager(
             return@withContext InstallResult.Failure(range)
         }
 
-        val existingPlugin = xmlManager.getPluginById(pluginId)
+        val existingPlugin = pluginRegistry.getPluginById(pluginId)
 
-        // Lua 插件无版本号概念：只有首次安装或强制覆盖才重新解压
+        // JS 插件无版本号概念：只有首次安装或强制覆盖才重新解压
         if (!forceOverwrite && existingPlugin != null) {
+            return@withContext InstallResult.Success(existingPlugin)
+        }
+
+        // onlyIfNewer（内置 assets 启动同步）：已装版本 >= 本次包版本时保留已装，
+        // 避免 debug 启动覆盖开发中的热更新（热更新版本号通常与内置相同）。
+        if (existingPlugin != null && onlyIfNewer &&
+            com.kingzcheung.xime.plugin.core.util.VersionUtil.compare(
+                pluginConfig.version, existingPlugin.versionName
+            ) <= 0
+        ) {
             return@withContext InstallResult.Success(existingPlugin)
         }
 
@@ -356,7 +393,7 @@ class InstallerManager(
             extractPluginArchive(pluginFile, pluginDir)
             val entryFile = File(pluginDir, entryScript)
             if (!entryFile.exists()) {
-                throw IllegalArgumentException("Lua 入口脚本不存在: $entryScript")
+                throw IllegalArgumentException("插件入口脚本不存在: $entryScript")
             }
 
             val pluginInfo = PluginInfo(
@@ -373,21 +410,22 @@ class InstallerManager(
                 source = source,
                 minHostVersion = pluginConfig.minHostVersion,
                 maxHostVersion = pluginConfig.maxHostVersion,
-                trustLevel = com.kingzcheung.xime.plugin.core.util.PluginSignatureUtil.classifyLuaPlugin(source),
+                trustLevel = com.kingzcheung.xime.plugin.core.util.PluginSignatureUtil.classifyScriptPlugin(source),
                 entryScript = entryScript,
                 declaredHosts = pluginConfig.declaredHosts,
                 allowCustomHosts = pluginConfig.allowCustomHosts,
                 toolbarButtons = pluginConfig.toolbarButtons,
                 manifestIcon = pluginConfig.icon,
-                capabilities = pluginConfig.capabilities
+                capabilities = pluginConfig.capabilities,
+                platforms = pluginConfig.platforms
             )
 
             if (existingPlugin != null) {
-                xmlManager.updatePlugin(pluginInfo)
+                pluginRegistry.updatePlugin(pluginInfo)
             } else {
-                xmlManager.addPlugin(pluginInfo)
+                pluginRegistry.addPlugin(pluginInfo)
             }
-            xmlManager.flushToDisk()
+            pluginRegistry.flushToDisk()
 
             InstallResult.Success(pluginInfo)
         } catch (e: Exception) {
@@ -405,8 +443,8 @@ class InstallerManager(
         if (pluginDir.exists()) {
             pluginDir.deleteRecursively()
         }
-        xmlManager.removePlugin(pluginId)
-        xmlManager.flushToDisk()
+        pluginRegistry.removePlugin(pluginId)
+        pluginRegistry.flushToDisk()
         true
     }
 
@@ -434,7 +472,7 @@ class InstallerManager(
         return File(pluginsDir, pluginId)
     }
 
-    /** 解压 Lua 插件包到插件目录（防 zip-slip 路径穿越与 zip bomb 解压膨胀）。 */
+    /** 解压 JS 插件包到插件目录（防 zip-slip 路径穿越与 zip bomb 解压膨胀）。 */
     private fun extractPluginArchive(archiveFile: File, pluginDir: File) {
         ZipFile(archiveFile).use { zip ->
             var entryCount = 0
@@ -466,8 +504,8 @@ class InstallerManager(
     private fun parsePluginConfig(pluginFile: File): PluginParseResult {
         val content = try {
             ZipFile(pluginFile).use { zip ->
-                val entry = zip.getEntry(MANIFEST_YAML)
-                    ?: return PluginParseResult.Failure("插件配置解析失败（缺少 manifest.yaml）")
+                val entry = zip.getEntry(MANIFEST_JSON)
+                    ?: return PluginParseResult.Failure("插件配置解析失败（缺少 manifest.json）")
                 zip.getInputStream(entry).readBytes().toString(Charsets.UTF_8)
             }
         } catch (e: Exception) {

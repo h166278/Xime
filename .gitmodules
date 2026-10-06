@@ -1,6 +1,7 @@
 [submodule "librime"]
 	path = app/src/main/jni/librime
 	url = git@github.com:ximeiorg/librime.git
+	ignore = untracked
 [submodule "app/src/main/jni/snappy"]
 	path = app/src/main/jni/snappy
 	url = https://github.com/google/snappy.git

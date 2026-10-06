@@ -12,7 +12,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kingzcheung.xime.keyboard.GestureAction
-import com.kingzcheung.xime.keyboard.OverlayRoute
 import com.kingzcheung.xime.handwriting.HandwritingCandidate
 import com.kingzcheung.xime.rime.T9InputController
 import com.kingzcheung.xime.service.CandidateState
@@ -63,8 +62,9 @@ fun KeyboardLayoutScreen(
         if (uiState.isDarkTheme) kbColors.specialKeyBgColorDark?.let { longToColor(it) }
             ?: themeSpecialKeyColor else kbColors.specialKeyBgColor?.let { longToColor(it) }
             ?: themeSpecialKeyColor
-    val specialKeyTextColor = if (uiState.isDarkTheme) Color.White
-    else KeyboardThemes.getSpecialKeyTextColor(uiState.themeId, false)
+    val specialKeyTextColor = KeyboardThemes.getSpecialKeyTextColorForBackground(
+        specialKeyBgColor, keyTextColor
+    )
     val kbShadow = KeysConfigHelper.getKeyboardShadow()
     val kbKey = KeysConfigHelper.getKeyboardKeyConfig()
     val accentColor = KeyboardThemes.getAccentColor(uiState.themeId, uiState.isDarkTheme)
@@ -72,14 +72,8 @@ fun KeyboardLayoutScreen(
 
     val onGestureAction: (GestureAction, String) -> Unit = { action, value ->
         when (action) {
-            GestureAction.SWITCH_ROUTE -> {
-                val overlayRoute = when (value) {
-                    "emoji" -> OverlayRoute.Emoji
-                    "symbol" -> OverlayRoute.Symbol
-                    else -> null
-                }
-                overlayRoute?.let { viewModel.showOverlay(it) }
-            }
+            // 面板切换映射的唯一实现（三处 UI 手势入口共用，含 clipboard）
+            GestureAction.SWITCH_ROUTE -> switchRouteOverlay(value)?.let { viewModel.showOverlay(it) }
 
             GestureAction.TOGGLE_ASCII -> {
                 FileLogger.i("XimeKeyboard", "earth key toggle_ascii tapped, ui ascii=${uiState.isAsciiMode}")
@@ -107,6 +101,7 @@ fun KeyboardLayoutScreen(
                     HandwritingLookupKeyboard(
                         keyTextColor = keyTextColor,
                         specialKeyBgColor = specialKeyBgColor,
+                        specialKeyTextColor = specialKeyTextColor,
                         keyboardBgColor = keyboardBgColor,
                         shadowEnabled = kbShadow.enabled,
                         shadowElevation = kbShadow.elevation.dp,
@@ -143,6 +138,7 @@ fun KeyboardLayoutScreen(
                     HandwritingLookupKeyboard(
                         keyTextColor = keyTextColor,
                         specialKeyBgColor = specialKeyBgColor,
+                        specialKeyTextColor = specialKeyTextColor,
                         keyboardBgColor = keyboardBgColor,
                         shadowEnabled = kbShadow.enabled,
                         shadowElevation = kbShadow.elevation.dp,
@@ -240,6 +236,7 @@ fun KeyboardLayoutScreen(
                     onKeyPressDown = callbacks.onKeyPressDown,
                     isFloatingMode = uiState.isFloatingMode,
                     specialKeyTextColor = specialKeyTextColor,
+                    onGestureAction = onGestureAction,
                 )
             }
 
@@ -248,6 +245,7 @@ fun KeyboardLayoutScreen(
                     HandwritingLookupKeyboard(
                         keyTextColor = keyTextColor,
                         specialKeyBgColor = specialKeyBgColor,
+                        specialKeyTextColor = specialKeyTextColor,
                         keyboardBgColor = keyboardBgColor,
                         shadowEnabled = kbShadow.enabled,
                         shadowElevation = kbShadow.elevation.dp,
@@ -283,6 +281,7 @@ fun KeyboardLayoutScreen(
                         onKeyPressDown = callbacks.onKeyPressDown,
                         isFloatingMode = uiState.isFloatingMode,
                         specialKeyTextColor = specialKeyTextColor,
+                        onGestureAction = onGestureAction,
                     )
                 }
             }

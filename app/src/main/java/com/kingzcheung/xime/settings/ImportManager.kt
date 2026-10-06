@@ -25,7 +25,12 @@ object ImportManager {
 
     sealed class ImportResult {
         /** 方案 / 词典 / 背景图等，走 [SchemaManager.saveImportedFile] 的落地结果。 */
-        data class Content(val success: Boolean, val installedDirect: Boolean) : ImportResult()
+        data class Content(
+            val success: Boolean,
+            val installedDirect: Boolean,
+            /** 与已安装方案同名不同内容的文件冲突；非空时导入被拒绝，用于向用户说明原因。 */
+            val conflicts: List<FileConflictInfo> = emptyList(),
+        ) : ImportResult()
 
         /** 插件（.xipk）安装结果。 */
         data class Plugin(val pluginInfo: PluginInfo?) : ImportResult()
@@ -58,7 +63,7 @@ object ImportManager {
                 ImportResult.Failed("无法读取文件")
             } else {
                 val r = SchemaManager.saveImportedFile(context, name, stream)
-                ImportResult.Content(r.success, r.installedDirect)
+                ImportResult.Content(r.success, r.installedDirect, r.conflicts)
             }
         }
     }
@@ -84,7 +89,7 @@ object ImportManager {
             }
         } else {
             val r = SchemaManager.saveImportedFile(context, safe, file.inputStream(), autoEnable = autoEnable)
-            ImportResult.Content(r.success, r.installedDirect)
+            ImportResult.Content(r.success, r.installedDirect, r.conflicts)
         }
     }
 

@@ -27,7 +27,7 @@ data class PluginInfo(
     val minHostVersion: String? = null,
     val maxHostVersion: String? = null,
     val trustLevel: TrustLevel = TrustLevel.UNKNOWN,
-    /** Lua 入口脚本路径（相对插件包目录）。插件逻辑全部由该脚本导出。 */
+    /** JS 入口脚本路径（相对插件包目录）。插件逻辑全部由该脚本导出。 */
     val entryScript: String? = null,
     /** 插件声明需要访问的域名（manifest.network.hosts）。联网时需命中可信池或获用户授权。 */
     val declaredHosts: List<String> = emptyList(),
@@ -41,9 +41,19 @@ data class PluginInfo(
     val manifestIcon: String? = null,
     /** manifest.capabilities 能力声明（emoji/speech/tool/clipboard_sync 各类型）。宿主消费能力的唯一来源。 */
     val capabilities: PluginCapabilities? = null,
+    /** 目标平台声明（manifest.platforms；缺省视为 android，与存量插件行为一致）。宿主按平台门禁加载。 */
+    val platforms: List<String> = listOf(PLATFORM_ANDROID),
 ) {
     val version: String get() = versionName
     val category: PluginCategory get() = PluginCategory.fromId(type)
+
+    /** 是否面向指定平台（platforms 缺省视为仅 android）。 */
+    fun supportsPlatform(platform: String): Boolean = platform in platforms
+
+    companion object {
+        /** 宿主平台标识（platforms 缺省值；加载门禁以此判定）。 */
+        const val PLATFORM_ANDROID = "android"
+    }
 }
 
 /**

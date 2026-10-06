@@ -4,57 +4,60 @@ import android.content.Context
 import com.kingzcheung.xime.model.ModelCategory
 import com.kingzcheung.xime.model.ModelManager
 import com.kingzcheung.xime.model.ModelStorage
+import com.kingzcheung.xime.speech.models.AsrModelProfile
+import com.kingzcheung.xime.speech.models.AsrModelRegistry
 import java.io.File
 
 /**
  * ASR 模型管理与选择。
  *
  * 模型推理由自研的 streaming zipformer2 实现（libasr_jni.so）负责。
- * 模型清单与描述来自「模型中心」远程索引（[ModelManager]，category=asr），
- * 索引未加载时回退到内置默认模型（zipformer-zh-int8）。
+ * 模型清单与描述来自「扩展商店」远程索引（[ModelManager]，category=asr），
+ * 文件角色映射以内置适配注册表（[AsrModelRegistry]）为准；
+ * 索引未加载时回退到注册表（内置默认模型 zipformer-zh-int8）。
  */
 class AsrModelManager(private val context: Context) {
 
     companion object {
         /** 内置默认 ASR 模型（远程索引加载前/失败时的兜底）。 */
-        val DEFAULT_MODEL = AsrModelInfo(
-            id = "zipformer-zh-int8",
-            name = "中文 Zipformer int8",
-            description = "Zipformer 架构，适合实时语音识别，int8 量化",
-            language = "zh",
-            size = "132.63MB",
-            downloadUrl = "https://www.modelscope.cn/models/bikeand/asr/resolve/master/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30.tar.bz2",
-            modelType = "transducer",
-            files = listOf("encoder.int8.onnx", "decoder.onnx", "joiner.int8.onnx", "tokens.txt"),
-            encoderFile = "encoder.int8.onnx",
-            decoderFile = "decoder.onnx",
-            joinerFile = "joiner.int8.onnx"
-        )
-
-        /** 兼容旧引用。 */
-        @Deprecated("使用 getAsrModels()/getSelectedModelInfo() 从索引读取")
-        val AVAILABLE_MODELS: List<AsrModelInfo> = listOf(DEFAULT_MODEL)
+        val DEFAULT_MODEL = AsrModelRegistry.default.toAsrModelInfo()
 
         private const val DEFAULT_ID = "zipformer-zh-int8"
 
-        /** 把索引里的 ModelInfo 转换为 ASR 专用模型信息。 */
+        /** 把索引里的 ModelInfo 转换为 ASR 专用模型信息（文件映射按 id 查注册表）。 */
         private fun toAsrModelInfo(info: com.kingzcheung.xime.model.ModelInfo): AsrModelInfo {
             val version = info.resolvedVersion()
             val fileNames = info.files.map { it.name }
-            return AsrModelInfo(
-                id = info.id,
+            val profile = AsrModelRegistry.profileOrDefault(info.id)
+            return profile.toAsrModelInfo(
                 name = info.name,
                 description = info.description,
-                language = "zh",
-                size = version?.size ?: info.size,
-                downloadUrl = info.archiveUrl ?: "",
-                modelType = "transducer",
-                files = fileNames,
-                encoderFile = "encoder.int8.onnx",
-                decoderFile = "decoder.onnx",
-                joinerFile = "joiner.int8.onnx"
+                // 旧索引版本节点没有 size 字段（空串），回退到模型级 size
+                size = version?.size?.takeIf { it.isNotBlank() } ?: info.size,
+                downloadUrl = info.archiveUrl ?: profile.downloadUrl,
+                files = fileNames
             )
         }
+
+        private fun AsrModelProfile.toAsrModelInfo(
+            name: String = this.name,
+            description: String = this.description,
+            size: String = this.size,
+            downloadUrl: String = this.downloadUrl,
+            files: List<String> = listOf(encoderFile, decoderFile, joinerFile, tokensFile)
+        ): AsrModelInfo = AsrModelInfo(
+            id = id,
+            name = name,
+            description = description,
+            language = language,
+            size = size,
+            downloadUrl = downloadUrl,
+            modelType = "transducer",
+            files = files,
+            encoderFile = encoderFile,
+            decoderFile = decoderFile,
+            joinerFile = joinerFile
+        )
     }
 
     data class AsrModelInfo(
@@ -72,11 +75,19 @@ class AsrModelManager(private val context: Context) {
         val needsAutoPunctuation: Boolean = true
     )
 
-    /** ASR 分类的模型清单（索引优先，索引未加载时用内置默认）。 */
+    /**
+     * ASR 分类的模型清单：索引条目 + 未被索引覆盖的内置适配
+     * （后者保证索引上架前选中内置模型也能解析出正确的文件映射）。
+     */
     fun getAsrModels(): List<AsrModelInfo> {
         val fromIndex = ModelManager.getModelsByCategory(ModelCategory.ASR)
             .map { toAsrModelInfo(it) }
-        return if (fromIndex.isNotEmpty()) fromIndex else listOf(DEFAULT_MODEL)
+        if (fromIndex.isEmpty()) return AsrModelRegistry.profiles.map { it.toAsrModelInfo() }
+        val indexedIds = fromIndex.map { it.id }.toSet()
+        val builtInOnly = AsrModelRegistry.profiles
+            .filter { it.id !in indexedIds }
+            .map { it.toAsrModelInfo() }
+        return fromIndex + builtInOnly
     }
 
     /** 所有 ASR 模型 id，用于判断某个 id 是否为已知 ASR 模型。 */
@@ -87,6 +98,12 @@ class AsrModelManager(private val context: Context) {
         if (!modelDir.exists()) return false
         val files = modelDir.listFiles()
         return files != null && files.isNotEmpty()
+    }
+
+    /** 指定模型（含未选中模型）的模型目录是否已有文件。 */
+    fun isModelInstalled(modelId: String): Boolean {
+        val dir = ModelStorage.getModelDir(context, modelId)
+        return dir.isDirectory && dir.listFiles()?.isNotEmpty() == true
     }
 
     fun getSelectedModelDir(): File {

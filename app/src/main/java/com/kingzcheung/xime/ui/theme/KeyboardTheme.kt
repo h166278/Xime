@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.core.graphics.ColorUtils
 import com.kingzcheung.xime.settings.BackgroundConfig
 import com.kingzcheung.xime.settings.ColorSchemeEntry
@@ -206,8 +207,8 @@ object KeyboardThemes {
         return KeyboardColorScheme(
             id = id,
             name = entry.name.ifEmpty { id },
-            specialKeyLight = veryLight,
-            specialKeyDark = cfgColor,
+            specialKeyLight = entry.specialKeyBgColor?.let { longToColor(it) } ?: veryLight,
+            specialKeyDark = entry.specialKeyBgColorDark?.let { longToColor(it) } ?: cfgColor,
             accentLight = cfgColor,
             accentDark = lightened,
             primaryLight = cfgColor,
@@ -406,6 +407,8 @@ object KeyboardThemes {
         val global = KeysConfigHelper.getKeyboardColors()
         return scheme.copy(
             name = entry.name.ifEmpty { scheme.name },
+            specialKeyLight = entry.specialKeyBgColor?.let { longToColor(it) } ?: scheme.specialKeyLight,
+            specialKeyDark = entry.specialKeyBgColorDark?.let { longToColor(it) } ?: scheme.specialKeyDark,
             accentLight = cfgColor,
             accentDark = lightened,
             primaryLight = cfgColor,
@@ -460,6 +463,14 @@ object KeyboardThemes {
             red = accent.red * 0.6f, green = accent.green * 0.6f, blue = accent.blue * 0.6f
         )
     }
+
+    /**
+     * 特殊键（确定/删除等）文字颜色：按功能键背景亮度自适应——
+     * 亮背景配 [onLightBgText]（通常为皮肤按键文字色），暗背景配柔和亮白
+     * （非纯白，高对比在暗光下刺眼）。实机各布局与主题预览共用此逻辑保证一致。
+     */
+    fun getSpecialKeyTextColorForBackground(bgColor: Color, onLightBgText: Color): Color =
+        if (bgColor.luminance() > 0.5f) onLightBgText else Color(0xFFE8EAED)
 
     fun getPrimaryColor(themeId: String, isDark: Boolean): Color {
         val theme = getThemeById(themeId)

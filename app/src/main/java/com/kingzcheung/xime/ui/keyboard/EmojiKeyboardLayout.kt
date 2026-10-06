@@ -7,6 +7,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -40,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,12 +87,14 @@ fun EmojiKeyboardLayout(
     val pluginCategories = allCategories.filter { it.isPlugin }
     val builtinCategories = allCategories.filter { !it.isPlugin }
 
-    // 最近使用（LRU）：作为内置分区的第一个子分类页，点击 emoji 时置顶记录
-    var recentEmojis by remember {
-        mutableStateOf(RecentUsageStore.get(context, RecentUsageStore.KEY_RECENT_EMOJIS))
+    // 最近使用（LRU）：惰性排序——面板打开期间点按任何 emoji 只持久化使用记录，
+    // 不重排当前 UI（最近使用页位置稳定，便于连续输入）；面板关闭后组合状态丢弃，
+    // 下次打开重新读取持久化结果，即为最新顺序。
+    val recentEmojis = remember {
+        RecentUsageStore.get(context, RecentUsageStore.KEY_RECENT_EMOJIS)
     }
     val recentCategory = EmojiCategory(name = "最近使用", icon = "🕘", emojis = recentEmojis)
-    val displayBuiltinCategories = remember(builtinCategories, recentEmojis) {
+    val displayBuiltinCategories = remember(builtinCategories) {
         listOf(recentCategory) + builtinCategories
     }
 
@@ -121,27 +123,15 @@ fun EmojiKeyboardLayout(
     }
     val totalPages = displayBuiltinCategories.size + pluginCategories.size
 
-    val configuration = LocalConfiguration.current
-    val isLandscape =
-        configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-    val emojiColumns = if (isLandscape) 15 else 8
-
-    // 当前显示的类别
-    val currentCategory =
-        if (selectedTopTabIndex == 0) {
-            if (displayBuiltinCategories.isNotEmpty()) displayBuiltinCategories[selectedSubCategoryIndex.coerceIn(0, displayBuiltinCategories.lastIndex)]
-            else EmojiData.categories.first()
-        } else {
-            val groupIdx = selectedTopTabIndex - 1
-            if (pluginGroupEntries.isNotEmpty() && groupIdx < pluginGroupEntries.size) {
-                val subCats = pluginGroupEntries[groupIdx].value
-                subCats[selectedSubCategoryIndex.coerceIn(0, subCats.lastIndex)]
-            } else EmojiData.categories.first()
-        }
+    // 布局按父容器真实宽度自适应（悬浮卡片/键盘收窄/分屏的容器宽 ≠ 屏幕宽），
+    // 不再读屏幕方向：宽容器（横屏全屏）用大边距与更多列，其余按竖屏形态
+    BoxWithConstraints(modifier = modifier) {
+        val isWide = maxWidth >= WIDE_CONTAINER_WIDTH
+        val emojiColumns = gridColumnCount(maxWidth, targetCellWidth = 50.dp, minColumns = 8, maxColumns = 15)
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
+        modifier = Modifier
+            .fillMaxSize()
             .background(backgroundColor)
     ) {
         // 导航区：返回按钮 + 顶层 Tab（Emoji / 插件）
@@ -149,7 +139,7 @@ fun EmojiKeyboardLayout(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
-                .padding(start = if (isLandscape) 50.dp else 8.dp, end = if (isLandscape) 50.dp else 8.dp),
+                .padding(start = if (isWide) 50.dp else 8.dp, end = if (isWide) 50.dp else 8.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             Row(
@@ -292,7 +282,7 @@ fun EmojiKeyboardLayout(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(horizontal = if (isLandscape) 50.dp else 4.dp)
+                .padding(horizontal = if (isWide) 50.dp else 4.dp)
                 .padding(bottom = 4.dp)
         ) { pageIndex ->
             val category = if (pageIndex < displayBuiltinCategories.size) {
@@ -301,7 +291,6 @@ fun EmojiKeyboardLayout(
                 pluginCategories[pageIndex - displayBuiltinCategories.size]
             }
 
-            val emojiColumns = if (isLandscape) 15 else 8
             if (category.isPlugin && category.emojiItems != null) {
                 val hasImages = category.emojiItems.any { it.imageUrl != null }
                 val defaultCols = if (hasImages) 6 else emojiColumns
@@ -399,7 +388,10 @@ fun EmojiKeyboardLayout(
                                 EmojiButton(
                                     emoji = emoji,
                                     onClick = {
-                                        recentEmojis = RecentUsageStore.record(
+                                        // 惰性排序：任何页（含最近使用页）点按都只持久化使用记录、
+                                        // 不重排当前 UI（最近使用页位置稳定，便于连续输入）；
+                                        // 面板关闭后下次打开重新读取 store，即为最新顺序。
+                                        RecentUsageStore.record(
                                             context, RecentUsageStore.KEY_RECENT_EMOJIS, emoji
                                         )
                                         onEmojiSelect(emoji)
@@ -421,7 +413,7 @@ fun EmojiKeyboardLayout(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(44.dp)
-                .padding(horizontal = if (isLandscape) 50.dp else 4.dp, vertical = 0.dp),
+                .padding(horizontal = if (isWide) 50.dp else 4.dp, vertical = 0.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -481,7 +473,8 @@ fun EmojiKeyboardLayout(
         }
 
         // 底部留空
-        Spacer(modifier = Modifier.height(if (isLandscape) 15.dp else bottomPaddingDp.dp))
+        Spacer(modifier = Modifier.height(if (isWide) 15.dp else bottomPaddingDp.dp))
+    }
     }
 }
 

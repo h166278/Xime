@@ -1,5 +1,6 @@
 package com.kingzcheung.xime.rime
 
+import com.kingzcheung.xime.util.FileLogger
 import android.content.Context
 import android.util.Log
 import com.kingzcheung.xime.BuildConfig
@@ -86,7 +87,7 @@ object RimeConfigHelper {
                 if (engine.deployIncremental()) {
                     deployed = true
                 } else {
-                    Log.w(TAG, "Incremental maintenance failed, falling back to full deploy")
+                    FileLogger.w(TAG, "Incremental maintenance failed, falling back to full deploy")
                     buildDir.deleteRecursively()
                     buildDir.mkdirs()
                     deployed = engine.deploy()
@@ -180,7 +181,7 @@ object RimeConfigHelper {
             if (artifact.isFile && isBrokenBuildArtifact(artifact)) {
                 artifact.delete()
                 SettingsPreferences.setDeploymentHash(context, "")
-                Log.w(TAG, "Broken build artifact removed: ${artifact.name}")
+                FileLogger.w(TAG, "Broken build artifact removed: ${artifact.name}")
                 return false
             }
         }
@@ -298,7 +299,7 @@ object RimeConfigHelper {
         val copied = try {
             copyAssetsRecursively(context, ASSETS_RIME_DIR, targetDir)
         } catch (e: IOException) {
-            Log.e(TAG, "Failed to copy assets", e)
+            FileLogger.e(TAG, "Failed to copy assets", e)
             false
         }
         if (copied) {
@@ -348,7 +349,7 @@ object RimeConfigHelper {
             target.writeText(text)
             Log.i(TAG, "Aligned ${target.name} page_size / Shift+Tab / ascii_composer / select keys")
         } catch (e: IOException) {
-            Log.e(TAG, "Failed to sync $ASSETS_DEFAULT_CUSTOM", e)
+            FileLogger.e(TAG, "Failed to sync $ASSETS_DEFAULT_CUSTOM", e)
         }
     }
 
@@ -505,22 +506,49 @@ object RimeConfigHelper {
     internal fun patchDefaultCustomContent(text: String, pageSize: Int): String? {
         val sep = if (text.contains("\r\n")) "\r\n" else "\n"
         val lines = text.lines()
-        val pageSizeIdx = lines.indexOfFirst { it.trimStart().startsWith("page_size:") }
-        if (pageSizeIdx >= 0) {
-            val raw = lines[pageSizeIdx].trimStart().removePrefix("page_size:")
-                .substringBefore('#').trim()
-            if (raw.toIntOrNull() == pageSize) return null
-            val indent = lines[pageSizeIdx].takeWhile { it == ' ' || it == '\t' }
-            val updated = lines.toMutableList()
-            updated[pageSizeIdx] = "${indent}page_size: $pageSize"
-            return updated.joinToString(sep)
-        }
-        val patchIdx = lines.indexOfFirst { it.trim() == "patch:" }
-        if (patchIdx < 0) return null
+        var changed = false
         val updated = lines.toMutableList()
-        updated.add(patchIdx + 1, "  menu:")
-        updated.add(patchIdx + 2, "    page_size: $pageSize")
-        return updated.joinToString(sep)
+
+        // 1. 清理与双拼编码键冲突的 key_binder 绑定（旧版模板/用户目录残留）
+        val kept = updated.filterNot { isConflictingKeyBindingLine(it) }
+        if (kept.size != updated.size) {
+            updated.clear()
+            updated.addAll(kept)
+            changed = true
+        }
+
+        // 2. 对齐 menu/page_size
+        val pageSizeIdx = updated.indexOfFirst { it.trimStart().startsWith("page_size:") }
+        if (pageSizeIdx >= 0) {
+            val raw = updated[pageSizeIdx].trimStart().removePrefix("page_size:")
+                .substringBefore('#').trim()
+            if (raw.toIntOrNull() != pageSize) {
+                val indent = updated[pageSizeIdx].takeWhile { it == ' ' || it == '\t' }
+                updated[pageSizeIdx] = "${indent}page_size: $pageSize"
+                changed = true
+            }
+        } else {
+            val patchIdx = updated.indexOfFirst { it.trim() == "patch:" }
+            if (patchIdx >= 0) {
+                updated.add(patchIdx + 1, "  menu:")
+                updated.add(patchIdx + 2, "    page_size: $pageSize")
+                changed = true
+            }
+        }
+
+        return if (changed) updated.joinToString(sep) else null
+    }
+
+    /**
+     * 判断一行是否为抢占分号/单引号的 key_binder 绑定（如
+     * `- { when: has_menu, accept: semicolon, send: 2 }`）。这类绑定在双拼方案下
+     * 会拦截 `;`（ing）/`'`（音节分隔符），必须从配置中移除。
+     */
+    private fun isConflictingKeyBindingLine(line: String): Boolean {
+        val trimmed = line.trim()
+        if (!trimmed.startsWith("-") || trimmed.startsWith("#")) return false
+        if (!trimmed.contains("send:")) return false
+        return trimmed.contains("accept: semicolon") || trimmed.contains("accept: apostrophe")
     }
 
     /**
@@ -647,7 +675,7 @@ object RimeConfigHelper {
                     }
                 }
             } catch (e: IOException) {
-                Log.e(TAG, "Failed to process: $fullAssetPath", e)
+                FileLogger.e(TAG, "Failed to process: $fullAssetPath", e)
             }
         }
         
@@ -667,7 +695,7 @@ object RimeConfigHelper {
                 }
             }
         } catch (e: IOException) {
-            Log.e(TAG, "Failed to copy: $assetPath", e)
+            FileLogger.e(TAG, "Failed to copy: $assetPath", e)
         }
     }
 
@@ -719,7 +747,7 @@ object RimeConfigHelper {
             if (oldMarket.renameTo(newMarket)) {
                 Log.i(TAG, "Migrated rime/market/ -> market/")
             } else {
-                Log.w(TAG, "Failed to rename rime/market/ to market/")
+                FileLogger.w(TAG, "Failed to rename rime/market/ to market/")
             }
         } else {
             // 新位置已存在，逐项合并

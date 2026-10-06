@@ -44,7 +44,7 @@ fun SettingsScreen(
                 onNavigateToSmartPrediction = { navController.navigate(SettingsRoutes.SmartPrediction) },
                 onNavigateToSpeechToText = { navController.navigate(SettingsRoutes.SpeechToText) },
                 onNavigateToAbout = { navController.navigate(SettingsRoutes.About) },
-                onNavigateToClipboardSync = { navController.navigate(SettingsRoutes.ClipboardSync) },
+                onNavigateToClipboard = { navController.navigate(SettingsRoutes.Clipboard) },
                 onNavigateToBackup = { navController.navigate(SettingsRoutes.Backup) }
             )
         }
@@ -62,6 +62,7 @@ fun SettingsScreen(
                 },
                 onNavigateToMarket = { navController.navigate(SettingsRoutes.Market) },
                 onNavigateToRimeFileBrowser = { navController.navigate(SettingsRoutes.RimeFileBrowser) },
+                onNavigateToSchemaDictBrowser = { navController.navigate(SettingsRoutes.SchemaDictBrowser) },
             )
         }
         composable(SettingsRoutes.Market) {
@@ -75,6 +76,9 @@ fun SettingsScreen(
                 },
                 onNavigateToPluginDetail = { pluginId ->
                     navController.navigate("plugin_market_detail/$pluginId")
+                },
+                onNavigateToLayoutDetail = { layoutId ->
+                    navController.navigate("layout_market_detail/$layoutId")
                 },
                 onNavigateToLocal = { navController.navigate(SettingsRoutes.SchemaLocal) },
                 onNavigateToModelLocal = { navController.navigate(SettingsRoutes.ModelLocal) },
@@ -117,6 +121,16 @@ fun SettingsScreen(
             val pluginId = backStackEntry.arguments?.getString("pluginId") ?: return@composable
             PluginMarketDetailContent(
                 pluginId = pluginId,
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable(
+            route = SettingsRoutes.LayoutMarketDetail,
+            arguments = listOf(navArgument("layoutId") { type = NavType.StringType }),
+        ) { backStackEntry ->
+            val layoutId = backStackEntry.arguments?.getString("layoutId") ?: return@composable
+            LayoutMarketDetailContent(
+                layoutId = layoutId,
                 onBack = { navController.popBackStack() },
             )
         }
@@ -175,13 +189,22 @@ fun SettingsScreen(
                 onNavigateToPluginSettings = { pluginId ->
                     navController.navigate("${SettingsRoutes.PluginSettings}/$pluginId")
                 },
-                onNavigateToPlugins = { navController.navigate(SettingsRoutes.Plugins) }
+                onNavigateToPlugins = { navController.navigate(SettingsRoutes.Plugins) },
+                onNavigateToModelMarket = { navController.navigate(SettingsRoutes.MarketModel) }
             )
         }
         composable(SettingsRoutes.Dictionary) {
-            DictionarySettingsContent(
+            DictionaryHubContent(
+                onNavigateToUserDict = { navController.navigate(SettingsRoutes.DictionaryUserDict) },
+                onNavigateToCustomPhrase = { navController.navigate(SettingsRoutes.DictionaryCustomPhrase) },
                 onBack = { navController.popBackStack() }
             )
+        }
+        composable(SettingsRoutes.DictionaryUserDict) {
+            UserDictContent(onBack = { navController.popBackStack() })
+        }
+        composable(SettingsRoutes.DictionaryCustomPhrase) {
+            CustomPhraseSettingsContent(onBack = { navController.popBackStack() })
         }
         composable(SettingsRoutes.SchemaDictBrowser) {
             SchemaDictBrowserContent(
@@ -193,16 +216,24 @@ fun SettingsScreen(
                 onBack = { navController.popBackStack() }
             )
         }
+        composable(SettingsRoutes.Clipboard) {
+            ClipboardSettingsContent(
+                onBack = { navController.popBackStack() },
+                // 剪贴板同步作为剪贴板的内页（返回回到剪贴板设置）
+                onNavigateToClipboardSync = { navController.navigate(SettingsRoutes.ClipboardSync) }
+            )
+        }
         composable(SettingsRoutes.ClipboardSync) {
             ClipboardSyncSettingsContent(
                 onBack = { navController.popBackStack() },
-                onNavigateToPlugins = { navController.navigate(SettingsRoutes.Plugins) }
+                onNavigateToMarket = { navController.navigate(SettingsRoutes.MarketPlugins) }
             )
         }
         composable(SettingsRoutes.Backup) {
             BackupSettingsContent(
                 onBack = { navController.popBackStack() },
-                onNavigateToPlugins = { navController.navigate(SettingsRoutes.Plugins) }
+                onNavigateToPlugins = { navController.navigate(SettingsRoutes.Plugins) },
+                onNavigateToMarket = { navController.navigate(SettingsRoutes.MarketPlugins) }
             )
         }
         composable(SettingsRoutes.About) {
@@ -211,7 +242,20 @@ fun SettingsScreen(
                 onNavigateToPrivacy = { navController.navigate(SettingsRoutes.Privacy) },
                 onNavigateToLicenses = { navController.navigate(SettingsRoutes.Licenses) },
                 onNavigateToLogViewer = { navController.navigate(SettingsRoutes.LogViewer) },
+                onNavigateToDeveloper = { navController.navigate(SettingsRoutes.Developer) },
+                onNavigateToStorageSpace = { navController.navigate(SettingsRoutes.StorageSpace) }
+            )
+        }
+        composable(SettingsRoutes.Developer) {
+            DeveloperContent(
+                onBack = { navController.popBackStack() },
                 onNavigateToHandwritingCapture = { navController.navigate(SettingsRoutes.HandwritingCapture) }
+            )
+        }
+        composable(SettingsRoutes.StorageSpace) {
+            StorageSpaceScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToPlugins = { navController.navigate(SettingsRoutes.Plugins) }
             )
         }
         composable(SettingsRoutes.MarketModel) {
@@ -226,9 +270,32 @@ fun SettingsScreen(
                 onNavigateToPluginDetail = { pluginId ->
                     navController.navigate("plugin_market_detail/$pluginId")
                 },
+                onNavigateToLayoutDetail = { layoutId ->
+                    navController.navigate("layout_market_detail/$layoutId")
+                },
                 onNavigateToLocal = { navController.navigate(SettingsRoutes.SchemaLocal) },
                 onNavigateToModelLocal = { navController.navigate(SettingsRoutes.ModelLocal) },
                 initialTab = 1,
+            )
+        }
+        composable(SettingsRoutes.MarketPlugins) {
+            MarketHubContent(
+                onBack = { navController.popBackStack() },
+                onNavigateToDetail = { schemeId ->
+                    navController.navigate("schema_market_detail/$schemeId")
+                },
+                onNavigateToModelDetail = { modelId ->
+                    navController.navigate("model_market_detail/$modelId")
+                },
+                onNavigateToPluginDetail = { pluginId ->
+                    navController.navigate("plugin_market_detail/$pluginId")
+                },
+                onNavigateToLayoutDetail = { layoutId ->
+                    navController.navigate("layout_market_detail/$layoutId")
+                },
+                onNavigateToLocal = { navController.navigate(SettingsRoutes.SchemaLocal) },
+                onNavigateToModelLocal = { navController.navigate(SettingsRoutes.ModelLocal) },
+                initialTab = 2,
             )
         }
         composable(SettingsRoutes.LogViewer) {

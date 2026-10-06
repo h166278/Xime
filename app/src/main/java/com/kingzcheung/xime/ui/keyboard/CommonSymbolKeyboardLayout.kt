@@ -147,7 +147,8 @@ fun CommonSymbolKeyboardLayout(
                 onToggleAsciiMode = {
                     FileLogger.i("XimeKeyboard", "panel En key tapped (landscape): localAsciiMode=$localAsciiMode -> ${!localAsciiMode}, uiAscii=$isAsciiMode")
                     localAsciiMode = !localAsciiMode
-                    onKeyPress("ime_switch")
+                    // 面板内中英键走 ime_switch_panel（PANEL_SYNC）：切引擎但不持久化
+                    onKeyPress("ime_switch_panel")
                 },
                 keySpacingX = keySpacingX,
                 keySpacingY = keySpacingY,
@@ -257,6 +258,7 @@ fun CommonSymbolKeyboardLayout(
                                 backgroundColor = specialKeyBackgroundColor,
                                 iconColor = specialKeyTextColor,
                                 modifier = Modifier.weight(1.2f),
+                                a11yDescription = "退格",
                                 swipeText = "清空",
                                 onSwipe = { onKeyPress("clear_composition") },
                                 onLongClick = { onKeyPress("delete") },
@@ -323,7 +325,8 @@ fun CommonSymbolKeyboardLayout(
                                 onClick = {
                                     FileLogger.i("XimeKeyboard", "panel En key tapped: localAsciiMode=$localAsciiMode -> ${!localAsciiMode}, uiAscii=$isAsciiMode")
                                     localAsciiMode = !localAsciiMode
-                                    onKeyPress("ime_switch")
+                                    // 面板内中英键走 ime_switch_panel（PANEL_SYNC）：切引擎但不持久化
+                                    onKeyPress("ime_switch_panel")
                                 },
                                 backgroundColor = specialKeyBackgroundColor,
                                 textColor = specialKeyTextColor,
@@ -585,6 +588,7 @@ internal fun CommonSymbolLandscapeContent(
                         backgroundColor = specialKeyBackgroundColor,
                         iconColor = specialKeyTextColor,
                         modifier = Modifier.weight(1f),
+                        a11yDescription = "退格",
                         swipeText = "清空",
                         onSwipe = { onKeyPress("clear_composition") },
                         onLongClick = { onKeyPress("delete") },

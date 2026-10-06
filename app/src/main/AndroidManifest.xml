@@ -75,7 +75,17 @@
             android:name=".service.AsrInferenceService"
             android:exported="false"
             android:process=":asr" />
-        
+
+        <!-- xipm dev 插件热安装入口（debug/release 通用，由"插件开发模式"开关门禁）：
+             exported=true 供 adb shell am start 拉起（Android 15 起 shell 无法启动非导出组件）；
+             组件本身无界面、装完即 finish，release 下开关关闭时不读 path、不安装 -->
+        <activity
+            android:name=".plugin.DevPluginInstallActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
     </application>
 
 </manifest>

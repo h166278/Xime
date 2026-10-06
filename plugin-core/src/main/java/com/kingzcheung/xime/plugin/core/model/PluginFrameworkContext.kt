@@ -3,7 +3,7 @@ package com.kingzcheung.xime.plugin.core.model
 import android.app.Application
 import com.kingzcheung.xime.plugin.core.api.IPluginEntryClass
 import com.kingzcheung.xime.plugin.core.runtime.installer.InstallerManager
-import com.kingzcheung.xime.plugin.core.runtime.installer.XmlManager
+import com.kingzcheung.xime.plugin.core.runtime.installer.PluginRegistry
 import com.kingzcheung.xime.plugin.core.runtime.lifecycle.PluginLifecycleManager
 import com.kingzcheung.xime.plugin.core.runtime.loader.LoadedPluginInfo
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,8 +14,8 @@ internal class PluginFrameworkContext(val application: Application) {
 
     val initState = MutableStateFlow(InitState.NOT_INITIALIZED)
 
-    val xmlManager = XmlManager(application)
-    val installerManager = InstallerManager(application, xmlManager)
+    val pluginRegistry = PluginRegistry(application)
+    val installerManager = InstallerManager(application, pluginRegistry)
 
     val loadedPlugins = ConcurrentHashMap<String, LoadedPluginInfo>()
     val pluginInstances = ConcurrentHashMap<String, IPluginEntryClass>()
@@ -30,7 +30,7 @@ internal class PluginFrameworkContext(val application: Application) {
     fun initializeLifecycleManager() {
         lifecycleManager = PluginLifecycleManager(
             application = application,
-            xmlManager = xmlManager,
+            pluginRegistry = pluginRegistry,
             installerManager = installerManager,
             loadedPlugins = loadedPlugins,
             pluginInstances = pluginInstances

@@ -8,7 +8,9 @@ import com.kingzcheung.xime.model.ModelDownloadState
 import com.kingzcheung.xime.model.ModelInfo
 import com.kingzcheung.xime.model.ModelManager
 import com.kingzcheung.xime.model.ModelVersion
+import com.kingzcheung.xime.settings.MarketUpdateChecker
 import com.kingzcheung.xime.settings.MarketVersionStore
+import com.kingzcheung.xime.util.FileLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,15 +53,15 @@ data class ModelManagementUiState(
 
 class ModelManagementViewModel(application: Application) : AndroidViewModel(application) {
     private val context = application.applicationContext
+    private val TAG = "ModelManagementViewModel"
 
     private val _uiState = MutableStateFlow(ModelManagementUiState())
     val uiState: StateFlow<ModelManagementUiState> = _uiState.asStateFlow()
 
     init {
-        viewModelScope.launch {
-            loadModels()
-            refreshFromRemote()
-        }
+        // 首次进入直接走远程刷新：期间保持 isLoading=true、列表为空，
+        // 从而展示加载动画（与方案/插件 Tab 一致）；完成后由 refreshFromRemote 统一收尾。
+        viewModelScope.launch { refreshFromRemote() }
     }
 
     private suspend fun loadModels() {
@@ -83,13 +85,22 @@ class ModelManagementViewModel(application: Application) : AndroidViewModel(appl
                 installedVersion = if (downloaded) versions[model.id] else null,
             )
         }
-        _uiState.update { it.copy(models = items, isLoading = false) }
+        _uiState.update { it.copy(models = items) }
     }
 
     private suspend fun refreshFromRemote() {
         _uiState.update { it.copy(isLoading = true) }
-        ModelManager.loadFromRemote(context)
-        loadModels()
+        try {
+            ModelManager.loadFromRemote(context)
+        } catch (e: Exception) {
+            FileLogger.w(TAG, "刷新模型市场失败: ${e.message}")
+        } finally {
+            // loadModels 本身不改 isLoading；由这里统一收尾，确保首次进入时
+            // loading 动画持续到远程返回（与方案/插件 Tab 一致），
+            // 也不被 ON_RESUME 的本地状态刷新提前打断。
+            loadModels()
+            _uiState.update { it.copy(isLoading = false) }
+        }
     }
 
     fun refresh() {
@@ -103,6 +114,8 @@ class ModelManagementViewModel(application: Application) : AndroidViewModel(appl
 
     /** 仅重新检查本地下载状态（不重新拉取远程 index），用于从本地管理页返回后同步。 */
     fun refreshDownloadedState() {
+        // 首次远程加载进行中时跳过：避免用单例缓存提前填充列表、打断加载动画
+        if (_uiState.value.isLoading) return
         viewModelScope.launch { loadModels() }
     }
 
@@ -173,6 +186,8 @@ class ModelManagementViewModel(application: Application) : AndroidViewModel(appl
                 }
                 if (downloaded) {
                     _uiState.update { s -> s.copy(toastMessage = "模型下载完成") }
+                    // 下载/更新成功立即重算可更新计数（Tab 角标与设置主页角标实时刷新）
+                    MarketUpdateChecker.refreshNow(context)
                 }
             }
         }
@@ -194,6 +209,8 @@ class ModelManagementViewModel(application: Application) : AndroidViewModel(appl
                     }
                 }
                 _uiState.update { s -> s.copy(toastMessage = "模型已删除") }
+                // 删除后该项不再计入可更新，立即重算角标
+                MarketUpdateChecker.refreshNow(context)
             }
         }
     }

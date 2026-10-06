@@ -49,9 +49,20 @@ class KeyboardAsciiStateMachineTest {
     }
 
     @Test
-    fun `main keyboard follows engine when memory unset`() {
-        assertNull(machine.targetFor(AsciiKeyboardContext.MAIN, engineAscii = true))
+    fun `main keyboard with memory unset defaults to chinese`() {
+        // MAIN 记忆缺失时 fallback 默认中文（不跟随引擎——引擎可能停留在面板态）
         assertNull(machine.targetFor(AsciiKeyboardContext.MAIN, engineAscii = false))
+        assertEquals(false, machine.targetFor(AsciiKeyboardContext.MAIN, engineAscii = true))
+    }
+
+    @Test
+    fun `main keyboard memory lost after reset restores chinese even if engine stuck on panel ascii`() {
+        // 复现 issue：中文主键盘进符号面板（引擎被切英文）→ 发送消息触发会话刷新
+        // reset 清掉记忆 → 退出面板时引擎仍为英文，应切回中文而不是沿用引擎的面板态
+        machine.saveMemory(AsciiKeyboardContext.MAIN, engineAscii = false)
+        machine.saveMemory(AsciiKeyboardContext.SYMBOL_PANEL, engineAscii = true)
+        machine.reset()
+        assertEquals(false, machine.targetFor(AsciiKeyboardContext.MAIN, engineAscii = true))
     }
 
     @Test
@@ -67,7 +78,8 @@ class KeyboardAsciiStateMachineTest {
         machine.saveMemory(AsciiKeyboardContext.MAIN, engineAscii = false)
         machine.saveMemory(AsciiKeyboardContext.SYMBOL_PANEL, engineAscii = true)
         machine.reset()
-        assertNull(machine.targetFor(AsciiKeyboardContext.MAIN, engineAscii = true))
+        // MAIN 记忆缺失 fallback 默认中文；符号面板首入仍默认英文
+        assertEquals(false, machine.targetFor(AsciiKeyboardContext.MAIN, engineAscii = true))
         assertEquals(true, machine.targetFor(AsciiKeyboardContext.SYMBOL_PANEL, engineAscii = false))
     }
 

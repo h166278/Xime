@@ -238,9 +238,11 @@ std::vector<std::string> Zipformer2Model::GetOutputNames(
 
 void Zipformer2Model::ReadEncoderMetadata() {
   auto meta = encoder_sess_.GetModelMetadata();
+  // 键可能缺失（如非 whisper 模型没有 "feature"）；LookupCustomMetadataMapAllocated
+  // 返回 nullptr 时构造 std::string 会段错误，必须判空。
   auto lookup = [&](const char *key) -> std::string {
     auto v = meta.LookupCustomMetadataMapAllocated(key, allocator_);
-    return v.get();
+    return v ? std::string(v.get()) : std::string();
   };
 
   auto read_vec = [&](const char *key) {
@@ -266,14 +268,21 @@ void Zipformer2Model::ReadEncoderMetadata() {
   T_ = read_int("T", 0);
   decode_chunk_len_ = read_int("decode_chunk_len", 0);
 
+  // 流式解码按 (chunk_size=T, chunk_shift=decode_chunk_len) 推进，缺键或
+  // 非正值会导致解码循环退化；此处显式失败，让上层走"模型不兼容"的优雅路径。
+  if (T_ <= 0 || decode_chunk_len_ <= 0) {
+    throw std::runtime_error("encoder metadata missing T/decode_chunk_len");
+  }
+
   if (lookup("feature") == "whisper") use_whisper_feature_ = true;
 }
 
 void Zipformer2Model::ReadDecoderMetadata() {
   auto meta = decoder_sess_.GetModelMetadata();
+  // 同 ReadEncoderMetadata：键缺失时必须返回空串而非 nullptr 构造。
   auto lookup = [&](const char *key) -> std::string {
     auto v = meta.LookupCustomMetadataMapAllocated(key, allocator_);
-    return v.get();
+    return v ? std::string(v.get()) : std::string();
   };
   auto read_int = [&](const char *key, int32_t def) {
     auto s = lookup(key);

@@ -42,16 +42,16 @@ app/src/main/assets/association_model
 /.kilo
 /.kotlin
 
-# Plugin module builds
+# Plugin toolchain (Rust CLI build artifacts)
+tools/xime-plugin/target/
+tools/xime-plugin/build/
+# Plugin module builds（历史残留目录）
 plugin-api/build
-plugins/funasr-speech/build
-plugins/meme-bunny/build
-plugins/kaomoji/build
 
 # Plugin APKs (development only, not packaged in main app)
 app/src/main/assets/plugins/*.apk
 app/src/main/assets/plugins/*.xipk
-
+/.zcodeignore
 /.skills
 fix_encoding.py
 perf.data

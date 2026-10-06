@@ -31,11 +31,16 @@ class KeyboardAsciiStateMachine {
 
     /**
      * attach：返回目标引擎模式；与引擎一致时返回 null（无需切换）。
-     * 尚未记录记忆的上下文以引擎当前状态为目标（符号面板首次进入默认英文）。
+     *
+     * fallback 语义（记忆缺失时）：
+     * - MAIN → 默认中文：与「英文态不跨收起存活」的全局决策一致（onStartInput 的
+     *   ascii 确定性决策同为默认中文）。记忆缺失时引擎可能仍停留在面板态
+     *   （符号面板首入默认英文），不能拿它当主键盘的应有状态。
+     * - NUMBER_PANEL / SYMBOL_PANEL → 引擎当前状态；符号面板首次进入默认英文。
      */
     fun targetFor(context: AsciiKeyboardContext, engineAscii: Boolean): Boolean? {
         val target = when (context) {
-            AsciiKeyboardContext.MAIN -> mainAsciiMode ?: engineAscii
+            AsciiKeyboardContext.MAIN -> mainAsciiMode ?: false
             AsciiKeyboardContext.NUMBER_PANEL -> numberAsciiMode ?: engineAscii
             AsciiKeyboardContext.SYMBOL_PANEL -> symbolAsciiMode ?: true
         }

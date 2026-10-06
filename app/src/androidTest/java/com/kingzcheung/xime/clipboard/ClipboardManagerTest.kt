@@ -353,8 +353,8 @@ class ClipboardManagerTest {
     @Test
     fun migrateLegacyPrefsPreservesData() {
         val items = listOf(
-            ClipboardItem(1L, "Test:::with|||special", 1000L, true, false),
-            ClipboardItem(2L, "Normal text", 2000L, false, true)
+            ClipboardItem(id = 1L, text = "Test:::with|||special", timestamp = 1000L, isPinned = true, isQuickSend = false),
+            ClipboardItem(id = 2L, text = "Normal text", timestamp = 2000L, isPinned = false, isQuickSend = true)
         )
 
         val prefs = context.getSharedPreferences("clipboard_prefs", Context.MODE_PRIVATE)
@@ -380,5 +380,73 @@ class ClipboardManagerTest {
 
         awaitCondition({ clipboardManager.clipboardItems.value.size in 990..1000 })
         assertTrue("Should cap at 1000 items", clipboardManager.clipboardItems.value.size in 990..1000)
+    }
+
+    // ---- 同步导入（Phase 3 / D12）：远端图片落盘 + 入库 ----
+
+    /** 真实 PNG/JPEG 字节（Bitmap 编码生成，保证魔数与尺寸都可解）。 */
+    private fun encodedImage(format: android.graphics.Bitmap.CompressFormat, width: Int = 4, height: Int = 3): ByteArray {
+        val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+        val out = java.io.ByteArrayOutputStream()
+        assertTrue("图片编码应成功", bitmap.compress(format, 100, out))
+        bitmap.recycle()
+        return out.toByteArray()
+    }
+
+    @Test
+    fun importImageFromSyncSavesContentAddressedFile() {
+        val bytes = encodedImage(android.graphics.Bitmap.CompressFormat.PNG)
+        val hash = com.kingzcheung.xime.plugin.core.api.ClipboardProfile.sha256Hex(bytes)
+
+        val path = runBlocking { clipboardManager.importImageFromSync(bytes, "$hash.png") }
+
+        assertNotNull("导入应返回绝对路径", path)
+        val file = java.io.File(path!!)
+        assertTrue("图片文件应落盘", file.exists())
+        assertEquals("文件名应为内容寻址", "$hash.png", file.name)
+
+        awaitCondition({ clipboardManager.clipboardItems.value.any { it.isImage } })
+        val item = clipboardManager.clipboardItems.value.first { it.isImage }
+        assertEquals("image/png", item.mimeType)
+        assertEquals(bytes.size.toLong(), item.sizeBytes)
+        assertEquals(4, item.width)
+        assertEquals(3, item.height)
+        assertEquals(path, clipboardManager.imageFileOf(item)?.absolutePath)
+    }
+
+    @Test
+    fun importImageFromSyncDedupesSameContent() {
+        val bytes = encodedImage(android.graphics.Bitmap.CompressFormat.PNG)
+
+        val first = runBlocking { clipboardManager.importImageFromSync(bytes, null) }
+        awaitCondition({ clipboardManager.clipboardItems.value.any { it.isImage } })
+        val second = runBlocking { clipboardManager.importImageFromSync(bytes, null) }
+
+        assertEquals("同内容应复用同一文件", first, second)
+        awaitCondition({ clipboardManager.clipboardItems.value.count { it.isImage } == 1 })
+        assertEquals(1, clipboardManager.clipboardItems.value.count { it.isImage })
+    }
+
+    @Test
+    fun importImageFromSyncTrustsMagicBytesOverDataName() {
+        // dataName 谎报 png，字节其实是 JPEG：类型判定必须以字节为准
+        val bytes = encodedImage(android.graphics.Bitmap.CompressFormat.JPEG)
+
+        val path = runBlocking { clipboardManager.importImageFromSync(bytes, "evil.png") }
+
+        assertNotNull(path)
+        assertTrue("应按魔数落成 .jpg", path!!.endsWith(".jpg"))
+        awaitCondition({ clipboardManager.clipboardItems.value.any { it.isImage } })
+        assertEquals("image/jpeg", clipboardManager.clipboardItems.value.first { it.isImage }.mimeType)
+    }
+
+    @Test
+    fun importImageFromSyncRejectsUnsupportedBytes() {
+        val path = runBlocking {
+            clipboardManager.importImageFromSync("not an image at all".toByteArray(), "fake.png")
+        }
+
+        assertNull("非图片字节不应入库", path)
+        assertTrue(clipboardManager.clipboardItems.value.none { it.isImage })
     }
 }

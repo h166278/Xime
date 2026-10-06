@@ -7,7 +7,9 @@ plugins {
 
 android {
     namespace = "com.kingzcheung.xime.plugin.core"
-    compileSdk = 36
+    compileSdk = 37
+    // 平台按小版本安装（SDK 里是 platforms;android-37.2），不写 minor 时 AGP 会去找 android-37.0
+    compileSdkMinor = 2
 
     defaultConfig {
         minSdk = 28
@@ -56,12 +58,18 @@ dependencies {
     api(libs.androidx.compose.ui.graphics)
     api(libs.androidx.lifecycle.runtime.compose)
 
-    // Lua 脚本插件运行时（沙箱执行 main.lua，替代 DEX 加载）
-    api("org.luaj:luaj-jse:3.0.1")
-    // manifest.yaml 解析（Lua 模式插件元数据），与 app 统一使用 kaml 类型化解析，
-    // 避免引入 org.yaml:snakeyaml（其 java.beans 反射在 Android 上不可用）
-    implementation(libs.kaml)
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.11.0")
+    // JS 脚本插件运行时（QuickJS，main.js 沙箱执行）
+    api("io.github.dokar3:quickjs-kt-android:1.0.15")
+    // manifest.json 解析（kotlinx Json 宽松模式：注释 + 尾逗号；不用 kaml，插件链路与 JS 生态对齐）
+    implementation(libs.kotlinx.serialization.json)
     
     testImplementation("junit:junit:4.13.2")
+}
+
+// quickjs-kt 不提供纯 JVM 的 Android 替代：本地单元测试用 -jvm artifact（不含 .so）
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    resolutionStrategy.dependencySubstitution {
+        substitute(module("io.github.dokar3:quickjs-kt-android"))
+            .using(module("io.github.dokar3:quickjs-kt-jvm:1.0.15"))
+    }
 }

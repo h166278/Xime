@@ -2,7 +2,7 @@ package com.kingzcheung.xime.service
 
 import android.text.InputType
 import android.view.inputmethod.EditorInfo
-import com.kingzcheung.xime.plugin.core.lua.PluginEvent
+import com.kingzcheung.xime.plugin.core.js.PluginEvent
 import com.kingzcheung.xime.plugin.core.runtime.PluginManager
 
 /**

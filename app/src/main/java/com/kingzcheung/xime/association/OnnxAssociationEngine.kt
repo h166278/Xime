@@ -115,9 +115,7 @@ object OnnxAssociationEngine {
         }
 
         try {
-            val result = client.predict(inputText, topK)
-            FileLogger.d(TAG, "Model predict '${inputText.takeLast(10)}' -> ${result.size} candidates (bound=${client.isBound()})")
-            result
+            client.predict(inputText, topK)
         } catch (e: Exception) {
             FileLogger.e(TAG, "Prediction failed: ${e.message}", e)
             emptyList()

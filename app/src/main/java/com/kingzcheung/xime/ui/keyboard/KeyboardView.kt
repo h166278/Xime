@@ -48,6 +48,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,6 +84,15 @@ import kotlin.math.roundToInt
 val LocalStretchFactor = compositionLocalOf { 1f }
 val LocalSuppressCursorMove = compositionLocalOf { mutableStateOf(false) }
 
+/**
+ * 父层光标手势是否已接管本次横向滑动。
+ *
+ * 父层激活光标手势后会 consume 横向位移（[KeyboardView] 内 activationThresholdPx），
+ * 按键层的拖拽累积随之停止增长，仍可能小于点击取消阈值，导致"光标已移动、按键又打出字"。
+ * 按键层据此放弃点击判定：横向滑动已被父层消费，就不该再算作点击。
+ */
+val LocalCursorGestureActive = compositionLocalOf { mutableStateOf(false) }
+
 @Composable
 fun KeyboardView(
     viewModel: KeyboardViewModel,
@@ -103,6 +114,23 @@ fun KeyboardView(
     val isShifted by viewModel.isShifted.collectAsStateWithLifecycle()
     val keyboardState by viewModel.keyboardState.collectAsStateWithLifecycle()
     val page by viewModel.page.collectAsStateWithLifecycle()
+    val candidatePageExpanded by viewModel.candidatePageExpanded.collectAsStateWithLifecycle()
+    val singleCharFilter by viewModel.singleCharFilter.collectAsStateWithLifecycle()
+
+    // 候选展开页自动收起：编码删空（无候选也无联想）时不留空页。
+    // 展开态是候选栏的在位扩展（非 Overlay），删除实时更新页内候选，删空即回到键盘。
+    LaunchedEffect(
+        candidatePageExpanded,
+        candidateState.value.candidates.size,
+        candidateState.value.associationCandidates.size
+    ) {
+        if (candidatePageExpanded &&
+            candidateState.value.candidates.isEmpty() &&
+            candidateState.value.associationCandidates.isEmpty()
+        ) {
+            viewModel.setCandidatePageExpanded(false)
+        }
+    }
     val viewState by viewModel.viewState.collectAsStateWithLifecycle()
     val isLandscape = if (state.isFloatingMode) false
         else LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -128,8 +156,13 @@ fun KeyboardView(
 
     LaunchedEffect(state.inputSessionId) {
         t9Controller.reset()
-        FileLogger.i("XimeKeyboard", "InputSessionStarted: isAsciiMode=${state.isAsciiMode}, schemaId=${state.currentSchemaId}, kb=$keyboardState, vs=$viewState, page=$page")
-        viewModel.asciiStateMachine.reset()
+        FileLogger.i("XimeKeyboard", "InputSessionStarted: isAsciiMode=${state.isAsciiMode}, schemaId=${state.currentSchemaId}, kb=$keyboardState, vs=$viewState, page=$page, restarting=${state.isInputSessionRestarting}")
+        // restarting（同一编辑框刷新，如聊天发送消息后 app restartInput）不是新会话：
+        // 不清 ascii 记忆——否则"主键盘=中文"的记忆丢失，退出符号/数字面板时
+        // targetFor(MAIN) 会 fallback 到引擎的面板态（面板首入默认英文），主键盘被误留英文。
+        if (!state.isInputSessionRestarting) {
+            viewModel.asciiStateMachine.reset()
+        }
         viewModel.dispatch(
             KeyboardDispatchAction.InputSessionStarted(state.isAsciiMode, state.currentSchemaId)
         )
@@ -154,7 +187,9 @@ fun KeyboardView(
         val target = viewModel.asciiStateMachine.targetFor(curContext, state.isAsciiMode)
         if (target != null) {
             FileLogger.i("XimeKeyboard", "ascii sync: ${prevContext.name}(${state.isAsciiMode}) -> ${curContext.name}($target)")
-            callbacks.onKeyPress("ime_switch", false)
+            // 面板上下文同步走 ime_switch_panel（PANEL_SYNC）：切引擎但不写 user.yaml，
+            // 临时态不污染用户显式中英选择
+            callbacks.onKeyPress("ime_switch_panel", false)
         }
     }
 
@@ -201,8 +236,9 @@ fun KeyboardView(
     val specialKeyBgColor = if (state.isDarkTheme) kbColors.specialKeyBgColorDark?.let { longToColor(it) }
         ?: themeSpecialKeyColor
         else kbColors.specialKeyBgColor?.let { longToColor(it) } ?: themeSpecialKeyColor
-    val specialKeyTextColor = if (state.isDarkTheme) androidx.compose.ui.graphics.Color.White
-        else KeyboardThemes.getSpecialKeyTextColor(state.themeId, false)
+    val specialKeyTextColor = KeyboardThemes.getSpecialKeyTextColorForBackground(
+        specialKeyBgColor, keyTextColor
+    )
     val candidateTextColor = KeyboardThemes.getCandidateTextColorOverride(state.themeId, state.isDarkTheme)
         ?: if (state.isDarkTheme) longToColor(kbColors.candidateTextColorDark)
         else longToColor(kbColors.candidateTextColor)
@@ -216,9 +252,14 @@ fun KeyboardView(
     val screenW = LocalConfiguration.current.screenWidthDp
     val screenH = LocalConfiguration.current.screenHeightDp
     val portraitScreenWidth = minOf(screenW, screenH)
-    val cardWidthDp = (portraitScreenWidth * 0.85f).roundToInt()
-    val floatScaleFactor = if (state.isFloatingMode) cardWidthDp.toFloat() / screenW.toFloat() else 0.85f
-    val floatFontScale = if (state.isFloatingMode) cardWidthDp.toFloat() / portraitScreenWidth.toFloat() else 1f
+    val cardWidthDp = FloatingCardGeometry.cardWidthDp(portraitScreenWidth)
+    val floatScaleFactor = if (state.isFloatingMode) FloatingCardGeometry.widthFraction(portraitScreenWidth, screenW)
+        else FloatingCardGeometry.CARD_SCALE
+    val floatFontScale = if (state.isFloatingMode) FloatingCardGeometry.CARD_SCALE else 1f
+    // 键盘调节支持左右收窄后，实际渲染宽 ≠ 屏宽（屏幕宽度只作首帧兜底）：
+    // 展开候选页的行宽/九键左栏宽度按实测宽计算，收窄后不高估每行容量
+    val densityForMeasure = LocalDensity.current
+    var measuredWidthDp by remember { mutableIntStateOf(0) }
 
     val contentModifier = if (state.isFloatingMode) {
         modifier.keyboardBackground(themeScheme.keyboardBackground, state.isDarkTheme, keyboardBgColor)
@@ -233,17 +274,21 @@ fun KeyboardView(
         fontScaleFactor = floatFontScale,
         offsetX = state.floatingOffsetX,
         offsetY = state.floatingOffsetY,
-        minOffsetY = state.floatingMinOffsetY,
         backgroundColor = keyboardBgColor,
         onDrag = { dx, dy -> callbacks.onFloatingKeyboardDrag?.invoke(dx, dy) },
         onDragEnd = { callbacks.onFloatingKeyboardDragEnd?.invoke() },
         onCardPositioned = onCardPositioned,
     ) {
-    Box(modifier = contentModifier) {
+    Box(
+        modifier = contentModifier.onSizeChanged { size ->
+            measuredWidthDp = with(densityForMeasure) { size.width.toDp().value.roundToInt() }
+        }
+    ) {
         Box {
         // 长按候选删除自造词：确认覆盖层状态（键盘视图内渲染，不弹独立
         // 窗口——焦点型弹窗会抢焦点导致 IME 被系统收起）
-        var deletePendingIndex by remember { mutableStateOf<Int?>(null) }
+        // 长按删除待确认项：词文本 + 确认后执行（候选栏/展开页共用同一确认覆盖层）
+        var deletePending by remember { mutableStateOf<DeletePendingWord?>(null) }
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -260,14 +305,34 @@ fun KeyboardView(
             var handwritingActiveLen by remember { mutableStateOf(0) }
             var handwritingLastSegLen by remember { mutableStateOf(0) }
 
+            // 数据源（展开与否即切换点）：展开态下候选栏与展开页同吃全量列表
+            // （expandedCandidates，展开时服务层重新拉取）；非展开态候选栏保持
+            // 引擎当前页（"每页候选词数"）
+            val expandedDataMode = candidatePageExpanded &&
+                candidateState.value.expandedCandidates.isNotEmpty()
+
             val isHandwritingPage = page is KeyboardPage.Main && (page as KeyboardPage.Main).type == MainType.HANDWRITING
             val showHandwritingCandidates = (isHandwritingPage || isHandwritingLookup) && handwritingCandidates.isNotEmpty()
 
             val cs = candidateState.value
+            // 展开态候选栏数据源：全量列表（筛选态取单字子列表，仍是同源关系）。
+            // 每项携带全量原索引：筛选态过滤掉词组后位置索引 ≠ 全局索引，
+            // 点选/长按必须经 first 换算回全局索引，与展开页 globalIndices 同口径
+            val railExpanded = if (expandedDataMode) {
+                if (singleCharFilter) {
+                    cs.expandedCandidates.withIndex()
+                        .mapNotNull { (i, c) -> if (c.text.length == 1) i to c else null }
+                } else {
+                    cs.expandedCandidates.withIndex().map { it.index to it.value }
+                }
+            } else {
+                emptyList()
+            }
             val candidateBarState = remember(
                 cs.candidates, cs.candidateComments, cs.inputText, cs.preeditText, cs.isComposing,
                 cs.associationCandidates, cs.pendingEnglishText, cs.isShowingRecentClipboard, cs.hasNextPage,
                 state.isCalculatorMode, handwritingCandidates, handwritingComments, showHandwritingCandidates,
+                railExpanded, cs.preeditCaretPos, state.recentClipboardItems,
             ) {
                 if (showHandwritingCandidates) {
                     CandidateBarState.AssociationOnly(
@@ -277,8 +342,8 @@ fun KeyboardView(
                     )
                 } else {
                     CandidateBarState.from(
-                        candidates = cs.candidates,
-                        candidateComments = cs.candidateComments,
+                        candidates = if (railExpanded.isNotEmpty()) railExpanded.map { it.second.text } else cs.candidates,
+                        candidateComments = if (railExpanded.isNotEmpty()) railExpanded.map { it.second.comment } else cs.candidateComments,
                         inputText = cs.inputText,
                         preeditText = cs.preeditText,
                         isComposing = cs.isComposing,
@@ -290,6 +355,13 @@ fun KeyboardView(
                         isShowingRecentClipboard = cs.isShowingRecentClipboard,
                         hasNextPage = cs.hasNextPage,
                         isCalculatorActive = state.isCalculatorMode,
+                        preeditCaretPos = cs.preeditCaretPos,
+                        // 剪贴板态：与 cs.candidates 同序同长，非图片位为 null（展开态数据源不同则不带图片）
+                        clipboardImages = if (cs.isShowingRecentClipboard && railExpanded.isEmpty()) {
+                            state.recentClipboardItems.map { if (it.isImage) it else null }
+                        } else {
+                            emptyList()
+                        },
                     )
                 }
             }
@@ -333,19 +405,25 @@ fun KeyboardView(
                     isFocused = state.toolPanelInputFocused,
                     isLoading = state.toolPanelLoading,
                     initialText = state.toolPanelPrefillText,
+                    controls = state.toolPanelUiNodes,
                     backgroundColor = Color.Transparent,
                     textColor = keyTextColor,
                     accentColor = accentColor,
                     cardBgColor = keyBgColor,
                     onClose = { callbacks.onToolPanelClose?.invoke() },
                     onFocusChange = { focused -> callbacks.onToolPanelFocusChange?.invoke(focused) },
+                    onFieldInput = { key, value -> callbacks.onToolPanelFieldInput?.invoke(key, value) },
+                    onPanelAction = { actionId -> callbacks.onToolPanelAction?.invoke(actionId) },
                 )
             }
 
             CandidateBar(
                 state = candidateBarState,
                 page = page,
+                candidatePageExpanded = candidatePageExpanded,
                 isFloatingMode = state.isFloatingMode,
+                // 候选栏图片候选的缩略图文件（不存在返回 null → 渲染占位图标）
+                clipboardImageFileOf = { item -> viewModel.clipboardManager.imageFileOf(item) },
                 isVoiceSticky = state.voiceSticky,
                 voiceAmplitude = voiceAmplitudeState.value,
                 voiceSpectrum = voiceSpectrumState.value,
@@ -401,6 +479,10 @@ fun KeyboardView(
                     isDarkTheme = state.isDarkTheme
                 ),
                 callbacks = CandidateBarCallbacks(
+                    // 常驻语音：点按候选栏频谱区域结束识别。
+                    // 复用 onVoiceModeChange(false) 而非 onVoiceStickyToggle——
+                    // 前者就是"轻触空格结束"走的同一条路径（含震动反馈）。
+                    onVoiceStop = { callbacks.onVoiceModeChange?.invoke(false) },
                     onCandidateSelect = { index ->
                         if (showHandwritingCandidates && index in handwritingCandidates.indices) {
                             // 手写候选点选绕过了服务层 selectCandidate（其入口统一有按键反馈），
@@ -429,12 +511,31 @@ fun KeyboardView(
                                 handwritingComments = emptyList()
                                 handwritingClearSignal++
                             }
+                        } else if (expandedDataMode) {
+                            // 展开态候选栏数据源=全量列表（筛选态为其单字子列表）：
+                            // 位置索引经 railExpanded 换算全局索引再走全局链路
+                            val globalIndex = railExpanded.getOrNull(index)?.first
+                            if (globalIndex != null) {
+                                callbacks.onGlobalCandidateSelect?.invoke(globalIndex)
+                                viewModel.setCandidatePageExpanded(false)
+                            }
                         } else {
                             callbacks.onCandidateSelect(index)
                         }
                     },
                     onCandidateLongPress = { index ->
-                        deletePendingIndex = index
+                        val railEntry = if (expandedDataMode) railExpanded.getOrNull(index) else null
+                        val word = railEntry?.second?.text
+                            ?: candidateState.value.candidates.getOrNull(index)
+                        if (!word.isNullOrEmpty()) {
+                            deletePending = DeletePendingWord(word) {
+                                if (railEntry != null) {
+                                    callbacks.onGlobalCandidateDelete?.invoke(railEntry.first)
+                                } else {
+                                    callbacks.onCandidateDelete?.invoke(index)
+                                }
+                            }
+                        }
                     },
                     onClearAssociation = {
                         onHapticFeedback?.invoke()
@@ -461,7 +562,7 @@ fun KeyboardView(
                                     else viewModel.popOverlay()
                                 }
                                 is KeyboardPage.Panel -> viewModel.exitPanel()
-                                is KeyboardPage.Main -> {}
+                                is KeyboardPage.Main -> viewModel.setCandidatePageExpanded(false)
                             }
                         }
                     },
@@ -472,7 +573,9 @@ fun KeyboardView(
                     },
                     onShowMoreCandidates = {
                         onHapticFeedback?.invoke()
-                        viewModel.showOverlay(OverlayRoute.CandidatePage)
+                        viewModel.setCandidatePageExpanded(true)
+                        // 拉取跨页全量候选（展开页数据源，含首次展开）
+                        callbacks.onRequestExpandedCandidates?.invoke()
                     },
                     onInputTextClick = {
                         if (candidateState.value.inputText.isNotEmpty()) {
@@ -521,6 +624,169 @@ fun KeyboardView(
                 inlineSuggestions = inlineSuggestions,
             )
 
+            if (candidatePageExpanded) {
+                // 候选展开页：候选栏的在位展开态（顶部即真实候选栏，实时跟随编码/删除变化）。
+                // 数据源为服务层的跨页全量候选（expandedCandidates），行分组惰性渲染
+                // （LazyColumn 只画可见行），可上下滑动 + 翻页键滚动一屏，不驱动 rime 翻页。
+                val allExpanded = candidateState.value.expandedCandidates
+                // 左栏符号复刻当前键盘左栏：九键/笔画各自的可自定义 side_symbols
+                // （configVersion 参与重组，保证设置改动后刷新）；其余布局用默认快捷符号
+                val configVersion by KeysConfigHelper.configVersion.collectAsStateWithLifecycle()
+                val customRailSymbols = remember(configVersion, keyboardState) {
+                    when (keyboardState) {
+                        is KeyboardLayoutState.T9Pinyin -> KeysConfigHelper.getT9SideSymbols()
+                        is KeyboardLayoutState.Stroke -> KeysConfigHelper.getStrokeSideSymbols()
+                        else -> null
+                    }
+                }
+                // 九键左栏复刻：输入/选择态显示音节拼音候选（与键盘左栏同源，
+                // 点击切换音节后服务层重拉全量候选刷新本页），空闲态回落 side_symbols；
+                // 左栏宽度与九键键盘左栏视觉同宽：九键竖屏根容器有左右各 4dp 边距
+                // （padding start/end 4dp），Row 内 spacedBy(2dp)×2，weight 基数 =
+                // 页宽-8-4；左栏列 = 基数×0.8/5，面板再带 LocalKeyVisualPadding
+                // 水平缩进（keySpacingX ?: 2dp）——展开页左栏为全宽背景，同额扣除
+                // （横屏九键无左栏不缩放）。
+                // 页宽基准：悬浮模式展开页渲染在卡片内（0.85×短边宽），必须按卡片宽
+                // 计算——此前用全屏 screenWidthDp，横屏悬浮下左栏 ≈0.16×长边，占掉
+                // 窄卡片四成宽度，中间候选区被压成细条（候选字裁成"细线"）
+                val expandedPageWidthDp = when {
+                    state.isFloatingMode -> cardWidthDp
+                    measuredWidthDp > 0 -> measuredWidthDp
+                    else -> screenW
+                }
+                val isT9Layout = keyboardState is KeyboardLayoutState.T9Pinyin
+                val t9RailWidthDp = if (isT9Layout && !isLandscape) {
+                    val railInset = kbKey.spacingFor("t9").first ?: 2f
+                    ((expandedPageWidthDp - 12) * 0.8f / 5f -
+                        railInset * 2f + 0.5f).toInt().coerceAtLeast(32)
+                } else 0
+                // 左栏垂直缩进与九键左栏面板同源（keySpacingY ?: 2dp），展开/收起
+                // 切换时左栏顶部不跳位；其余布局 6dp = 原 Row 垂直边距
+                val t9RailInsetDp = if (isT9Layout && !isLandscape)
+                    (kbKey.spacingFor("t9").second ?: 2f).toInt() else 6
+                val railPinyinOptions =
+                    if (isT9Layout) t9Controller.firstOptions.map { it.pinyin } else emptyList()
+                val railSelectedPinyinIndex =
+                    if (isT9Layout && t9Controller.leftPanelState ==
+                        T9InputController.LeftPanelState.SELECTION
+                    ) t9Controller.firstOptions.indexOf(t9Controller.selectedOption) else -1
+                // 展开页展示全量候选；行分组按字符当量估算，仅作展示分组。
+                // 宽度基准同左栏：悬浮按卡片宽，否则按全屏宽（估算偏差只影响每行
+                // 词数，行内条目宽度自适应拉伸，不会溢出）
+                val rowWidthUnits = with(LocalDensity.current) {
+                    ExpandedCandidatePager.rowWidthUnits(
+                        screenWidthPx = expandedPageWidthDp.dp.toPx(),
+                        density = density,
+                        scaledDensity = density * fontScale
+                    )
+                }
+                val candidateRows = remember(
+                    allExpanded, singleCharFilter, rowWidthUnits
+                ) {
+                    ExpandedCandidatePager.flowRows(
+                        ExpandedCandidatePager.filterIndices(allExpanded, singleCharFilter),
+                        allExpanded,
+                        rowWidthUnits
+                    ).map { row ->
+                        row.map { gi ->
+                            CandidateEntry(allExpanded[gi].text, allExpanded[gi].comment, gi)
+                        }
+                    }
+                }
+                CandidatePage(
+                    state = CandidatePageState(
+                        candidateRows = candidateRows,
+                        associationCandidates = candidateState.value.associationCandidates.toList(),
+                        backgroundColor = keyboardBgColor,
+                        textColor = candidateTextColor,
+                        keyBackgroundColor = keyBgColor,
+                        bottomPaddingDp = state.keyboardBottomPaddingDp,
+                        singleCharFilter = singleCharFilter,
+                        railSymbols = customRailSymbols.orEmpty(),
+                        leftRailWidthDp = t9RailWidthDp,
+                        leftRailInsetDp = t9RailInsetDp,
+                        railPinyinOptions = railPinyinOptions,
+                        railSelectedPinyinIndex = railSelectedPinyinIndex,
+                        railAccentColor = accentColor,
+                        rightRailEqualSplit = state.isFloatingMode,
+                    ),
+                    callbacks = CandidatePageCallbacks(
+                        onCandidateSelect = { entry ->
+                            // entry.globalIndex 即跨页全局索引（引擎侧 select_candidate）
+                            callbacks.onGlobalCandidateSelect?.invoke(entry.globalIndex)
+                            viewModel.setCandidatePageExpanded(false)
+                        },
+                        onCandidateLongPress = { entry ->
+                            // 长按删除自造词：与候选栏共用确认弹窗
+                            val word = candidateState.value.expandedCandidates
+                                .getOrNull(entry.globalIndex)?.text
+                            if (!word.isNullOrEmpty()) {
+                                onHapticFeedback?.invoke()
+                                deletePending = DeletePendingWord(word) {
+                                    callbacks.onGlobalCandidateDelete?.invoke(entry.globalIndex)
+                                }
+                            }
+                        },
+                        onToggleSingleCharFilter = {
+                            onHapticFeedback?.invoke()
+                            viewModel.toggleSingleCharFilter()
+                        },
+                        onAssociationSelect = { index ->
+                            callbacks.onAssociationSelect?.invoke(index)
+                            viewModel.setCandidatePageExpanded(false)
+                        },
+                        onRailPinyinSelect = { index ->
+                            onHapticFeedback?.invoke()
+                            if (isT9Layout) {
+                                // 与九键键盘左栏同语义：切换音节选项，引擎重组后
+                                // 服务层重拉全量候选，展开页内容随之刷新
+                                t9Controller.firstOptions.getOrNull(index)?.let {
+                                    t9Controller.onChoiceSelected(it)
+                                }
+                            }
+                        },
+                        onCommitText = { text ->
+                            onHapticFeedback?.invoke()
+                            if (customRailSymbols != null) {
+                                // 九键/笔画左栏符号：与键盘本体左栏同路径（onKeyPress，
+                                // 由 rime punctuator 决定顶屏/上屏行为）
+                                callbacks.onKeyPress(text, false)
+                            } else {
+                                callbacks.onCommitText?.invoke(text)
+                            }
+                        },
+                        onDelete = {
+                            onHapticFeedback?.invoke()
+                            if (isT9Layout) {
+                                // 与九键键盘本体退格键（T9KeyboardLayout.handleDelete）
+                                // 完全同路径：T9 撤销模型（删未分配数字/撤销左栏选择/
+                                // 撤销上屏），buffer→rime 经 FlushRimeInput 同步；
+                                // 引擎不消费时才转服务层普通删除。此前直接走
+                                // onKeyPress("delete") 缺 flush，T9 buffer 已回退但
+                                // rime composition 不刷新，表现为连按多次才删掉
+                                t9Controller.onDeleted { result ->
+                                    when (result) {
+                                        T9InputController.DeleteResult.UNDO_COMMIT ->
+                                            t9Controller.clearRimeAndResend()
+                                        T9InputController.DeleteResult.NOT_CONSUMED ->
+                                            callbacks.onKeyPress("delete", false)
+                                        else -> {}
+                                    }
+                                }
+                            } else {
+                                callbacks.onKeyPress("delete", false)
+                            }
+                        },
+                        onEnter = {
+                            onHapticFeedback?.invoke()
+                            callbacks.onKeyPress("enter", false)
+                        },
+                    ),
+                    pageScrollEvents = viewModel.expandedPageScrollEvents,
+                    onHapticFeedback = onHapticFeedback,
+                    modifier = Modifier.weight(1f).fillMaxWidth()
+                )
+            } else {
             val isMainKeyboard = page is KeyboardPage.Main
             if (isMainKeyboard) {
                 val mainType = (page as KeyboardPage.Main).type
@@ -528,12 +794,14 @@ fun KeyboardView(
                     MainType.FULL -> {
                         val currentOnCursorMove = rememberUpdatedState(callbacks.onCursorMove)
                         val suppressCursorMove = remember { mutableStateOf(false) }
+                        val cursorGestureActive = remember { mutableStateOf(false) }
                         val cursorMod = if (callbacks.onCursorMove != null) {
                             Modifier.pointerInput(Unit) {
                                 val stepThresholdPx = 25.dp.toPx()
                                 val activationThresholdPx = 60.dp.toPx()
                                 awaitEachGesture {
                                     suppressCursorMove.value = false
+                                    cursorGestureActive.value = false
                                     val down = awaitFirstDown(requireUnconsumed = false)
                                     var isCursorGesture = false
                                     var lastSteps = 0
@@ -557,6 +825,7 @@ fun KeyboardView(
                                             if (!isCursorGesture && abs(dx) > activationThresholdPx) {
                                                 isCursorGesture = true
                                                 activationAnchorX = change.position.x
+                                                cursorGestureActive.value = true
                                             }
 
                                             if (isCursorGesture) {
@@ -750,6 +1019,7 @@ fun KeyboardView(
                         }
                         CompositionLocalProvider(
                             LocalSuppressCursorMove provides suppressCursorMove,
+                            LocalCursorGestureActive provides cursorGestureActive,
                         ) {
                             KeyboardLayoutScreen(
                                 keyboardState = keyboardState,
@@ -844,7 +1114,7 @@ fun KeyboardView(
                                     seg.candidates.firstOrNull()?.char
                                 }.joinToString("")
                                 if (segText.isNotEmpty()) {
-                                    // 替换式上屏：活动区整体重写为最新识别结果（微信式边写边上屏）。
+                                    // 替换式上屏：活动区整体重写为最新识别结果（边写边上屏）。
                                     // 校验失败（光标漂移）时重置尾部状态，后续识别以追加模式重建
                                     val newTail = handwritingTail.dropLast(handwritingActiveLen) + segText
                                     val ok = callbacks.onHandwritingAutoCommit?.invoke(newTail, handwritingTail) ?: false
@@ -985,6 +1255,7 @@ fun KeyboardView(
 
                 }
             }
+            } // candidatePageExpanded else
 
             val configuration = LocalConfiguration.current
             val isLandscapeBottom = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -1030,10 +1301,9 @@ fun KeyboardView(
         }
 
         // 长按候选删除自造词：键盘视图内确认覆盖层（同窗口不夺焦点，
-        // 避免焦点型弹窗导致 IME 被系统收起）；确认后经服务层调用标准
-        // C API delete_candidate_on_current_page，刷新后词条从候选消失。
-        deletePendingIndex?.let { deleteIndex ->
-            val deleteWord = candidateState.value.candidates.getOrNull(deleteIndex).orEmpty()
+        // 避免焦点型弹窗导致 IME 被系统收起）；确认后按来源分发——
+        // 候选栏走 delete_candidate_on_current_page，展开页走全局索引删除。
+        deletePending?.let { pending ->
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -1041,7 +1311,7 @@ fun KeyboardView(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { deletePendingIndex = null },
+                    ) { deletePending = null },
                 contentAlignment = Alignment.Center
             ) {
                 Card(
@@ -1059,7 +1329,7 @@ fun KeyboardView(
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = "将「$deleteWord」从用户词典中移除？",
+                            text = "将「${pending.word}」从用户词典中移除？",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1070,15 +1340,15 @@ fun KeyboardView(
                         ) {
                             TextButton(onClick = {
                                 onHapticFeedback?.invoke()
-                                deletePendingIndex = null
+                                deletePending = null
                             }) {
                                 Text("取消", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Spacer(Modifier.width(4.dp))
                             TextButton(onClick = {
                                 onHapticFeedback?.invoke()
-                                deletePendingIndex = null
-                                callbacks.onCandidateDelete?.invoke(deleteIndex)
+                                deletePending = null
+                                pending.onConfirm()
                             }) {
                                 Text("删除", color = MaterialTheme.colorScheme.error)
                             }
@@ -1153,6 +1423,11 @@ fun KeyboardView(
                             callbacks.onClipboardSelect?.invoke(text)
                             viewModel.closeOverlay()
                         },
+                        onSelectImage = { item ->
+                            callbacks.onClipboardImageSelect?.invoke(item)
+                            viewModel.closeOverlay()
+                        },
+                        imageFileOf = { item -> viewModel.clipboardManager.imageFileOf(item) },
                         onSplitWords = { text, _ -> viewModel.pushOverlay(OverlayRoute.SplitWords(text)) },
                         onBack = { viewModel.closeOverlay() },
                         onClipboardTabChange = { viewModel.pushOverlay(OverlayRoute.Clipboard(it)) },
@@ -1240,32 +1515,6 @@ fun KeyboardView(
                         modifier = Modifier.fillMaxWidth().fillMaxHeight(),
                         onHapticFeedback = onHapticFeedback,
                     )
-                    is OverlayRoute.CandidatePage -> CandidatePage(
-                        state = CandidatePageState(
-                            candidates = candidateState.value.candidates.toList(),
-                            candidateComments = candidateState.value.candidateComments.toList(),
-                            associationCandidates = candidateState.value.associationCandidates.toList(),
-                            backgroundColor = keyboardBgColor,
-                            textColor = candidateTextColor,
-                            hasNextPage = candidateState.value.hasNextPage,
-                            hasPrevPage = candidateState.value.hasPrevPage,
-                            bottomPaddingDp = state.keyboardBottomPaddingDp,
-                        ),
-                        callbacks = CandidatePageCallbacks(
-                            onCandidateSelect = { index ->
-                                callbacks.onCandidateSelect(index)
-                                viewModel.closeOverlay()
-                            },
-                            onAssociationSelect = { index ->
-                                callbacks.onAssociationSelect?.invoke(index)
-                                viewModel.closeOverlay()
-                            },
-                            onPageDown = { onHapticFeedback?.invoke(); callbacks.onPageDown?.invoke() },
-                            onPageUp = { onHapticFeedback?.invoke(); callbacks.onPageUp?.invoke() },
-                            onBack = { viewModel.closeOverlay() },
-                        ),
-                        modifier = Modifier.fillMaxWidth().fillMaxHeight()
-                    )
                     is OverlayRoute.SplitWords -> SplitWordsView(
                         text = p.route.text,
                         backgroundColor = keyboardBgColor,
@@ -1303,3 +1552,9 @@ fun KeyboardView(
 }
 
 
+
+/** 长按删除待确认项：词文本 + 用户确认后执行的删除动作（候选栏/展开页共用）。 */
+private data class DeletePendingWord(
+    val word: String,
+    val onConfirm: () -> Unit,
+)

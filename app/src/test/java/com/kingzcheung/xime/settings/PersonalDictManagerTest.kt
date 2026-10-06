@@ -31,173 +31,6 @@ private fun mockContext(): Context {
 
 class PersonalDictManagerTest {
 
-    // ── 个人词库（只读显示） ──
-
-    @Test
-    fun `parsePersonalDictEntries reads entries after marker tab-delimited`() {
-        val text = "# comment\n---\nname: x\n...\n日\ta\n曰\ta\n郎\tivnl\n"
-        assertEquals(
-            listOf(DictEntry("日", "a"), DictEntry("曰", "a"), DictEntry("郎", "ivnl")),
-            PersonalDictManager.parsePersonalDictEntries(text),
-        )
-    }
-
-    @Test
-    fun `parsePersonalDictEntries preserves spaces in code`() {
-        val text = "...\n你好\tni hao\n世界\tshi jie\n"
-        assertEquals(
-            listOf(DictEntry("你好", "ni hao"), DictEntry("世界", "shi jie")),
-            PersonalDictManager.parsePersonalDictEntries(text),
-        )
-    }
-
-    @Test
-    fun `parsePersonalDictEntries falls back to space delimiter if no tab`() {
-        val text = "...\n你好 ni hao\n世界 shi jie\n"
-        assertEquals(
-            listOf(DictEntry("你好", "ni hao"), DictEntry("世界", "shi jie")),
-            PersonalDictManager.parsePersonalDictEntries(text),
-        )
-    }
-
-    @Test
-    fun `parsePersonalDictEntries ignores comments and blank lines`() {
-        val text = "...\n\n# comment\n测试\tce shi\n"
-        assertEquals(
-            listOf(DictEntry("测试", "ce shi")),
-            PersonalDictManager.parsePersonalDictEntries(text),
-        )
-    }
-
-    @Test
-    fun `parsePersonalDictEntries returns empty for header-only file`() {
-        val text = "name: user_simp\nversion: '1.0'\n...\n"
-        assertTrue(PersonalDictManager.parsePersonalDictEntries(text).isEmpty())
-    }
-
-    @Test
-    fun `parsePersonalDictEntries skips lines before marker`() {
-        val text = "junk\nbefore\n...\nreal\tentry\n"
-        assertEquals(
-            listOf(DictEntry("real", "entry")),
-            PersonalDictManager.parsePersonalDictEntries(text),
-        )
-    }
-
-    @Test
-    fun `readSchemaPacks returns user packs declared in schema`() {
-        val rimeDir = createTempDir()
-        java.io.File(rimeDir, "pinyin_simp.schema.yaml").writeText("""
-translator:
-  dictionary: pinyin_simp
-  packs:
-    - user_simp
-    - user_extra
-  preedit_format:
-    - xform/a/b
-""".trimIndent(), Charsets.UTF_8)
-        val result = PersonalDictManager.run { readSchemaPacks(rimeDir, "pinyin_simp") }
-        assertEquals(listOf("user_simp", "user_extra"), result)
-    }
-
-    @Test
-    fun `readSchemaPacks returns empty when schema has no packs`() {
-        val rimeDir = createTempDir()
-        java.io.File(rimeDir, "wubi86.schema.yaml").writeText("translator:\n  dictionary: wubi86\n", Charsets.UTF_8)
-        assertTrue(PersonalDictManager.run { readSchemaPacks(rimeDir, "wubi86") }.isEmpty())
-    }
-
-    @Test
-    fun `readSchemaPacks parses real pinyin schema structure via kaml`() {
-        val rimeDir = createTempDir()
-        java.io.File(rimeDir, "pinyin_simp.schema.yaml").writeText("""
-schema:
-  schema_id: pinyin_simp
-  name: 简体拼音
-switches:
-  - name: ascii_mode
-    states: [ 中文, 西文 ]
-engine:
-  translators:
-    - punct_translator
-    - script_translator
-    - reverse_lookup_translator
-    - lua_translator@*uuid
-translator:
-  dictionary: pinyin_simp
-  packs:
-    - user_simp
-  preedit_format:
-    - xform/([nl])v/$1ü/
-reverse_lookup:
-  dictionary: stroke
-  prefix: "`"
-punctuator:
-  import_preset: default
-  __include: symbols:/punctuator
-""".trimIndent(), Charsets.UTF_8)
-        val result = PersonalDictManager.run { readSchemaPacks(rimeDir, "pinyin_simp") }
-        assertEquals(listOf("user_simp"), result)
-    }
-
-    @Test
-    fun `readSchemaPacks falls back to regex when yaml parse fails`() {
-        val rimeDir = createTempDir()
-        // 非法 YAML（引用未定义别名），kaml 解析失败后应回退正则
-        java.io.File(rimeDir, "bad.schema.yaml").writeText("""
-translator:
-  dictionary: bad
-  packs:
-    - user_bad
-foo: *undefined_alias
-""".trimIndent(), Charsets.UTF_8)
-        val result = PersonalDictManager.run { readSchemaPacks(rimeDir, "bad") }
-        assertEquals(listOf("user_bad"), result)
-    }
-
-    @Test
-    fun `resolvePersonalDictFile uses schema own packs name`() {
-        val rimeDir = createTempDir()
-        java.io.File(rimeDir, "pinyin_simp.schema.yaml").writeText("""
-translator:
-  dictionary: pinyin_simp
-  packs:
-    - user_simp
-""".trimIndent())
-        val file = PersonalDictManager.resolvePersonalDictFile(rimeDir, "pinyin_simp")
-        assertEquals("user_simp.dict.yaml", file.name)
-    }
-
-    @Test
-    fun `loadEntries reads schema own pack file`() {
-        val context = mockContext()
-        val rimeDir = java.io.File(context.filesDir, "rime")
-        rimeDir.mkdirs()
-        java.io.File(rimeDir, "pinyin_simp.schema.yaml").writeText("""
-translator:
-  dictionary: pinyin_simp
-  packs:
-    - user_simp
-""".trimIndent(), Charsets.UTF_8)
-        java.io.File(rimeDir, "user_simp.dict.yaml").writeText("# Rime dict\n---\nname: user_simp\n...\n你好\tni hao\n", Charsets.UTF_8)
-        val entries = PersonalDictManager.loadEntries(context, "pinyin_simp")
-        assertTrue(entries.any { it.word == "你好" && it.code == "ni hao" })
-    }
-
-    @Test
-    fun `loadEntries returns empty when pack file missing`() {
-        val context = mockContext()
-        val rimeDir = java.io.File(context.filesDir, "rime")
-        rimeDir.mkdirs()
-        java.io.File(rimeDir, "pinyin_simp.schema.yaml").writeText("""
-translator:
-  dictionary: pinyin_simp
-  packs:
-    - user_simp
-""".trimIndent(), Charsets.UTF_8)
-        assertTrue(PersonalDictManager.loadEntries(context, "pinyin_simp").isEmpty())
-    }
-
     // ── ensureSchemaPack：仅自定义短语 + 清理旧 merged patch ──
 
     @Test
@@ -332,42 +165,6 @@ speller:
 """
 
     @Test
-    fun `parseStableDbEntries reads entries skipping header`() {
-        val text = """# Rime table
-# coding: utf-8
-#@/db_name	custom_phrase
-#@/db_type	tabledb
-#
-测试	ce shi
-词条	ci tiao
-"""
-        val result = PersonalDictManager.parseStableDbEntries(text)
-        assertEquals(
-            listOf(DictEntry("测试", "ce shi"), DictEntry("词条", "ci tiao")),
-            result
-        )
-    }
-
-    @Test
-    fun `parseStableDbEntries reads weight field`() {
-        val text = """#
-a	b	99
-"""
-        val result = PersonalDictManager.parseStableDbEntries(text)
-        assertEquals(listOf(DictEntry("a", "b", 99)), result)
-    }
-
-    @Test
-    fun `parseStableDbEntries handles optional weight`() {
-        val text = """#
-a	b	99
-c	d
-"""
-        val result = PersonalDictManager.parseStableDbEntries(text)
-        assertEquals(listOf(DictEntry("a", "b", 99), DictEntry("c", "d")), result)
-    }
-
-    @Test
     fun `buildStableDbText preserves header and appends entries`() {
         val entries = listOf(
             DictEntry("联系一下", "lxyx"),
@@ -397,7 +194,7 @@ c	d
     fun `stabledb round trip preserves weight`() {
         val original = listOf(DictEntry("联系一下", "lxyx", 99))
         val text = PersonalDictManager.buildStableDbText(stubHeader, original)
-        val parsed = PersonalDictManager.parseStableDbEntries(text)
+        val parsed = DictionaryHelper.parseCodeTable(text)
         assertEquals(original, parsed)
     }
 
@@ -414,7 +211,7 @@ c	d
         PersonalDictManager.saveCustomPhrases(context, null, entries)
         val file = PersonalDictManager.getCustomPhraseFile(context)
         assertTrue(file.exists())
-        val loaded = PersonalDictManager.parseStableDbEntries(file.readText(Charsets.UTF_8))
+        val loaded = DictionaryHelper.parseCodeTable(file.readText(Charsets.UTF_8))
         assertTrue(loaded.any { it.word == "kingzcheung@gmail.com" })
     }
 
@@ -513,7 +310,7 @@ c	d
         PersonalDictManager.saveCustomPhrases(context, "wubi86", entries)
         val file = File(rimeDir, "custom_phrase_double.txt")
         assertTrue(file.exists())
-        val loaded = PersonalDictManager.parseStableDbEntries(file.readText(Charsets.UTF_8))
+        val loaded = DictionaryHelper.parseCodeTable(file.readText(Charsets.UTF_8))
         assertTrue(loaded.any { it.word == "test" })
     }
 
@@ -524,7 +321,7 @@ c	d
         PersonalDictManager.saveCustomPhrases(context, null, entries)
         val file = PersonalDictManager.getCustomPhraseFile(context)
         assertTrue(file.exists())
-        val loaded = PersonalDictManager.parseStableDbEntries(file.readText(Charsets.UTF_8))
+        val loaded = DictionaryHelper.parseCodeTable(file.readText(Charsets.UTF_8))
         assertTrue(loaded.any { it.word == "hello" })
     }
 

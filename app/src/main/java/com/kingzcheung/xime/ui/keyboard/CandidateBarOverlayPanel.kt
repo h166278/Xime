@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,6 +39,8 @@ fun CandidateBarOverlayPanel(
     onCloseClick: () -> Unit,
     title: String = "",
     titleColor: Color = closeButtonColor,
+    /** 标题旁的小圈 loading 指示（固定尺寸，不改变面板高度）。 */
+    titleLoading: Boolean = false,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -87,6 +90,15 @@ fun CandidateBarOverlayPanel(
                     color = titleColor,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
+                )
+            }
+
+            if (titleLoading) {
+                Spacer(modifier = Modifier.width(8.dp))
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = titleColor,
                 )
             }
         }

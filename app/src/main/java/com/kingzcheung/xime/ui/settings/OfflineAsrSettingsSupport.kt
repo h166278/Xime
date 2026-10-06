@@ -20,13 +20,13 @@ internal object OfflineAsrSettingsSupport {
     }
 
     @Composable
-    fun ModelSection() {
+    fun ModelSection(onNavigateToDownload: () -> Unit = {}) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            OfflineModelCard()
+            OfflineModelCard(onNavigateToDownload = onNavigateToDownload)
         }
     }
 }

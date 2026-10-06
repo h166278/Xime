@@ -260,7 +260,7 @@ T9 分支不受影响（见 5.5 边界）。
 - `service/ImeKeyRouter.kt`：`sendTransformedResult` 统一挂钩（字母/退格/词分隔/内联刷新路径）、`selectCandidateAsync` 按 actions 分流 + `commitPluginCandidate`（插件候选直接上屏）、数字选词拦截、全部候选状态清空点补 `candidateActions = emptyList()`
 - 测试：`CandidateTransformCoordinatorTest`（8 用例，buildDisplay 纯函数）
 
-**示例插件**：`plugins/quick-send-demo/`（manifest 声明 `candidate_transform: true`；Lua 前缀匹配快捷短语追加候选；`scripts/build-plugins.sh` 自动扫描打包，无需注册，不进 assets 预装）
+**示例插件**：`plugins/quick-phrase/`（常用语，manifest 声明 `candidate_transform: true`；前缀匹配快捷短语追加候选；`scripts/build-plugins.sh` 自动扫描打包，无需注册，不进 assets 预装）
 
 ## 7. 不做的事（明确排除）
 
