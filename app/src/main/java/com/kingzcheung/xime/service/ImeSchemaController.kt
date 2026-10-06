@@ -7,8 +7,7 @@ import android.view.KeyEvent
 import android.view.inputmethod.InputConnection
 import android.widget.Toast
 import com.kingzcheung.xime.MainActivity
-import com.kingzcheung.xime.ui.keyboard.FloatingCardGeometry
-import com.kingzcheung.xime.ui.keyboard.isHandwritingSchema
+import com.kingzcheung.xime.keyboard.HANDWRITING_SCHEMA_ID
 import com.kingzcheung.xime.settings.KeysConfigHelper
 import com.kingzcheung.xime.settings.SchemaConfigHelper
 import com.kingzcheung.xime.settings.SchemaManager
@@ -18,6 +17,7 @@ import com.kingzcheung.xime.ui.keyboard.KeyboardLayoutState
 import com.kingzcheung.xime.ui.theme.KeyboardThemes
 import com.kingzcheung.xime.util.FileLogger
 import java.io.File
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -36,11 +36,64 @@ internal fun shouldSkipWarmStartSchemaReselect(
  * 方案管理与输入模式切换。
  *
  * 承载方案切换（switchSchema/applyPageSizeSetting）、部署（reloadConfig/deploy/deploySchema/downloadSchema）、
- * 工具栏编辑动作、键盘高度与浮动模式调整。
- * 中英切换已收敛至 [AsciiModeController]。
+ * 中英切换（switchInputMethod）、工具栏编辑动作、键盘高度与浮动模式调整。
  * 共享状态通过 service 引用访问。
  */
 internal class ImeSchemaController(private val service: XimeInputMethodService) {
+    internal suspend fun switchInputMethod(): Boolean {
+        val candState = service.candidateState.value
+        val pendingEnglish = candState.pendingEnglishText
+        FileLogger.i(XimeInputMethodService.TAG, "switchInputMethod: start, pendingEnglish='${if (pendingEnglish.isEmpty()) '-' else pendingEnglish}', isComposing=${candState.isComposing}, candidates=${candState.candidates.size}")
+        if (pendingEnglish.isNotEmpty()) {
+            // 英文直接上屏模式：编码字符已逐字落盘，切模式只需结束本轮输入（清状态），
+            // 不可再 commitText 否则会重复输出整个词。
+            withContext(Dispatchers.Main) {
+                service.candidateState.value = service.candidateState.value.copy(
+                    pendingEnglishText = "",
+                    associationCandidates = emptyList()
+                )
+            }
+        } else if (candState.isComposing) {
+            if (candState.candidates.isNotEmpty()) {
+                service.keyRouter.selectCandidateAsync(0)
+            } else {
+                val input = candState.inputText
+                if (input.isNotEmpty()) {
+                    withContext(Dispatchers.Main) {
+                        service.commitText(input)
+                    }
+                    service.rimeEngine.clearComposition()
+                }
+            }
+        }
+        // 由 ImeKeyRouter 在 key-processing 线程调用：toggleAsciiMode 阻塞等待 rimeLock
+        // （部署/维护持锁时排队，完成后自动切换），不静默失败、不阻塞主线程。
+        // 仅在 session 创建失败（引擎真正不可用）时返回 false。
+        val t0 = System.nanoTime()
+        if (!service.rimeEngine.toggleAsciiMode()) {
+            FileLogger.e(XimeInputMethodService.TAG, "switchInputMethod: toggleAsciiMode FAILED (engine unavailable)")
+            Toast.makeText(service, "输入法引擎不可用，请稍后再试", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        FileLogger.i(XimeInputMethodService.TAG, "switchInputMethod: toggleAsciiMode ok, took ${(System.nanoTime() - t0) / 1_000_000}ms, rime ascii=${service.rimeEngine.isAsciiMode()}, thread=${Thread.currentThread().name}")
+        service.sessionController.persistSchemaOption("ascii_mode", service.rimeEngine.isAsciiMode())
+        withContext(Dispatchers.Main) {
+            // 显式同步 uiState.isAsciiMode（权威源 = rime 引擎状态），
+            // 不依赖 updateUI 链路异步回写，避免键盘 UI 与 rime 状态脱钩。
+            val ascii = service.rimeEngine.isAsciiMode()
+            FileLogger.i(XimeInputMethodService.TAG, "switchInputMethod: rime ascii=$ascii, ui before=${service.uiState.value.isAsciiMode}")
+            service.uiState.value = service.uiState.value.copy(isAsciiMode = ascii)
+            service.updateUI()
+            // 主线程直接权威下发键盘布局切换（与 rime 状态一致），
+            // 不依赖 Compose LaunchedEffect 侦测 uiState 后再异步 dispatch（部分机型调度延迟导致 UI 不更新）。
+            val schemaId = service.rimeEngine.getCurrentSchema()
+            service.keyboardViewModel.dispatch(
+                com.kingzcheung.xime.ui.keyboard.KeyboardDispatchAction.AsciiModeChanged(ascii, schemaId)
+            )
+        }
+        return true
+    }
+    
     internal fun reloadConfig() {
         
         service.mainHandler.post {
@@ -81,7 +134,7 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
                     applyPageSizeSetting(savedSchema)
                     service.rimeEngine.switchSchema(savedSchema)
                 } else {
-                    FileLogger.w(XimeInputMethodService.TAG, "Schema $savedSchema not found in available schemas")
+                    Log.w(XimeInputMethodService.TAG, "Schema $savedSchema not found in available schemas")
                 }
                 
                 // 直接在 key-processing 线程同步读取 name，避免嵌套协程的时序问题
@@ -99,7 +152,7 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
                     android.widget.Toast.makeText(service, "方案部署完成", android.widget.Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                FileLogger.e(XimeInputMethodService.TAG, "Failed to reload config", e)
+                Log.e(XimeInputMethodService.TAG, "Failed to reload config", e)
             }
         }
     }
@@ -120,7 +173,7 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
             )
             service.updateUI()
         } catch (e: Exception) {
-            FileLogger.e(XimeInputMethodService.TAG, "Failed to deploy schema", e)
+            Log.e(XimeInputMethodService.TAG, "Failed to deploy schema", e)
         }
     }
     
@@ -130,7 +183,7 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             service.startActivity(intent)
         } catch (e: Exception) {
-            FileLogger.e(XimeInputMethodService.TAG, "Failed to open settings", e)
+            Log.e(XimeInputMethodService.TAG, "Failed to open settings", e)
         }
     }
     
@@ -235,10 +288,10 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
     }
 
     internal fun switchSchema(schemaId: String) {
-        if (isHandwritingSchema(schemaId)) {
+        if (schemaId == HANDWRITING_SCHEMA_ID) {
             // 检查手写模型文件是否已下载
             if (!com.kingzcheung.xime.handwriting.HandwritingEngine.hasModel(service)) {
-                FileLogger.w(XimeInputMethodService.TAG, "Handwriting model not found, redirecting to download")
+                Log.w(XimeInputMethodService.TAG, "Handwriting model not found, redirecting to download")
                 android.widget.Toast.makeText(
                     service, "请先下载手写模型", android.widget.Toast.LENGTH_LONG
                 ).show()
@@ -271,7 +324,7 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
             // 此时不应继续触发其他 native 调用进入编译中的引擎
             if (!service.rimeEngine.switchSchema(schemaId)) {
                 if (service.rimeEngine.isMaintaining()) {
-                    FileLogger.w(XimeInputMethodService.TAG, "switchSchema skipped: deployment in progress")
+                    Log.w(XimeInputMethodService.TAG, "switchSchema skipped: deployment in progress")
                     Toast.makeText(service, "词库部署中，请稍后再切换方案", Toast.LENGTH_SHORT).show()
                     return
                 }
@@ -284,7 +337,7 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
                 if (actual.isNotEmpty()) {
                     SettingsPreferences.setCurrentSchema(service, actual)
                 }
-                FileLogger.w(XimeInputMethodService.TAG, "switchSchema failed: target=$schemaId actual=$actual")
+                Log.w(XimeInputMethodService.TAG, "switchSchema failed: target=$schemaId actual=$actual")
                 Toast.makeText(service, "方案未部署，请在方案管理中部署后再试", Toast.LENGTH_SHORT).show()
                 return
             }
@@ -301,7 +354,7 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
             )
             Toast.makeText(service, "已切换输入方案", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            FileLogger.e(XimeInputMethodService.TAG, "Failed to switch schema", e)
+            Log.e(XimeInputMethodService.TAG, "Failed to switch schema", e)
         }
     }
     
@@ -353,16 +406,15 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
         val isLandscape = service.resources.configuration.screenWidthDp > service.resources.configuration.screenHeightDp
         SettingsPreferences.setKeyboardHeightDp(service, heightDp, isLandscape)
         service.uiState.value = service.uiState.value.copy(keyboardHeightDp = heightDp)
-        // 不弹 Toast：调节界面本身就是实时预览，确定时键盘已经变成目标高度，
-        // 再提示"键盘高度已调整"是多余噪音
+        Toast.makeText(service, "键盘高度已调整", Toast.LENGTH_SHORT).show()
     }
 
-    internal fun toggleFloatingMode(enabled: Boolean, floatingMinY: Int = 0) {
-        // 任何路径切悬浮都清掉拖动提示态（正常由拖动松手消费，这里兜底防光效残留）
-        service.floatingExitHintState.value = false
+    internal fun toggleFloatingMode(enabled: Boolean, navBarDp: Int = 0) {
         val isLandscape = service.resources.configuration.screenWidthDp > service.resources.configuration.screenHeightDp
         SettingsPreferences.setFloatingMode(service, enabled, isLandscape)
+        SettingsPreferences.setFloatingMode(service, enabled, !isLandscape)
         val loadedX = SettingsPreferences.getFloatingOffsetX(service, isLandscape)
+        val loadedY = SettingsPreferences.getFloatingOffsetY(service, isLandscape)
         val screenW = service.resources.configuration.screenWidthDp
         val screenH = service.resources.configuration.screenHeightDp
         val portraitWidth = minOf(screenW, screenH)
@@ -378,15 +430,11 @@ internal class ImeSchemaController(private val service: XimeInputMethodService) 
         service.uiState.value = service.uiState.value.copy(
             isFloatingMode = enabled,
             floatingOffsetX = clampedX,
-            // 开启悬浮归位到"拖动可达的最低点"：拖动钳制下界是 floatingMinY（导航栏高），
-            // 归位到 0 会停在拖动到不了的位置（表现为比可达范围偏下一截）
-            floatingOffsetY = if (enabled) floatingMinY else 0,
+            floatingOffsetY = 0,
         )
         if (enabled) {
             service.closeToolPanel()
-            // 清掉上一轮的实测矩形：新卡片矩形未建立前，触摸区/钳制走 FloatingCardGeometry 兜底
-            service.floatingCardBounds = null
-            service.currentFloatingCardHeightDp = 0
+            service.currentEffectiveKeyboardHeight = cappedKbH + 18 + 50 + service.uiState.value.keyboardBottomPaddingDp
         }
         service.applyWindowBackground()
     }

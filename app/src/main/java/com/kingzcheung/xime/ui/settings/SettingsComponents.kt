@@ -3,7 +3,6 @@ package com.kingzcheung.xime.ui.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,9 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
@@ -86,9 +83,7 @@ fun SettingsItem(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
-    showArrow: Boolean = false,
-    /** 行尾更新角标文案（如 "2 项可更新"）：非空时以高亮胶囊展示，优先于箭头前。 */
-    badgeText: String? = null
+    showArrow: Boolean = false
 ) {
     Row(
         modifier = Modifier
@@ -124,20 +119,6 @@ fun SettingsItem(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-        if (badgeText != null) {
-            Spacer(modifier = Modifier.width(8.dp))
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.errorContainer
-            ) {
-                Text(
-                    text = badgeText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                )
-            }
         }
         if (showArrow) {
             Icon(
@@ -213,109 +194,6 @@ fun SettingsToggleItem(
             )
         )
     }
-}
-
-/**
- * 单选列表项（Material 3 单选语义）。
- *
- * 用于"多个插件里挑一个生效"这类设置：右侧是 [RadioButton] 而不是 Switch——Switch 表达
- * 的是"开/关某样东西"，拨动即切换插件会让用户误以为是开关（此前剪贴板同步/备份页就是这样）。
- * 整行是点击目标（`selectable` + role=RadioButton），RadioButton 自身 onClick 置 null，
- * 避免出现两个语义重叠的可点击区域（TalkBack 只报一个单选节点）。
- *
- * `icon` 可为 null（对话框里的紧凑列表用不上图标时省略，避免一排重复图标）：
- * 插件各自的图标请用 `PluginIconView` 渲染，而不是这里的 ImageVector。
- */
-@Composable
-fun SettingsRadioItem(
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    onSelect: () -> Unit,
-    icon: ImageVector? = null,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (icon != null) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                color = if (selected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        RadioButton(selected = selected, onClick = null)
-    }
-}
-
-/** 单选弹窗的一项（[SettingsSingleChoiceDialog]）。 */
-data class SettingsChoiceOption(
-    val id: String,
-    val title: String,
-    val subtitle: String = "",
-)
-
-/**
- * 单选弹窗：把"多个服务/插件里挑一个"从页面列表收进弹窗——页面长度不随候选数量增长。
- *
- * 点某项即回调并关闭（不设确认按钮，与 RadioButton 语义一致）；候选多时内容可滚动。
- */
-@Composable
-fun SettingsSingleChoiceDialog(
-    title: String,
-    options: List<SettingsChoiceOption>,
-    selectedId: String?,
-    onSelect: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                options.forEach { option ->
-                    SettingsRadioItem(
-                        title = option.title,
-                        subtitle = option.subtitle,
-                        selected = option.id == selectedId,
-                        onSelect = { onSelect(option.id) }
-                    )
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        }
-    )
 }
 
 @Composable

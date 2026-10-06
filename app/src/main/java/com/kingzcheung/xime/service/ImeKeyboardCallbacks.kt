@@ -4,13 +4,10 @@ import android.view.KeyEvent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalView
-import com.kingzcheung.xime.keyboard.KeyActionContext
-import com.kingzcheung.xime.keyboard.KeyActionRegistry
 import com.kingzcheung.xime.keyboard.OverlayRoute
 import com.kingzcheung.xime.rime.T9InputController
 import com.kingzcheung.xime.rime.RimeProcessResult
 import com.kingzcheung.xime.settings.SettingsPreferences
-import com.kingzcheung.xime.ui.keyboard.FloatingCardGeometry
 import com.kingzcheung.xime.ui.keyboard.KeyboardCallbacks
 import com.kingzcheung.xime.ui.keyboard.isT9Schema
 import com.kingzcheung.xime.util.FileLogger
@@ -24,14 +21,15 @@ import kotlinx.coroutines.withContext
  * 构建键盘回调集合（KeyboardCallbacks）。
  *
  * 所有回调直接操作服务层状态与方法；service 内部成员对同模块可见（internal）。
- * 仅当 [floatingMinY] 变化时重建；回调体内一律读 [XimeInputMethodService.uiState]
- * 现值——此前闭包捕获组合期的 state/effectiveScreenH，remember 只以 floatingMinY
- * 为 key，回调会拿着首组过期值工作（如悬浮拖动用了过期的屏幕高与模式开关）。
+ * 与原始实现在 onCreateInputView 内联构建的行为完全一致：
+ * 仅当 [floatingMinY] 变化时重建（remember key 与原实现相同）。
  */
 @Composable
 internal fun rememberImeKeyboardCallbacks(
     service: XimeInputMethodService,
     floatingMinY: Int,
+    state: InputUIState,
+    effectiveScreenH: Int,
 ): KeyboardCallbacks {
     val view = LocalView.current
     return remember(floatingMinY) {
@@ -40,11 +38,6 @@ internal fun rememberImeKeyboardCallbacks(
                 service.keyRouter.handleKeyPress(key, isShifted)
             },
             onKeyPressDown = { key ->
-                // 删除键按下：开一次删除会话快照（下滑撤回删除用），必须在首次退格
-                // 派发之前（同一主线程回调内同步完成），否则首个被删字符漏记。
-                // 会话结算见 XimeInputMethodService.finishDeleteSession：由撤回请求或
-                // 其它按键触发，不在抬手上结算（抬手时退格 job 可能还在队列里没落盘）。
-                if (key == "delete") service.beginDeleteSession()
                 service.feedbackManager.performKeyPressDownEffect(key, view)
             },
             onKeyRelease = { key ->
@@ -119,7 +112,6 @@ internal fun rememberImeKeyboardCallbacks(
             onToggleDarkMode = { service.toggleDarkMode() },
             onClipboard = {},
             onClipboardSelect = { text -> service.textCommit.selectClipboardItem(text) },
-            onClipboardImageSelect = { item -> service.textCommit.selectClipboardImage(item) },
             onClipboardPullRemote = { service.clipboardSyncBridge?.pullOnce() },
             onCommitText = { text -> service.textCommit.commitClipboardText(text) },
             onDeleteText = { count -> service.textCommit.deleteClipboardChars(count) },
@@ -138,11 +130,10 @@ internal fun rememberImeKeyboardCallbacks(
             onKeyboardResize = {
                 val config = service.resources.configuration
                 val isLandscape = config.screenWidthDp > config.screenHeightDp
+                val currentHeight = SettingsPreferences.getKeyboardHeightDp(service, isLandscape)
                 service.uiState.value = service.uiState.value.copy(
                     showKeyboardResize = true,
-                    resizePreviewHeightDp = SettingsPreferences.getKeyboardHeightDp(service, isLandscape),
-                    resizePreviewMarginStartDp = SettingsPreferences.getKeyboardMarginStartDp(service),
-                    resizePreviewMarginEndDp = SettingsPreferences.getKeyboardMarginEndDp(service),
+                    resizePreviewHeightDp = currentHeight,
                 )
             },
             onReloadConfig = { service.schemaController.reloadConfig() },
@@ -169,13 +160,7 @@ internal fun rememberImeKeyboardCallbacks(
             },
             onVoiceModeChange = { enabled ->
                 if (!enabled) {
-                    // 长按抬手/常驻语音轻触空格或点按候选栏频谱：结束语音会话
-                    // （提交当前已识别文本并停止识别）。
-                    // 常驻语音下补一次震动反馈——轻触空格没有任何按键事件，
-                    // 不补就完全没有触感（与进入语音时的 performVibration 对称）。
-                    if (service.uiState.value.voiceSticky) {
-                        service.feedbackManager.performVibration()
-                    }
+                    // 长按抬手：结束语音会话（提交当前已识别文本并停止识别）
                     service.endVoiceSession()
                 } else if (!service.uiState.value.isVoiceMode) {
                     service.uiState.value = service.uiState.value.copy(
@@ -215,13 +200,6 @@ internal fun rememberImeKeyboardCallbacks(
             },
             onPageDown = { service.keyRouter.pageDown() },
             onPageUp = { service.keyRouter.pageUp() },
-            onGlobalCandidateSelect = { globalIndex ->
-                service.keyRouter.selectCandidateGlobal(globalIndex)
-            },
-            onGlobalCandidateDelete = { globalIndex ->
-                service.keyRouter.deleteCandidateGlobal(globalIndex)
-            },
-            onRequestExpandedCandidates = { service.refreshExpandedCandidates() },
             onCursorMove = { direction ->
                 val cand = service.candidateState.value
                 val composing = cand.isComposing || cand.inputText.isNotEmpty()
@@ -238,7 +216,7 @@ internal fun rememberImeKeyboardCallbacks(
                 moveEditorCursor(service, direction)
             },
             onGestureAction = { action, value ->
-                KeyActionRegistry.execute(action, KeyActionContext(service), value)
+                action.execute(service, value)
             },
             onUpdateToolbarButtons = { buttons ->
                 SettingsPreferences.setToolbarButtons(service, buttons)
@@ -248,7 +226,6 @@ internal fun rememberImeKeyboardCallbacks(
             onToolPanelClose = { service.closeToolPanel() },
             onToolPanelItemClick = { item -> service.commitToolPanelItem(item.text) },
             onToolPanelAction = { actionId -> service.dispatchToolPanelAction(actionId) },
-            onToolPanelFieldInput = { key, value -> service.onToolPanelFieldInput(key, value) },
             onToolPanelFocusChange = { focused ->
                 service.uiState.value = service.uiState.value.copy(
                     toolPanelInputFocused = focused,
@@ -266,63 +243,26 @@ internal fun rememberImeKeyboardCallbacks(
             onFloatingModeChange = { enabled -> service.schemaController.toggleFloatingMode(enabled, floatingMinY) },
             onFloatingKeyboardDrag = { dx, dy ->
                 val s = service.uiState.value
-                val config = service.resources.configuration
-                val screenW = config.screenWidthDp
-                val portraitWidth = minOf(screenW, config.screenHeightDp)
-                val halfMargin = FloatingCardGeometry.halfMarginDp(screenW, portraitWidth)
-                // dx/dy 为原始屏幕位移（+x 右、+y 下）：x 直接累加，y 与 offsetY
-                // 方向相反（offsetY = 卡片离底边的距离，上拖 dy<0 → 卡片上移）
+                val screenW = service.resources.configuration.screenWidthDp
+                val screenH = if (state.isFloatingMode) effectiveScreenH else service.resources.configuration.screenHeightDp
+                val portraitWidth = minOf(screenW, screenH)
+                val cardWidth = (portraitWidth * 0.85f).roundToInt()
+                val halfMargin = ((screenW - cardWidth) / 2f).roundToInt()
                 val newX = (s.floatingOffsetX + dx).roundToInt().coerceIn(-halfMargin, halfMargin)
-                // 卡高以实测（onCardPositioned）为唯一真源，首帧实测前走几何兜底
-                val cardHeightDp = if (service.currentFloatingCardHeightDp > 0) {
-                    service.currentFloatingCardHeightDp
-                } else {
-                    FloatingCardGeometry.fallbackCardHeightDp(
-                        SettingsPreferences.getKeyboardHeightDp(service, false)
-                            .coerceAtMost((config.screenHeightDp * 8) / 10),
-                        s.keyboardBottomPaddingDp,
-                    )
-                }
-                // 悬浮卡片恒为竖屏形态：有效屏高 = 物理高 - 状态栏（与 setContent 一致）
-                val screenH = if (s.isFloatingMode) {
-                    val metrics = service.resources.displayMetrics
-                    (metrics.heightPixels / metrics.density).roundToInt() -
-                        tryGetStatusBarHeightDp(service, service.window.window)
-                } else {
-                    config.screenHeightDp
-                }
-                val rawY = (s.floatingOffsetY - dy).roundToInt()
-                val newY = FloatingCardGeometry.clampOffsetY(
-                    rawY,
-                    minY = floatingMinY,
-                    screenHeightDp = screenH,
-                    cardHeightDp = cardHeightDp,
-                )
-                // 试图越过最低点（继续下拖）= 进入"松手切换非悬浮"提示态：边沿触发
-                // 震动一次（不逐帧），同时点亮底部光效；拖离底部即退出提示态
-                val atExitHint = rawY <= floatingMinY
-                if (atExitHint != service.floatingExitHintState.value) {
-                    service.floatingExitHintState.value = atExitHint
-                    if (atExitHint) {
-                        service.feedbackManager.performVibration()
-                    }
-                }
+                val newY_raw = (s.floatingOffsetY + dy).roundToInt()
+                val actualCardH = if (service.currentFloatingCardHeightDp > 0) service.currentFloatingCardHeightDp else service.currentEffectiveKeyboardHeight
+                val maxOffsetY = (screenH - actualCardH).coerceAtLeast(floatingMinY)
+                val newY = newY_raw.coerceIn(0, maxOffsetY)
                 service.uiState.value = s.copy(
                     floatingOffsetX = newX,
                     floatingOffsetY = newY,
                 )
             },
             onFloatingKeyboardDragEnd = {
-                if (service.floatingExitHintState.value) {
-                    // 底部松手：切换为非悬浮（停靠），位置语义与菜单开关同一条出口
-                    service.floatingExitHintState.value = false
-                    service.schemaController.toggleFloatingMode(false)
-                } else {
-                    val s = service.uiState.value
-                    val isLandscape = service.resources.configuration.screenWidthDp > service.resources.configuration.screenHeightDp
-                    SettingsPreferences.setFloatingOffsetX(service, s.floatingOffsetX, isLandscape)
-                    SettingsPreferences.setFloatingOffsetY(service, s.floatingOffsetY, isLandscape)
-                }
+                val s = service.uiState.value
+                val isLandscape = service.resources.configuration.screenWidthDp > service.resources.configuration.screenHeightDp
+                SettingsPreferences.setFloatingOffsetX(service, s.floatingOffsetX, isLandscape)
+                SettingsPreferences.setFloatingOffsetY(service, s.floatingOffsetY, isLandscape)
             },
             onT9ReplaceFullPinyin = { pinyin ->
                 service.serviceScope.launch(service.keyProcessingDispatcher) {
