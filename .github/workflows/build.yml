@@ -80,6 +80,26 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Set up Rust (xime-plugin CLI)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            tools/xime-plugin/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('tools/xime-plugin/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      - name: Build Plugins (TS → JS)
+        run: |
+          cd tools/xime-plugin
+          cargo run --quiet -- build --all --plugins-dir ../../plugins --out ../../build/plugin-js
+          cargo run --quiet -- build test-fixture --out ../../build/plugin-js
+
       - name: Run Unit Tests
         run: ./gradlew :app:testDebugUnitTest :plugin-core:testDebugUnitTest --no-daemon
 
