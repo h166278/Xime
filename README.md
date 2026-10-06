@@ -17,6 +17,22 @@
 
 An Android input method built on the [Rime](https://rime.im/) engine, designed for efficient Chinese text input with Wubi (五笔) and Pinyin support.
 
+## h166278 Custom Changes
+
+This repository is based on upstream Xime `v2.8.0` and keeps the following custom changes while tracking upstream `v3.0.0`:
+
+- **46-key keyboard layout**: added a dedicated 46-key layout with landscape support, custom bottom row, number row, key sizing, key hints, and schema-specific layouts.
+- **Swipe and long-press actions**: cursor movement, temporary English mode, case switching, copy/paste, undo/redo, page switching, schema switching, layout selection, and number-row actions.
+- **Punctuation input**: added 46-key punctuation and symbol mappings for slash, comma, period, semicolon, quotes, brackets, multiplication/division, ellipsis, dash, underscore, middle dots, and schema-specific multi-code input.
+- **Input preview and commit handling**: improved composing preview, top-function commit handling, stale key suppression, host-send interception, delayed callback handling, and input-box synchronization.
+- **Undo and delete sessions**: added commit-stack based undo/redo, clear-and-undo, delete-session grouping, cursor-anchor validation, and T9 partial-commit recovery.
+- **Encoding editing**: supports inserting and deleting letters inside an active code string while rebuilding Rime composition and candidates.
+- **Candidate display**: added candidate code display, annotation styles, side annotations, stacked annotations, and preview-card rendering.
+- **Rime and schema behavior**: improved schema switching, ASCII/Chinese mode handling, reverse lookup, code-length handling, warm-start schema selection, and word-buffer cleanup.
+- **Paste-aware typing statistics**: marks paste commits separately so typing statistics do not count pasted text as normal typing; the logic is migrated to the upstream v3 JavaScript/TypeScript plugin system.
+
+The upstream project is preserved as the base. Changes that do not overlap with these customizations are merged from upstream. See the [`改动/`](改动/) directory for the archived custom files and diffs.
+
 ---
 
 > This input method supports both Wubi (五笔) and Pinyin input. The author primarily uses Wubi with Pinyin as a fallback, so resources lean toward Wubi.
